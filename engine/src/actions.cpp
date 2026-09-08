@@ -133,10 +133,19 @@ void Game::damage_monster(Monster& m, int amount, const Text& source) {
             message(format(Text{"Страж этажа повержен. ({})", "The floor's guardian is slain. ({})"},
                            source),
                     Severity::System);
-            if (std::strcmp(beasts[si].key, "koschei") == 0) {
+            if (std::strcmp(beasts[si].key, "koschei") == 0)
+                message(Text{"Игла сломана. Кощей рассыпается прахом.",
+                             "The needle snaps, and Koschei crumbles to dust."},
+                        Severity::Critical);
+
+            // The run ends when the dungeon's own last guardian falls — asked
+            // for by depth, not named. Naming one was true for exactly as long
+            // as he was the last thing down there (NAV-013).
+            const char* last = boss_for_depth(kMaxDepth);
+            if (last && std::strcmp(beasts[si].key, last) == 0) {
                 state_ = RunState::Ascended;
-                message(Text{"Игла сломана. Кощей рассыпается прахом — Навь отпускает тебя.",
-                             "The needle snaps. Koschei crumbles to dust, and Nav lets you go."},
+                message(Text{"Последняя голова падает. Навь отпускает тебя.",
+                             "The last head falls, and Nav lets you go."},
                         Severity::Critical);
                 message(format(Text{"Победа! Очков: {}.", "Victory! Score: {}."}, num(score())),
                         Severity::System);
@@ -328,6 +337,22 @@ bool Game::act_pick_up() {
     }
 
     Item it = level().items[static_cast<std::size_t>(index)];
+
+    // The needle never goes into the pack. It used to, and a hero who arrived
+    // on Кощей's floor with twenty things already in hand simply could not pick
+    // it up — which made him unkillable, with nothing on screen to say why
+    // (NAV-012). There is no reason to carry it, so taking it is breaking it.
+    if (it.kind == ItemKind::Needle) {
+        auto& floor = mutable_level().items;
+        floor.erase(floor.begin() + index);
+        needle_broken_ = true;
+        message(Text{"Ты поднимаешь иглу и ломаешь её. Где-то далеко Кощей чувствует это.",
+                     "You take up the needle and snap it. Somewhere far off, Koschei feels it."},
+                Severity::Critical);
+        hero_.a.energy -= kEnergyPerTurn;
+        return true;
+    }
+
     if (it.kind == ItemKind::Gold) {
         // Гривна: gold finds its way to whoever is already wearing some.
         if (hero_has(GpRichGold)) it.count += it.count / 3 + 1;

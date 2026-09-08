@@ -375,6 +375,21 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 .help-grid span { color: var(--ink-dim); }
 .legend { font-family: var(--mono); font-size: 12.5px; color: var(--ink-dim); line-height: 1.9; }
 
+.board { font-family: var(--mono); font-size: 12.5px; }
+.board .row {
+  display: grid;
+  grid-template-columns: 22px 62px 58px 84px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 6px;
+  border-bottom: 1px solid #262019;
+  color: var(--ink-dim);
+}
+.board .row.mine { color: var(--gold); background: #2a2318; border-radius: 3px; }
+.board .pos { color: var(--ink-faint); text-align: right; }
+.board .sc { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.board .sd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .beast { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid #262019; }
 .beast .g { font-family: var(--mono); font-weight: 700; width: 16px; text-align: center; }
 .beast .b { flex: 1; }
@@ -439,6 +454,20 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   .actionbar { gap: 5px; padding: 7px 8px calc(7px + env(safe-area-inset-bottom)); }
   .actionbar button { padding: 6px 9px; font-size: 12.5px; }
   .actionbar kbd { display: none; }
+  /* The boss bar has three things in one line and a phone has no room to
+     spare: the name gives way first, and the track keeps a floor so it can
+     never be squeezed out of existence by a long one. */
+  .bossbar { gap: 7px; padding: 5px 10px; font-size: 11.5px; }
+  .bossbar .who { overflow: hidden; text-overflow: ellipsis; }
+  .bossbar .track { min-width: 48px; }
+  /* The score board keeps all five columns on a phone — the fixed ones just
+     get thinner, so a long seed still has somewhere to go. */
+  .board { font-size: 11.5px; }
+  .board .row {
+    grid-template-columns: 18px 50px 46px 68px 1fr;
+    gap: 6px;
+    padding: 5px 4px;
+  }
 }
 
 @media (pointer: coarse) {
@@ -482,6 +511,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       <button class="primary" id="btnStart">Спуститься</button>
       <button id="btnContinue" class="hidden">Продолжить</button>
       <button id="btnHelpTitle">Как играть</button>
+      <button id="btnBoardTitle">Рекорды</button>
       <button id="btnBestiaryTitle">Бестиарий</button>
       <button id="btnLang">English</button>
     </div>
@@ -614,6 +644,9 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       legendTitle: 'Знаки',
       bestTitle: 'Бестиарий', bestSub: 'Кто живёт в Нави и на какой глубине.',
       bossTag: 'страж', depthTag: 'гл.',
+      boardTitle: 'Лучшие спуски', boardSub: 'Десять лучших партий в этом браузере.',
+      boardEmpty: 'Пока никто не спускался.', boardBtn: 'Рекорды',
+      wonTag: 'победа', best: 'Лучший спуск.', placed: 'В таблице: место ',
       keys: [
         ['hjkl yubn / стрелки / цифры', 'идти; шаг в тварь — удар'],
         ['. или 5', 'переждать ход'],
@@ -661,6 +694,9 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       legendTitle: 'Glyphs',
       bestTitle: 'Bestiary', bestSub: 'What lives in Nav, and how deep.',
       bossTag: 'guardian', depthTag: 'depth',
+      boardTitle: 'Best descents', boardSub: 'The ten best runs in this browser.',
+      boardEmpty: 'Nobody has gone down yet.', boardBtn: 'Scores',
+      wonTag: 'won', best: 'Your best descent yet.', placed: 'On the board: place ',
       keys: [
         ['hjkl yubn / arrows / numpad', 'move; step into a creature to attack'],
         ['. or 5', 'wait a turn'],
@@ -694,6 +730,33 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   var aiming = null;      // { spellId, targets, index }
   var cell = { w: 0, h: 0, size: 0 };
   var SAVE_KEY = 'nav.save.v1';
+  var SCORES_KEY = 'nav.scores.v1';
+
+  function loadScoreBlob() {
+    try { return localStorage.getItem(SCORES_KEY) || ''; } catch (e) { return ''; }
+  }
+  function storeScoreBlob(blob) {
+    try { localStorage.setItem(SCORES_KEY, blob); } catch (e) { /* private mode */ }
+  }
+
+  /// The board, as rows. `highlight` marks the run just finished, or -1.
+  function scoreTableHtml(rows, highlight) {
+    if (!rows.length)
+      return '<p class="sub">' + t('boardEmpty') + '</p>';
+    var out = '<div class="board">';
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      out += '<div class="row' + (i === highlight ? ' mine' : '') + '">' +
+             '<span class="pos">' + (i + 1) + '</span>' +
+             '<span class="sc">' + r.score + '</span>' +
+             '<span class="dp">' + t('depthTag') + ' ' + r.deepest + '</span>' +
+             '<span class="cl">' + esc(r.className) + '</span>' +
+             '<span class="sd">' + (r.won ? '<b>' + t('wonTag') + '</b> ' : '') +
+             (r.seedText ? esc(r.seedText) : '') + '</span>' +
+             '</div>';
+    }
+    return out + '</div>';
+  }
 
   // ------------------------------------------------------------- wasm glue --
   function makeApi(m) {
@@ -717,6 +780,16 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       save: function () { return readString(m._nav_save()); },
       load: function (blob) {
         return m.ccall('nav_load', 'number', ['string'], [blob]) === 1;
+      },
+      // Scoring, ordering and the storage format all live in the engine, so a
+      // run recorded here sorts exactly as one recorded in the terminal build.
+      recordScore: function (blob) {
+        return JSON.parse(readString(
+          m.ccall('nav_record_score', 'number', ['string'], [blob || ''])));
+      },
+      scoreTable: function (blob) {
+        return JSON.parse(readString(
+          m.ccall('nav_score_table', 'number', ['string'], [blob || ''])));
       }
     };
   }
@@ -1231,6 +1304,15 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       function (overlay) { overlay.querySelector('#mClose').addEventListener('click', closeModal); });
   }
 
+  function showBoard() {
+    var rows = Api ? Api.scoreTable(loadScoreBlob()) : [];
+    openModal(
+      '<h2>' + t('boardTitle') + '</h2><p class="sub">' + t('boardSub') + '</p>' +
+      scoreTableHtml(rows, -1) +
+      '<div style="margin-top:14px"><button id="mClose">' + t('close') + '</button></div>',
+      function (overlay) { overlay.querySelector('#mClose').addEventListener('click', closeModal); });
+  }
+
   function showBestiary() {
     var rows = statics.bestiary.map(function (b) {
       return '<div class="beast">' + creatureIcon(b) +
@@ -1250,6 +1332,15 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     if (endingShown) return;
     endingShown = true;
     var won = state.state === 2;
+
+    // The run joins the board before the screen is drawn, so the ending can say
+    // where it landed rather than only what it scored. Ordering and the storage
+    // format come from the engine, so a run here sorts the same as one played
+    // in the terminal.
+    var board = {place: -1, rows: [], blob: ''};
+    try { board = Api.recordScore(loadScoreBlob()); } catch (e) { /* keep going */ }
+    if (board.blob) storeScoreBlob(board.blob);
+
     openModal(
       '<h2 class="end-title ' + (won ? 'end-win' : 'end-lose') + '">' +
       (won ? t('won') : t('lost')) + '</h2>' +
@@ -1261,6 +1352,10 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       t('finalTurns') + ': <b>' + state.turn + '</b>' +
       (state.seedText ? '<br>seed: <b>' + esc(state.seedText) + '</b>' : '') +
       '</div>' +
+      (board.place === 0 ? '<p class="sub" style="color:var(--gold)">' + t('best') + '</p>'
+       : board.place > 0 ? '<p class="sub">' + t('placed') + (board.place + 1) + '</p>' : '') +
+      scoreTableHtml(board.rows || [], board.place) +
+      '<div style="height:14px"></div>' +
       '<button class="primary" id="mAgain">' + t('again') + '</button> ' +
       '<button id="mTitle">' + t('toTitle') + '</button>',
       function (overlay) {
@@ -1399,6 +1494,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('btnContinue').textContent = t('cont');
     $('btnHelpTitle').textContent = t('help');
     $('btnBestiaryTitle').textContent = t('bestiary');
+    $('btnBoardTitle').textContent = t('boardBtn');
     $('btnLang').textContent = t('otherLang');
 
     $('topBrand').textContent = t('brand');
@@ -1524,6 +1620,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   });
   $('btnHelpTitle').addEventListener('click', showHelp);
   $('btnBestiaryTitle').addEventListener('click', showBestiary);
+  $('btnBoardTitle').addEventListener('click', showBoard);
   $('btnLang').addEventListener('click', function () {
     LANG = LANG === 'ru' ? 'en' : 'ru';
     applyLanguage();

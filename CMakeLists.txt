@@ -26,6 +26,7 @@ add_library(nav_engine
   engine/src/actions.cpp
   engine/src/ai.cpp
   engine/src/save.cpp
+  engine/src/score.cpp
 )
 target_include_directories(nav_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/engine/include)
 
@@ -50,7 +51,7 @@ endif()
 # Terminal frontend (not built for the WebAssembly target)
 # ---------------------------------------------------------------------------
 if(NAV_BUILD_TERMINAL AND NOT EMSCRIPTEN)
-  add_executable(nav frontend/terminal/main.cpp)
+  add_executable(nav frontend/terminal/main.cpp frontend/terminal/bot.cpp)
   target_link_libraries(nav PRIVATE nav_engine)
   if(MSVC)
     target_compile_options(nav PRIVATE /utf-8)
@@ -70,7 +71,7 @@ if(EMSCRIPTEN)
     "-sSINGLE_FILE=1"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8']"
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_nav_new_game','_nav_perform','_nav_set_language','_nav_state_json','_nav_static_json','_nav_save','_nav_load','_nav_free_cstr','_nav_version']"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_nav_new_game','_nav_perform','_nav_set_language','_nav_state_json','_nav_static_json','_nav_save','_nav_load','_nav_record_score','_nav_score_table','_nav_free_cstr','_nav_version']"
     "-sENVIRONMENT=web,worker,node"
     "-O3"
   )

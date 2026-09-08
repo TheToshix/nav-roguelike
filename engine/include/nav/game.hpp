@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -77,6 +78,11 @@ public:
     // --- Queries ----------------------------------------------------------
     const Map& map() const { return level().map; }
     const Level& level() const { return levels_[static_cast<std::size_t>(depth_)]; }
+    /// Any floor the run has been to, by depth. Floors are kept in memory, so
+    /// this is how a harness asks what became of a guardian two belts up.
+    const Level& level_at(int depth) const {
+        return levels_[static_cast<std::size_t>(std::clamp(depth, kLobbyDepth, kMaxDepth))];
+    }
     const Hero& hero() const { return hero_; }
     const std::vector<Monster>& monsters() const { return level().monsters; }
     const std::vector<Item>& floor_items() const { return level().items; }

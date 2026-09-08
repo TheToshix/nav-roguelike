@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "nav/game.hpp"
+#include "nav/score.hpp"
 
 #ifdef __EMSCRIPTEN__
 #  include <emscripten/emscripten.h>
@@ -487,6 +488,68 @@ EMSCRIPTEN_KEEPALIVE char* nav_static_json() {
         out += "}";
     }
     out += "]}";
+    return to_c_string(out);
+}
+
+/// Adds the finished run to `blob` and hands the table back as JSON.
+///
+/// The page keeps the table in the browser's own storage but never parses or
+/// orders it: both frontends go through the same engine code, so a run scored
+/// in the terminal and one scored in a browser sit in the same order by the
+/// same rules. `place` is where this run landed, or -1.
+EMSCRIPTEN_KEEPALIVE char* nav_record_score(const char* blob) {
+    using namespace nav;
+    std::vector<ScoreEntry> table;
+    if (blob) parse_scores(blob, table);
+    const int place = insert_score(table, entry_from(g_game));
+
+    std::string out = "{\"place\":" + std::to_string(place);
+    out += ",\"blob\":";
+    append_json_string(out, serialize_scores(table));
+    out += ",\"rows\":[";
+    bool first = true;
+    for (const ScoreEntry& e : table) {
+        if (!first) out += ',';
+        first = false;
+        out += "{\"score\":" + std::to_string(e.score);
+        out += ",\"deepest\":" + std::to_string(e.deepest);
+        out += ",\"turns\":" + std::to_string(e.turns);
+        out += ",\"level\":" + std::to_string(e.level);
+        out += ",\"kills\":" + std::to_string(e.kills);
+        out += ",\"won\":" + std::string(e.won ? "true" : "false");
+        out += ",\"className\":";
+        append_json_string(out, class_info(e.cls).name.get(g_lang));
+        out += ",\"seedText\":";
+        append_json_string(out, e.seed_text);
+        out += "}";
+    }
+    out += "]}";
+    return to_c_string(out);
+}
+
+/// Reads a stored table back for the title screen, without adding anything.
+EMSCRIPTEN_KEEPALIVE char* nav_score_table(const char* blob) {
+    using namespace nav;
+    std::vector<ScoreEntry> table;
+    if (blob) parse_scores(blob, table);
+    std::string out = "[";
+    bool first = true;
+    for (const ScoreEntry& e : table) {
+        if (!first) out += ',';
+        first = false;
+        out += "{\"score\":" + std::to_string(e.score);
+        out += ",\"deepest\":" + std::to_string(e.deepest);
+        out += ",\"turns\":" + std::to_string(e.turns);
+        out += ",\"level\":" + std::to_string(e.level);
+        out += ",\"kills\":" + std::to_string(e.kills);
+        out += ",\"won\":" + std::string(e.won ? "true" : "false");
+        out += ",\"className\":";
+        append_json_string(out, class_info(e.cls).name.get(g_lang));
+        out += ",\"seedText\":";
+        append_json_string(out, e.seed_text);
+        out += "}";
+    }
+    out += "]";
     return to_c_string(out);
 }
 

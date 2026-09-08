@@ -121,6 +121,13 @@ const std::vector<std::pair<Spell, int>>& class_spells(HeroClass c);
 const std::vector<BossPlacement>& boss_table();
 /// Species key of the boss guarding `depth`, or nullptr.
 const char* boss_for_depth(int depth);
+/// The floor `species_key` is placed on, or -1.
+///
+/// The inverse of `boss_for_depth`, and the reason it exists: anything that
+/// belongs to a particular boss — Кощей's needle, most of all — has to be
+/// placed by asking where that boss is, not by spelling out a number that was
+/// true when it was written (see docs/BUG_REPORTS.md, NAV-011).
+int boss_depth(const char* species_key);
 
 /// Spawn weight of `species` on `depth`, after the depth window is applied.
 int spawn_weight(const Species& s, int depth);

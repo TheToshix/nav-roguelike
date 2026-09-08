@@ -37,6 +37,7 @@ add_executable(nav_tests
   test_phases.cpp
   test_gear.cpp
   test_lobby.cpp
+  test_scores.cpp
   test_integration.cpp
 )
 

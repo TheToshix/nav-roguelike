@@ -140,11 +140,18 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
                 message(Text{"«Поднимите мне веки!» — взгляд Вия находит тебя.",
                              "\"Lift up my eyelids!\" — Viy's gaze finds you."},
                         Severity::Critical);
-                damage_hero(12 + depth_, Text{"взгляд Вия", "Viy's gaze"});
+                // In his last phase the eyelids never come down again, so the
+                // gaze stops being a wind-up and becomes a steady pressure: it
+                // arrives twice as often and hits for half as much. Keeping the
+                // full burst on a two-turn cycle turned the fight into eight
+                // damage a turn on top of his melee, which no hero of the fourth
+                // floor survives — the bots found that before a player had to.
+                const int bite = m.phase >= 3 ? 7 + depth_ / 2 : 12 + depth_;
+                damage_hero(bite, Text{"взгляд Вия", "Viy's gaze"});
                 // The warding circle is exactly the answer to a gaze: it does
                 // not stop the blow, it stops the blindness that follows.
                 if (hero_.a.alive && hero_set() != GearSet::Oberezhny)
-                    hero_.a.add_effect(Effect::Blind, 8, 1);
+                    hero_.a.add_effect(Effect::Blind, m.phase >= 3 ? 3 : 5, 1);
             } else {
                 // Deliberately not gated on seeing him: a player who has just
                 // ducked behind a wall has played the fight correctly and
@@ -220,7 +227,11 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
 
     // --- Мара: морок, а на второй фазе ещё и двойники ------------------------
     if (std::strcmp(sp.key, "mara") == 0) {
-        if (sees_hero && distance <= sp.sight && rng_.chance(m.phase >= 2 ? 55 : 35)) {
+        // The delusion only reaches across a room. Closing the distance is the
+        // counter-play, and it has to be one the player can find on their first
+        // meeting: she is the first fight in the game that is not a monster.
+        if (sees_hero && distance >= 3 && distance <= sp.sight &&
+            rng_.chance(m.phase >= 2 ? 45 : 30)) {
             message(Text{"Мара шепчет, и стены начинают двоиться.",
                          "Mara whispers, and the walls begin to double."},
                     Severity::Bad);
@@ -230,10 +241,21 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
                 hero_.a.add_effect(Effect::Confusion, 4 + m.phase, 1);
             return true;
         }
-        // She will not be cornered: adjacency puts her somewhere else.
-        if (distance <= 1) {
+        // She slips away when cornered — but not every time, and not once she is
+        // badly hurt. A boss who can always leave is not a fight, it is a chase
+        // the player cannot win; the cooldown and the health floor are what give
+        // the fight its second half.
+        if (m.charge > 0) --m.charge;
+        if (distance <= 1 && m.charge == 0 && m.a.hp * 5 > m.a.max_hp * 2) {
             const Vec2 spot = free_spot_near(level(), hero_.a.pos, 6);
-            if (spot.x >= 0) { m.a.pos = spot; return true; }
+            if (spot.x >= 0) {
+                m.a.pos = spot;
+                m.charge = 6;
+                message(Text{"Мара расплывается и оказывается в стороне.",
+                             "Mara blurs, and is suddenly somewhere else."},
+                        Severity::Bad);
+                return true;
+            }
         }
         if (m.phase >= 2 && m.summon_cooldown <= 0 && sees_hero) {
             m.summon_cooldown = 6;
@@ -522,6 +544,23 @@ void Game::monster_ranged(Monster& m) {
 }
 
 void Game::monster_summon(Monster& m) {
+    // A summoner with no ceiling fills the floor. Кощей, left to call his own
+    // for long enough, put a hundred and eighty creatures on the twelfth floor
+    // — which is not a hard fight, it is a different game, and it crawls
+    // (NAV-014). The cap is on living monsters near the summoner rather than on
+    // the whole floor, so the pressure of the mechanic stays and the flood does
+    // not.
+    constexpr int kBroodRadius = 8;
+    constexpr int kBroodLimit = 8;
+    int nearby = 0;
+    for (const auto& other : level().monsters)
+        if (other.a.alive && &other != &m && chebyshev(other.a.pos, m.a.pos) <= kBroodRadius)
+            ++nearby;
+    if (nearby >= kBroodLimit) {
+        m.summon_cooldown = 4;
+        return;
+    }
+
     const auto& beasts = bestiary();
     std::vector<int> weights(beasts.size(), 0);
     for (std::size_t i = 0; i < beasts.size(); ++i) {

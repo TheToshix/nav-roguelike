@@ -54,6 +54,17 @@ jobs:
           if [ -f build/nav ]; then ./build/nav --demo 20;
           else ./build/Release/nav.exe --demo 20; fi
 
+      - name: Walk the whole dungeon
+        shell: bash
+        run: |
+          # A different question from the demo. The demo asks where the curve
+          # kills people; this asks whether the sixteenth floor can be reached
+          # at all and whether every guardian dies when it should. It fails if
+          # any run stops short — which is how four separate defects that made
+          # the second half of the game unreachable were found.
+          if [ -f build/nav ]; then ./build/nav --sweep 4;
+          else ./build/Release/nav.exe --sweep 4; fi
+
   # ---------------------------------------------------------------------------
   # Undefined behaviour and memory errors are silent on a release build; this
   # job is what makes them loud.

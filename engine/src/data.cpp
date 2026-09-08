@@ -102,7 +102,7 @@ const std::vector<Species>& bestiary() {
         // Weaker than a belt's master and shorter of phase, but built the same
         // way: a mechanic first, a health bar second.
 
-        {"mara",      Text{"Мара", "Mara"},                       'M', "#9a7ac0", 42, 8,  2, 112, 10, 130, 3,  3,  0,
+        {"mara",      Text{"Мара", "Mara"},                       'M', "#9a7ac0", 38, 6,  2, 105, 7,  130, 3,  3,  0,
          AiRanged | AiBoss | AiMiniBoss, Effect::Confusion, 55, 6,
          Text{"Дух морока. Шепчет, и мир перестаёт слушаться.",
               "A spirit of delusion. She whispers, and the world stops obeying."}, /*phases=*/2},
@@ -676,6 +676,12 @@ const char* boss_for_depth(int depth) {
     for (const auto& b : boss_table())
         if (b.depth == depth) return b.species_key;
     return nullptr;
+}
+
+int boss_depth(const char* species_key) {
+    for (const auto& b : boss_table())
+        if (std::strcmp(b.species_key, species_key) == 0) return b.depth;
+    return -1;
 }
 
 int xp_for_level(int level) {

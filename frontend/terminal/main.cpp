@@ -12,12 +12,17 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "nav/fov.hpp"
 #include "nav/game.hpp"
+
+#include "nav/score.hpp"
+
+#include "bot.hpp"
 
 #if defined(_WIN32)
 #  include <conio.h>
@@ -450,6 +455,11 @@ void cast_menu(Game& g, const Ui& ui) {
     g.perform(Action{ActionType::CastSpell, {}, static_cast<int>(chosen), target});
 }
 
+std::string scores_path() {
+    if (const char* home = std::getenv("HOME")) return std::string(home) + "/.nav_scores";
+    return "nav_scores.txt";
+}
+
 std::string save_path() {
     if (const char* home = std::getenv("HOME")) return std::string(home) + "/.nav_save";
     return "nav_save.txt";
@@ -597,147 +607,141 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
 /// turns and many seeds, and reports a failure if the engine ever wedges or a
 /// save fails to round-trip. The policy is deliberately crude — its job is
 /// coverage, not skill.
-int run_demo(std::uint64_t seed, int turns, bool verbose) {
-    GameConfig cfg;
-    cfg.seed = seed;
-    cfg.hero_class = static_cast<HeroClass>(seed % 3);
-    Game g;
-    g.start(cfg);
+/// The table, drawn as text. `highlight` marks the row just added, or -1.
+std::string score_table_text(const std::vector<ScoreEntry>& table, Lang lang, int highlight) {
+    if (table.empty())
+        return lang == Lang::Ru ? "\nПока никто не спускался." : "\nNobody has gone down yet.";
 
-    Rng policy(seed ^ 0xABCDEF01ULL);
-    int stuck = 0;
-    int floor_turns = 0;
-    int last_depth = g.depth();
-    Vec2 previous = g.hero().a.pos;
-    bool moved_aside = false;
+    std::ostringstream out;
+    out << (lang == Lang::Ru ? "\n\x1b[38;5;179mЛучшие спуски\x1b[0m\n"
+                             : "\n\x1b[38;5;179mBest descents\x1b[0m\n");
+    for (std::size_t i = 0; i < table.size(); ++i) {
+        const ScoreEntry& e = table[i];
+        const bool mine = static_cast<int>(i) == highlight;
+        out << (mine ? "\x1b[38;5;179m" : "\x1b[38;5;245m");
+        out << ' ' << (i + 1 < 10 ? " " : "") << (i + 1) << ". ";
+        out << std::setw(6) << e.score << "  ";
+        // Depth is the number a player actually compares runs by.
+        out << (lang == Lang::Ru ? "гл." : "d.") << std::setw(3) << e.deepest << "  ";
+        out << std::setw(10) << std::left << class_info(e.cls).name.get(lang) << std::right;
+        if (e.won) out << (lang == Lang::Ru ? "  победа" : "  won");
+        if (!e.seed_text.empty()) out << "  [" << e.seed_text << "]";
+        out << "\x1b[0m\n";
+    }
+    return out.str();
+}
 
-    for (int i = 0; i < turns && g.state() == RunState::Playing; ++i) {
-        const Vec2 me = g.hero().a.pos;
-        if (g.depth() != last_depth) { last_depth = g.depth(); floor_turns = 0; }
-        ++floor_turns;
+/// Walks the whole dungeon with an over-levelled hero and checks it can be done.
+///
+/// A different question from the demo, and deliberately a different tool. The
+/// demo asks "where does the curve kill people"; this asks "can the sixteenth
+/// floor be reached at all, and does every guardian die when it is supposed
+/// to". Before this existed, six of the eight guardians had never been fought
+/// outside a test arena, and nothing had ever seen the fourth belt in a real
+/// game — which is a thing to find out before a player does.
+int run_sweep(std::uint64_t seed, int runs) {
+    int failures = 0;
+    for (int r = 0; r < std::max(1, runs); ++r) {
+        const std::uint64_t s = seed + static_cast<std::uint64_t>(r);
+        const HeroClass cls =
+            static_cast<HeroClass>(s % static_cast<std::uint64_t>(HeroClass::Count));
+        const BotResult res = play_one(s, cls, 60000, BotMode::Sweep);
 
-        // Diving straight down means meeting Вий at hero level 2, which is not
-        // how the game is meant to be played. The bot clears a floor first and
-        // only then takes the stairs, which is also what gives the deeper
-        // content any test coverage at all.
-        const bool ready_to_descend =
-            g.hero().level > g.depth() || floor_turns > 500 || g.hero().nutrition < 250;
+        const bool bottom = res.deepest >= kMaxDepth;
+        std::size_t expected = 0;
+        for (int d = 1; d <= kMaxDepth; ++d)
+            if (boss_for_depth(d)) ++expected;
+        const bool all_slain = res.bosses_slain.size() == expected;
 
-        // 1. Heal when badly hurt.
-        if (g.hero().a.hp * 3 < g.hero().a.max_hp) {
-            bool acted = false;
-            for (std::size_t k = 0; k < g.hero().inv.items.size() && !acted; ++k) {
-                const Item& it = g.hero().inv.items[k];
-                if (it.kind != ItemKind::Potion) continue;
-                if (it.subtype != static_cast<int>(PotionKind::Heal) &&
-                    it.subtype != static_cast<int>(PotionKind::GreaterHeal)) continue;
-                acted = g.perform(Action{ActionType::UseItem, {}, static_cast<int>(k), {}});
-            }
-            if (acted) continue;
-        }
+        std::cout << "seed=" << res.seed << " " << class_info(res.cls).name.en
+                  << " deepest=" << res.deepest << "/" << kMaxDepth
+                  << " guardians=" << res.bosses_slain.size() << "/" << expected
+                  << " turns=" << res.turns
+                  << " state=" << (res.state == RunState::Playing ? "alive"
+                                   : res.state == RunState::Dead ? "dead" : "WON")
+                  << " maxhp=" << res.max_hp
+                  << " needle=" << (res.needle_broken ? "broken" : "whole")
+                  << (res.killed_by.empty() ? "" : " by=\"" + res.killed_by + "\"")
+                  << (bottom && all_slain ? "  ok" : "  INCOMPLETE") << "\n";
 
-        // 2. Eat before starving.
-        if (g.hero().nutrition < 120) {
-            bool ate = false;
-            for (std::size_t k = 0; k < g.hero().inv.items.size() && !ate; ++k)
-                if (g.hero().inv.items[k].kind == ItemKind::Food)
-                    ate = g.perform(Action{ActionType::UseItem, {}, static_cast<int>(k), {}});
-            if (ate) continue;
-        }
-
-        // 3. Duck out of Вий's line of sight when his eyelids are about to
-        //    rise. This is the fight's actual counter-play, and having the bot
-        //    perform it is what proves the mechanic is beatable rather than
-        //    merely punishing.
-        for (const auto& m : g.monsters()) {
-            const auto& sp = bestiary()[static_cast<std::size_t>(m.species)];
-            if (std::strcmp(sp.key, "viy") != 0 || m.charge < 3) continue;
-            if (!has_line_of_sight(g.map(), me, m.a.pos, sp.sight)) break;
-            for (Vec2 d : directions8()) {
-                const Vec2 step = me + d;
-                if (!g.map().walkable(step) || g.monster_at(step)) continue;
-                if (has_line_of_sight(g.map(), step, m.a.pos, sp.sight)) continue;
-                if (g.perform(Action{ActionType::Move, d, -1, {}})) { moved_aside = true; break; }
-            }
-            break;
-        }
-        if (moved_aside) { moved_aside = false; continue; }
-
-        // 4. Attack anything adjacent.
-        bool fought = false;
-        for (Vec2 d : directions8()) {
-            if (!g.monster_at(me + d)) continue;
-            fought = g.perform(Action{ActionType::Move, d, -1, {}});
-            break;
-        }
-        if (fought) continue;
-
-        // 5. Otherwise throw a spell at whatever is in range.
-        const auto spells = g.castable_spells();
-        if (!spells.empty() && policy.chance(40)) {
-            const Spell s = spells[static_cast<std::size_t>(policy.below(static_cast<int>(spells.size())))];
-            const auto targets = g.spell_targets(s);
-            const Vec2 aim = targets.empty() ? Vec2{-1, -1} : targets.front();
-            if (!spell_info(s).needs_target || !targets.empty())
-                if (g.perform(Action{ActionType::CastSpell, {}, static_cast<int>(s), aim})) continue;
-        }
-
-        // 6. Collect loot underfoot, and take the stairs when standing on them.
-        if (g.item_index_at(me) >= 0 && g.perform(Action{ActionType::PickUp, {}, -1, {}})) continue;
-        if (ready_to_descend && g.map().at(me) == Tile::StairsDown &&
-            g.perform(Action{ActionType::Descend, {}, -1, {}})) {
-            stuck = 0;
-            continue;
-        }
-
-        // 7. Head for the nearest monster, or for the stairs once the floor is
-        //    cleared. The bot reads the true map rather than only what it has
-        //    explored — it is a test harness, not a player.
-        Vec2 goal = g.level().exit;
-        if (!ready_to_descend) {
-            int best = 1 << 30;
-            for (const auto& m : g.monsters()) {
-                const int d = dist_sq(me, m.a.pos);
-                if (d < best) { best = d; goal = m.a.pos; }
+        if (!bottom || !all_slain) {
+            ++failures;
+            for (int d = 1; d <= kMaxDepth; ++d) {
+                const char* key = boss_for_depth(d);
+                if (!key) continue;
+                const bool slain = std::find(res.bosses_slain.begin(), res.bosses_slain.end(),
+                                             std::string(key)) != res.bosses_slain.end();
+                if (!slain) std::cout << "    never put down: " << key << " (depth " << d << ")\n";
             }
         }
+    }
+    std::cout << (failures ? "SWEEP FAILED\n" : "sweep ok\n");
+    return failures;
+}
 
-        bool moved = false;
-        if (stuck < 12) {
-            const auto path = find_path(g.map(), me, goal, 3000);
-            if (!path.empty())
-                moved = g.perform(Action{ActionType::Move, path.front() - me, -1, {}});
-        }
-        if (!moved) {
-            const Vec2 dir = directions8()[static_cast<std::size_t>(policy.below(8))];
-            if (!g.perform(Action{ActionType::Move, dir, -1, {}}))
-                g.perform(Action{ActionType::Wait, {}, -1, {}});
-        }
+/// Plays `runs` whole games and prints one line each, plus a summary.
+///
+/// The summary is the point: a single run says nothing about balance, and a
+/// hundred of them say where the curve actually breaks.
+int run_demo(std::uint64_t seed, int runs, bool verbose) {
+    std::vector<BotResult> all;
+    all.reserve(static_cast<std::size_t>(std::max(1, runs)));
+    int failures = 0;
 
-        stuck = (g.hero().a.pos == previous) ? stuck + 1 : 0;
-        previous = g.hero().a.pos;
+    for (int r = 0; r < std::max(1, runs); ++r) {
+        const std::uint64_t s = seed + static_cast<std::uint64_t>(r);
+        const HeroClass cls = static_cast<HeroClass>(s % static_cast<std::uint64_t>(HeroClass::Count));
+        const BotResult res = play_one(s, cls);
+        all.push_back(res);
+        if (!res.save_round_trips) ++failures;
+
+        if (verbose) {
+            std::cout << "seed=" << res.seed
+                      << " " << class_info(res.cls).name.en
+                      << " turns=" << res.turns
+                      << " deepest=" << res.deepest
+                      << " lvl=" << res.level
+                      << " kills=" << res.kills
+                      << " score=" << res.score
+                      << " state=" << (res.state == RunState::Playing ? "alive"
+                                       : res.state == RunState::Dead ? "dead" : "WON");
+            if (!res.killed_by.empty()) std::cout << " by=\"" << res.killed_by << "\"";
+            std::cout << " save=" << res.save_bytes << "B"
+                      << " reload=" << (res.save_round_trips ? "ok" : "FAILED") << "\n";
+        }
     }
 
-    // A save/load round trip at the end catches serialisation regressions.
-    const std::string blob = g.save();
-    Game restored;
-    const bool reloaded = restored.load(blob);
-    const bool consistent = reloaded && restored.depth() == g.depth() &&
-                            restored.turn() == g.turn() &&
-                            restored.hero().a.hp == g.hero().a.hp;
-
-    if (verbose) {
-        std::cout << "seed=" << seed << " turns=" << g.turn() << " depth=" << g.depth()
-                  << " deepest=" << g.hero().deepest
-                  << " hp=" << g.hero().a.hp << "/" << g.hero().a.max_hp
-                  << " lvl=" << g.hero().level << " kills=" << g.hero().kills
-                  << " score=" << g.score()
-                  << " state=" << (g.state() == RunState::Playing ? "alive"
-                                   : g.state() == RunState::Dead ? "dead" : "WON")
-                  << " save=" << blob.size() << "B"
-                  << " reload=" << (consistent ? "ok" : "FAILED") << "\n";
+    if (verbose && all.size() > 1) {
+        std::vector<int> depth_counts(static_cast<std::size_t>(kMaxDepth) + 1, 0);
+        int wins = 0;
+        long long turns = 0, score = 0;
+        for (const auto& r : all) {
+            depth_counts[static_cast<std::size_t>(std::clamp(r.deepest, 0, kMaxDepth))]++;
+            if (r.state == RunState::Ascended) ++wins;
+            turns += r.turns;
+            score += r.score;
+        }
+        const int n = static_cast<int>(all.size());
+        std::cout << "\n-- " << n << " runs ------------------------------------------\n";
+        for (std::size_t d = 1; d < depth_counts.size(); ++d) {
+            if (depth_counts[d] == 0) continue;
+            std::cout << "  depth " << (d < 10 ? " " : "") << d << "  ";
+            for (int i = 0; i < depth_counts[d]; ++i) std::cout << '#';
+            std::cout << "  " << depth_counts[d] << "\n";
+        }
+        int stalled = 0;
+        for (const auto& r : all)
+            if (r.state == RunState::Playing) ++stalled;
+        if (stalled)
+            std::cout << "  stalled " << stalled << "/" << n
+                      << "  (neither won nor died — a bug in the bot or a floor it cannot leave)\n";
+        std::cout << "  won " << wins << "/" << n
+                  << "   avg turns " << (turns / n)
+                  << "   avg score " << (score / n) << "\n";
     }
-    return consistent ? 0 : 1;
+
+    std::cout << (failures ? "DEMO FAILED\n" : "demo ok\n");
+    return failures;
 }
 
 }  // namespace
@@ -751,11 +755,11 @@ int main(int argc, char** argv) {
         }
         if (std::strcmp(argv[i], "--demo") == 0) {
             const int runs = (i + 1 < argc) ? std::atoi(argv[i + 1]) : 5;
-            int failures = 0;
-            for (int r = 0; r < std::max(1, runs); ++r)
-                failures += run_demo(0x5EED0000ULL + static_cast<std::uint64_t>(r), 8000, true);
-            std::cout << (failures ? "DEMO FAILED\n" : "demo ok\n");
-            return failures ? 1 : 0;
+            return run_demo(0x5EED0000ULL, runs, true) ? 1 : 0;
+        }
+        if (std::strcmp(argv[i], "--sweep") == 0) {
+            const int runs = (i + 1 < argc) ? std::atoi(argv[i + 1]) : 3;
+            return run_sweep(0x51EE0000ULL, runs) ? 1 : 0;
         }
     }
 
@@ -790,6 +794,16 @@ int main(int argc, char** argv) {
 
             if (game.state() != RunState::Playing) {
                 const bool won = game.state() == RunState::Ascended;
+
+                // The run goes into the table before the ending is drawn, so
+                // the screen can say where it landed rather than only what it
+                // scored. A table that cannot be read is replaced rather than
+                // patched: losing ten old rows beats refusing to record new ones.
+                std::vector<ScoreEntry> table;
+                std::string blob;
+                if (read_file(scores_path(), blob)) parse_scores(blob, table);
+                const int place = insert_score(table, entry_from(game));
+                write_file(scores_path(), serialize_scores(table));
                 std::string body =
                     won ? (ui.lang == Lang::Ru ? "\n\x1b[38;5;114mКощей повержен. Навь отпускает тебя.\x1b[0m"
                                                : "\n\x1b[38;5;114mKoschei is slain. Nav lets you go.\x1b[0m")
@@ -803,6 +817,15 @@ int main(int argc, char** argv) {
                         std::to_string(game.hero().kills) +
                         (ui.lang == Lang::Ru ? "\nХодов: " : "\nTurns: ") +
                         std::to_string(game.turn());
+
+                if (place == 0)
+                    body += (ui.lang == Lang::Ru ? "\n\n\x1b[38;5;179mЛучший спуск.\x1b[0m"
+                                                 : "\n\n\x1b[38;5;179mYour best descent yet.\x1b[0m");
+                else if (place > 0)
+                    body += (ui.lang == Lang::Ru ? "\n\nВ таблице: место " : "\n\nOn the board: place ") +
+                            std::to_string(place + 1);
+
+                body += "\n" + score_table_text(table, ui.lang, place);
                 ui.notice(body);
                 break;
             }

@@ -245,9 +245,15 @@ TEST(BabaYaga, HerHutsDoNotWanderOff) {
 // ---------------------------------------------------------------------------
 
 TEST(Koschei, TheNeedleIsAlwaysOnHisFloor) {
+    // Asked for by his name, not by a depth number. The number was once the
+    // same as the bottom of the dungeon; the dungeon grew, this test kept
+    // passing, and the needle ended up four floors below the only creature it
+    // works on (NAV-011).
+    const int floor = boss_depth("koschei");
+    ASSERT_GT(floor, 0);
     for (std::uint64_t seed = 0; seed < 10; ++seed) {
-        Game g = descend_to(kMaxDepth, seed + 100);
-        ASSERT_EQ(g.depth(), kMaxDepth) << "seed " << seed;
+        Game g = descend_to(floor, seed + 100);
+        ASSERT_EQ(g.depth(), floor) << "seed " << seed;
 
         int needles = 0;
         for (const auto& it : g.floor_items())
@@ -257,8 +263,9 @@ TEST(Koschei, TheNeedleIsAlwaysOnHisFloor) {
 }
 
 TEST(Koschei, TheNeedleIsReachable) {
+    const int floor = boss_depth("koschei");
     for (std::uint64_t seed = 0; seed < 6; ++seed) {
-        Game g = descend_to(kMaxDepth, seed + 500);
+        Game g = descend_to(floor, seed + 500);
         Vec2 needle{-1, -1};
         for (const auto& it : g.floor_items())
             if (it.kind == ItemKind::Needle) needle = it.pos;
@@ -318,6 +325,47 @@ TEST(Koschei, BreakingTheNeedleIsWhatEndsHim) {
     a.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});
 
     EXPECT_EQ(a.find("koschei"), nullptr);
+    // He stays down — but he is no longer the end of the dungeon, so the run
+    // carries on. The ending belongs to whatever waits on the bottom floor.
+    EXPECT_EQ(a.game.state(), RunState::Playing);
+}
+
+TEST(Koschei, AFullPackCannotLockThePlayerOutOfHisDeath) {
+    // Twenty things in hand and the needle underfoot used to mean Кощей could
+    // not be killed at all, with nothing on screen to explain it (NAV-012).
+    BossArena a;
+    Inventory& inv = a.game.mutable_hero().inv;
+    while (inv.items.size() < Inventory::kCapacity) {
+        Item filler{};
+        filler.kind = ItemKind::Weapon;
+        filler.subtype = 0;
+        filler.identified = true;
+        ASSERT_TRUE(inv.add(filler));
+    }
+    ASSERT_TRUE(inv.full());
+
+    Item needle{};
+    needle.kind = ItemKind::Needle;
+    needle.identified = true;
+    needle.pos = a.game.hero().a.pos;
+    a.game.mutable_level().items.push_back(needle);
+
+    ASSERT_TRUE(a.game.needle_intact());
+    ASSERT_TRUE(a.game.perform(Action{ActionType::PickUp, {}, -1, {}}));
+    EXPECT_FALSE(a.game.needle_intact()) << "a full pack still hides the ending";
+}
+
+TEST(Koschei, TheEndingBelongsToTheBottomFloorsGuardian) {
+    // Whoever is last is asked for by depth. Naming Кощей was true for exactly
+    // as long as he was the last thing down there (NAV-013).
+    const char* last = boss_for_depth(kMaxDepth);
+    ASSERT_NE(last, nullptr);
+    EXPECT_STRNE(last, "koschei") << "if this ever changes, so must the ending";
+
+    BossArena a;
+    a.spawn(last, a.game.hero().a.pos + Vec2{1, 0}, 1);
+    a.game.mutable_hero().a.attack = 500;
+    a.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});
     EXPECT_EQ(a.game.state(), RunState::Ascended);
 }
 

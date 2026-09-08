@@ -216,8 +216,9 @@ TEST(Caves, AreDeterministic) {
 TEST(Zones, TheMiddleBeltIsCarvedAsCavesAndTheOthersAreNot) {
     for_each_floor(2024, [](Game& g, int depth) {
         const int doors = count_tiles(g.map(), Tile::Door) + count_tiles(g.map(), Tile::OpenDoor);
-        if (zone_for_depth(depth) == Zone::Chernotop)
+        if (zone_for_depth(depth) == Zone::Chernotop) {
             EXPECT_EQ(doors, 0) << "floor " << depth << " is a cave but has doors";
+        }
         // The room belts are not required to have doors on every floor, so the
         // opposite direction is checked in aggregate below.
     });

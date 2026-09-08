@@ -342,8 +342,11 @@ void Game::populate(Level& lvl, int depth) {
     }
 
     // Кощей's death is on a needle's point, and the needle is on his floor.
-    // Without it he simply rises again, so its placement is not optional.
-    if (depth == kMaxDepth) {
+    // Without it he simply rises again, so its placement is not optional — and
+    // the floor is asked for by his name, never spelled as a number. It was
+    // spelled as one once, the dungeon grew four floors deeper, and the needle
+    // quietly moved away from him (NAV-011).
+    if (depth == boss_depth("koschei")) {
         Item needle{};
         needle.kind = ItemKind::Needle;
         needle.identified = true;

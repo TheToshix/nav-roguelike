@@ -272,9 +272,10 @@ TEST(Combat, BreakingTheNeedleMakesKoscheiMortal) {
     a.place_beside_hero();
     a.move({1, 0});
 
-    EXPECT_TRUE(a.game.monsters().empty());
-    EXPECT_EQ(a.game.state(), RunState::Ascended);
-    EXPECT_GT(a.game.score(), 5000) << "victory should dominate the score";
+    EXPECT_TRUE(a.game.monsters().empty()) << "the broken needle should let him stay dead";
+    // The run does not end with him any more: four floors and one guardian
+    // still wait below.
+    EXPECT_EQ(a.game.state(), RunState::Playing);
 }
 
 // --- Derived statistics ----------------------------------------------------
@@ -614,9 +615,11 @@ TEST(Spells, BossesShrugOffLongFreezes) {
 
     a.game.perform(Action{ActionType::CastSpell, {}, static_cast<int>(Spell::IceBind), {13, 10}});
     ASSERT_FALSE(a.game.monsters().empty());
-    for (const auto& e : a.game.monsters()[0].a.effects)
-        if (e.kind == Effect::Freeze)
+    for (const auto& e : a.game.monsters()[0].a.effects) {
+        if (e.kind == Effect::Freeze) {
             EXPECT_LE(e.turns, 2) << "a boss must not be frozen out of the fight";
+        }
+    }
 }
 
 // --- The shrine ------------------------------------------------------------
