@@ -145,6 +145,15 @@ enum class ActionType : std::uint8_t {
     CastSpell,     ///< `index` is the Spell, `target` the aimed cell.
     Quaff,
     Pray,          ///< On an altar.
+    /// Several ordinary steps in `dir`, until something worth noticing happens.
+    /// Not a new way to move: a Run is a Move repeated by the engine rather
+    /// than by the player's finger, so every rule that applies to one applies
+    /// to the other.
+    Run,
+    /// Walks towards the nearest place the hero has not seen, with the same
+    /// interruptions as a Run. When there is nothing left to find, it heads for
+    /// the stairs down.
+    Explore,
 };
 
 struct Action {

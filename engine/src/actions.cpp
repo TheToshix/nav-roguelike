@@ -50,7 +50,15 @@ void Game::damage_hero(int amount, const Text& source) {
         return;
     }
 
+    const int before = hero_.a.hp;
     hero_.a.damage(amount);
+
+    // Remember the blow. A run that ends badly ends in a few seconds, and the
+    // player cannot read a scrolling log while it happens — so the ending
+    // screen reads it back to them afterwards.
+    blows_.push_back(Postmortem::Blow{source, before - hero_.a.hp, hero_.a.hp, turn_});
+    if (blows_.size() > kPostmortemBlows) blows_.erase(blows_.begin());
+
     if (hero_.a.alive) return;
 
     state_ = RunState::Dead;
@@ -421,7 +429,22 @@ bool Game::act_equip(int index) {
                 Severity::Good);
     }
 
-    // The life charm changes the maximum, so the current value follows it.
+    hero_.a.max_hp = derived_max_hp();
+    hero_.a.hp = std::min(hero_.a.hp, hero_.a.max_hp);
+    hero_.max_mana = derived_max_mana();
+    hero_.mana = std::min(hero_.mana, hero_.max_mana);
+
+    hero_.a.energy -= kEnergyPerTurn;
+    return true;
+}
+
+/// Maximum health as the worn gear makes it.
+///
+/// Pulled out of `act_equip` so that the inventory screen can ask what a piece
+/// *would* do without the two answers being computed by two different pieces of
+/// code — which is exactly how a preview ends up lying about the thing it is
+/// previewing.
+int Game::derived_max_hp() const {
     const auto& gear = gear_table();
     int bonus = 0;
     if (hero_.inv.amulet >= 0) {
@@ -431,11 +454,12 @@ bool Game::act_equip(int index) {
             bonus = am.total_power();
     }
     const ClassTemplate& tpl = class_info(hero_.cls);
-    const int base = tpl.hp + tpl.hp_per_level * (hero_.level - 1);
-    hero_.a.max_hp = base + bonus;
-    hero_.a.hp = std::min(hero_.a.hp, hero_.a.max_hp);
+    return tpl.hp + tpl.hp_per_level * (hero_.level - 1) + bonus;
+}
 
-    // Staff and robe both widen the reserve of power.
+int Game::derived_max_mana() const {
+    const auto& gear = gear_table();
+    const ClassTemplate& tpl = class_info(hero_.cls);
     int mana_bonus = 0;
     auto staff_bonus = [&](int slot_index) {
         if (slot_index < 0) return;
@@ -447,11 +471,35 @@ bool Game::act_equip(int index) {
     };
     staff_bonus(hero_.inv.weapon);
     staff_bonus(hero_.inv.armor);
-    hero_.max_mana = tpl.mana + tpl.mana_per_level * (hero_.level - 1) + mana_bonus;
-    hero_.mana = std::min(hero_.mana, hero_.max_mana);
+    return tpl.mana + tpl.mana_per_level * (hero_.level - 1) + mana_bonus;
+}
 
-    hero_.a.energy -= kEnergyPerTurn;
-    return true;
+EquipPreview Game::equip_preview(int index) {
+    EquipPreview p;
+    if (index < 0 || index >= static_cast<int>(hero_.inv.items.size())) return p;
+    const Item& it = hero_.inv.items[static_cast<std::size_t>(index)];
+    const Slot slot = item_slot(it);
+    if (slot == Slot::None) return p;
+
+    int& worn = hero_.inv.slot_ref(slot);
+    const int had = worn;
+    p.valid = true;
+    p.taking_off = had == index;
+
+    const int atk = hero_attack(), def = hero_defence();
+    const int hp = derived_max_hp(), spd = hero_speed(), sight = hero_sight();
+
+    // The honest way to answer "what would this do" is to put it on, ask the
+    // same questions the character sheet asks, and take it off again. Anything
+    // else is a second implementation of the rules, kept in step by hope.
+    worn = p.taking_off ? -1 : index;
+    p.attack = hero_attack() - atk;
+    p.defence = hero_defence() - def;
+    p.max_hp = derived_max_hp() - hp;
+    p.speed = hero_speed() - spd;
+    p.sight = hero_sight() - sight;
+    worn = had;
+    return p;
 }
 
 bool Game::act_use_item(int index) {

@@ -447,6 +447,24 @@ char item_glyph(const Item& it) {
     }
 }
 
+Text effect_name(Effect e) {
+    switch (e) {
+        case Effect::Poison:    return Text{"яд", "poison"};
+        case Effect::Burn:      return Text{"огонь", "burning"};
+        case Effect::Freeze:    return Text{"оковы", "frozen"};
+        case Effect::Confusion: return Text{"морок", "confusion"};
+        case Effect::Blind:     return Text{"слепота", "blindness"};
+        case Effect::Haste:     return Text{"спешка", "haste"};
+        case Effect::Slow:      return Text{"вязкость", "slowness"};
+        case Effect::Regen:     return Text{"живая вода", "mending"};
+        case Effect::Might:     return Text{"ярость", "might"};
+        case Effect::Shield:    return Text{"оберег", "warding"};
+        case Effect::Invisible: return Text{"тень", "unseen"};
+        case Effect::Count:     break;
+    }
+    return Text{"?", "?"};
+}
+
 Text item_name(const Item& it, const Identification& ident) {
     switch (it.kind) {
         case ItemKind::Needle:

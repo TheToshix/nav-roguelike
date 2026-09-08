@@ -16,6 +16,43 @@
 
 namespace nav {
 
+/// The difference a piece of gear would make, for the inventory screen.
+struct EquipPreview {
+    bool valid{false};       ///< False when the item cannot be worn at all.
+    bool taking_off{false};  ///< True when the item is currently worn.
+    int attack{0};
+    int defence{0};
+    int max_hp{0};
+    int speed{0};
+    int sight{0};
+
+    bool changes_nothing() const {
+        return attack == 0 && defence == 0 && max_hp == 0 && speed == 0 && sight == 0;
+    }
+};
+
+/// What the ending screen needs in order to explain a death.
+///
+/// Death here is final, so the game owes the player a reason. A screen that
+/// says only "you died" invites the conclusion that the game cheated; the last
+/// few blows, the killer, and the healing potion that was still in the pack
+/// usually say something much more useful — often "you had the answer and did
+/// not use it".
+struct Postmortem {
+    struct Blow {
+        Text source;     ///< What did it: a creature, poison, a fall, starvation.
+        int amount{0};   ///< Health actually lost.
+        int hp_left{0};
+        int turn{0};
+    };
+    Text killed_by;
+    std::vector<Blow> blows;      ///< Oldest first; at most kPostmortemBlows.
+    std::vector<Text> unspent;    ///< Consumables still in the pack at the end.
+};
+
+/// How many blows the ending screen looks back over.
+inline constexpr std::size_t kPostmortemBlows = 5;
+
 struct GameConfig {
     std::uint64_t seed{0};
     std::string seed_text;          ///< What the player typed, kept for display.
@@ -130,6 +167,17 @@ public:
     /// What to draw at `p`, resolving monster over item over terrain.
     RenderCell render_at(Vec2 p) const;
 
+    /// What putting a piece of gear on (or taking it off) would change.
+    ///
+    /// Every field is a difference, not a total: +2 attack, -1 defence. Without
+    /// this the inventory screen is a list of names and the player is guessing,
+    /// which turns finding gear — the most common decision in the game — into a
+    /// coin toss.
+    EquipPreview equip_preview(int index);
+
+    /// The last few blows, the killer, and what was left unused.
+    Postmortem postmortem() const;
+
     /// Cells the hero could target with `s` right now (for the aiming UI).
     std::vector<Vec2> spell_targets(Spell s) const;
     /// Spells the hero knows and can currently pay for.
@@ -188,11 +236,33 @@ private:
     void recompute_fov();
     void reap_dead();
 
+    // --- Travel (travel.cpp) ----------------------------------------------
+    /// State a travel command watches for changes between steps.
+    struct TravelWatch {
+        int hp{0};
+        int depth{0};
+        std::uint32_t effects{0};
+    };
+    TravelWatch travel_watch() const;
+    /// Whether the last step produced something the player should see.
+    bool travel_should_stop(const TravelWatch& before) const;
+    bool foe_in_view() const;
+    int open_neighbours(Vec2 p) const;
+    std::vector<Vec2> explore_frontier() const;
+    bool act_run(Vec2 dir);
+    bool act_explore();
+
+    /// One action, exactly as `perform` used to do it. Travel commands are
+    /// loops around this, which is what keeps them from inventing new rules.
+    bool perform_single(const Action& action);
+
     // --- Hero actions (actions.cpp) ---------------------------------------
     bool act_move(Vec2 dir);
     bool act_pick_up();
     bool act_use_item(int index);
     bool act_equip(int index);
+    int derived_max_hp() const;
+    int derived_max_mana() const;
     bool act_drop(int index);
     bool act_descend();
     bool act_ascend();
@@ -245,6 +315,14 @@ private:
     RunState state_{RunState::Playing};
     bool needs_flow_rebuild_{true};
     bool needle_broken_{false};  ///< Until this is true, Кощей does not stay dead.
+    /// The first-floor hints, said once per run. Deliberately not part of the
+    /// save: a player who reloads has already read them, and a save file is a
+    /// description of a dungeon rather than of what its owner has been told.
+    bool hinted_start_{false};
+    /// A short ring of the blows that landed on the hero, for the ending
+    /// screen. Kept out of the save file for the same reason the hints are: it
+    /// describes this sitting at the keyboard, not the dungeon.
+    std::vector<Postmortem::Blow> blows_;
 };
 
 }  // namespace nav

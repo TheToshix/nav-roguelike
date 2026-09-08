@@ -19,7 +19,7 @@
 
 #include "nav/fov.hpp"
 #include "nav/game.hpp"
-
+#include "nav/keys.hpp"
 #include "nav/score.hpp"
 
 #include "bot.hpp"
@@ -165,6 +165,7 @@ std::string pad_to(const std::string& s, std::size_t width) {
 
 struct Ui {
     Lang lang{Lang::Ru};
+    KeyScheme scheme{KeyScheme::Classic};
     int view_w{58};
     int view_h{22};
 
@@ -229,14 +230,22 @@ struct Ui {
             out += "\x1b[K\n";
         }
 
+        // The hint line follows the scheme in force, because a hint that names
+        // keys the player does not have is worse than no hint at all.
+        const bool wasd = scheme == KeyScheme::Wasd;
         out += "\x1b[38;5;244m";
         out += lang == Lang::Ru
-                   ? "hjkl/стрелки — идти  g — взять  i — котомка  z — колдовать  > < — лестницы"
-                   : "hjkl/arrows move  g pick up  i pack  z cast  > < stairs";
+                   ? (wasd ? "wasd/стрелки — идти  Shift+wasd — бежать  o — обойти этаж  g — взять"
+                           : "hjkl/стрелки — идти  Shift+hjkl — бежать  o — обойти этаж  g — взять")
+                   : (wasd ? "wasd/arrows move  Shift+wasd run  o explore  g pick up"
+                           : "hjkl/arrows move  Shift+hjkl run  o explore  g pick up");
         out += "\x1b[0m\x1b[K\n";
         out += "\x1b[38;5;244m";
-        out += lang == Lang::Ru ? "p — жертва  S — сохранить  T — язык  ? — помощь  q — выход"
-                                : "p pray  S save  T language  ? help  q quit";
+        out += lang == Lang::Ru
+                   ? (wasd ? "i — котомка  f — колдовать  m — карта  > < — лестницы  Esc — меню"
+                           : "i — котомка  z — колдовать  m — карта  > < — лестницы  Esc — меню")
+                   : (wasd ? "i pack  f cast  m map  > < stairs  Esc menu"
+                           : "i pack  z cast  m map  > < stairs  Esc menu");
         out += "\x1b[0m\x1b[K\x1b[J";
 
         std::fputs(out.c_str(), stdout);
@@ -336,6 +345,60 @@ struct Ui {
         return (index >= 0 && index < static_cast<int>(entries.size())) ? index : -1;
     }
 
+    /// The whole floor at once, as far as it has been walked.
+    ///
+    /// The scrolling view shows twenty-two rows of a thirty-four-row map, which
+    /// is fine while fighting and useless while deciding where to go next. This
+    /// draws everything explored, marks the stairs, and marks where the hero is
+    /// standing — the three facts the question "where now?" actually needs.
+    void map_screen(const Game& g) const {
+        clear();
+        const Map& map = g.map();
+        std::string out = "\x1b[1m";
+        out += lang == Lang::Ru ? "Этаж " : "Floor ";
+        out += std::to_string(g.depth());
+        out += "\x1b[0m  \x1b[38;5;244m" + t(zone_theme_for_depth(g.depth()).name) + "\x1b[0m\n\n";
+
+        for (int y = 0; y < map.height(); ++y) {
+            std::string current;
+            for (int x = 0; x < map.width(); ++x) {
+                const Vec2 p{x, y};
+                if (!map.explored(p)) { out += ' '; continue; }
+                std::string color = "\x1b[38;5;240m";
+                char glyph = '.';
+                switch (map.at(p)) {
+                    case Tile::Wall:       glyph = '#'; break;
+                    case Tile::Door:
+                    case Tile::OpenDoor:   glyph = '+'; color = "\x1b[38;5;137m"; break;
+                    case Tile::Water:      glyph = '~'; color = "\x1b[38;5;66m";  break;
+                    case Tile::Chasm:      glyph = ' '; break;
+                    case Tile::Altar:      glyph = '_'; color = "\x1b[38;5;180m"; break;
+                    case Tile::StairsDown: glyph = '>'; color = "\x1b[38;5;229m"; break;
+                    case Tile::StairsUp:   glyph = '<'; color = "\x1b[38;5;229m"; break;
+                    default:               glyph = '.'; break;
+                }
+                if (p == g.hero().a.pos) { glyph = '@'; color = "\x1b[38;5;231m"; }
+                if (color != current) { out += color; current = color; }
+                out += glyph;
+            }
+            out += "\x1b[0m\n";
+        }
+
+        const Vec2 down = g.level().exit;
+        out += "\n\x1b[38;5;244m";
+        if (map.explored(down))
+            out += lang == Lang::Ru ? "> — лестница вниз, ты уже её нашёл."
+                                    : "> is the way down; you have already found it.";
+        else
+            out += lang == Lang::Ru ? "Лестница вниз ещё не найдена."
+                                    : "The way down has not been found yet.";
+        out += "\x1b[0m";
+        std::fputs(out.c_str(), stdout);
+        std::fputs(lang == Lang::Ru ? "\n\n[любая клавиша]" : "\n\n[any key]", stdout);
+        std::fflush(stdout);
+        read_key_decoded();
+    }
+
     void notice(const std::string& body) const {
         clear();
         std::fputs(body.c_str(), stdout);
@@ -349,29 +412,60 @@ struct Ui {
 // Input mapping
 // ---------------------------------------------------------------------------
 
-/// Maps a key to a movement vector. Returns false when it is not a move.
-bool key_to_direction(int key, Vec2& dir) {
-    switch (key) {
-        case 'h': case '4': case kLeft:  dir = {-1,  0}; return true;
-        case 'j': case '2': case kDown:  dir = { 0,  1}; return true;
-        case 'k': case '8': case kUp:    dir = { 0, -1}; return true;
-        case 'l': case '6': case kRight: dir = { 1,  0}; return true;
-        case 'y': case '7':              dir = {-1, -1}; return true;
-        case 'u': case '9':              dir = { 1, -1}; return true;
-        case 'b': case '1':              dir = {-1,  1}; return true;
-        case 'n': case '3':              dir = { 1,  1}; return true;
-        default: return false;
+/// "+2 удар, -1 защита" — what the piece would change, spelled out.
+///
+/// A signed number is the whole feature: it turns "Меч-кладенец" from a name
+/// into a decision. Green when it is an improvement, red when it is not.
+std::string preview_text(const EquipPreview& p, Lang lang, std::string* plain = nullptr) {
+    if (!p.valid || p.changes_nothing()) return "";
+    struct Row { int value; const char* ru; const char* en; };
+    const Row rows[] = {
+        {p.attack,  "удар",   "atk"},
+        {p.defence, "защита", "def"},
+        {p.max_hp,  "жизнь",  "hp"},
+        {p.speed,   "прыть",  "spd"},
+        {p.sight,   "взор",   "sight"},
+    };
+    std::string out;
+    int good = 0;
+    for (const Row& r : rows) {
+        if (r.value == 0) continue;
+        if (!out.empty()) out += ", ";
+        out += (r.value > 0 ? "+" : "") + std::to_string(r.value) + " " +
+               (lang == Lang::Ru ? r.ru : r.en);
+        good += r.value > 0 ? 1 : -1;
     }
+    if (out.empty()) return "";
+    if (plain) *plain = out;
+    return std::string(good >= 0 ? "\x1b[38;5;114m" : "\x1b[38;5;174m") + out + "\x1b[0m";
 }
 
-std::string inventory_line(const Game& g, std::size_t index, Lang lang) {
+std::string inventory_line(Game& g, std::size_t index, Lang lang) {
     const Item& it = g.hero().inv.items[index];
     std::string line = item_name(it, g.identification()).get(lang);
     if (it.count > 1) line += " x" + std::to_string(it.count);
     if (g.hero().inv.is_equipped(static_cast<int>(index)))
         line += lang == Lang::Ru ? "  [надето]" : "  [worn]";
+
+    // What it would do, before the note about what it is. Column widths are
+    // measured on the uncoloured text: an ANSI escape takes no space on screen
+    // but plenty in a std::string, and padding by the latter is how columns end
+    // up ragged.
+    const EquipPreview p = g.equip_preview(static_cast<int>(index));
+    std::string delta_plain;
+    const std::string delta = p.taking_off ? std::string() : preview_text(p, lang, &delta_plain);
+    std::size_t width = display_width(line);
+    if (!delta.empty()) {
+        line = pad_to(line, 34) + delta;
+        width = std::max<std::size_t>(width, 34) + display_width(delta_plain);
+    }
+
     const std::string note = item_note(it, g.identification()).get(lang);
-    if (!note.empty()) line = pad_to(line, 34) + "\x1b[38;5;244m" + note + "\x1b[0m";
+    if (!note.empty()) {
+        const std::size_t column = delta.empty() ? 34 : 58;
+        if (width < column) line += std::string(column - width, ' ');
+        line += "\x1b[38;5;244m" + note + "\x1b[0m";
+    }
     return line;
 }
 
@@ -465,6 +559,11 @@ std::string save_path() {
     return "nav_save.txt";
 }
 
+std::string config_path() {
+    if (const char* home = std::getenv("HOME")) return std::string(home) + "/.nav_config";
+    return "nav_config.txt";
+}
+
 bool write_file(const std::string& path, const std::string& data) {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out) return false;
@@ -481,45 +580,163 @@ bool read_file(const std::string& path, std::string& data) {
     return true;
 }
 
-const char* help_text(Lang lang) {
-    if (lang == Lang::Ru) {
-        return
-            "\x1b[1mНАВЬ — как играть\x1b[0m\n\n"
-            "  Ты спускаешься в двенадцать кругов подземного мира. Внизу ждёт Кощей.\n"
-            "  Смерть окончательна: сохранение — это пауза, а не запасная жизнь.\n\n"
-            "  \x1b[38;5;180mДвижение\x1b[0m   hjkl yubn, стрелки или цифровой блок. Шаг в тварь — удар.\n"
-            "  \x1b[38;5;180m.\x1b[0m или 5     переждать ход\n"
-            "  \x1b[38;5;180mg\x1b[0m           подобрать\n"
-            "  \x1b[38;5;180mi\x1b[0m           котомка: применить, надеть, снять\n"
-            "  \x1b[38;5;180md\x1b[0m           бросить вещь\n"
-            "  \x1b[38;5;180mz\x1b[0m           колдовать\n"
-            "  \x1b[38;5;180m>  <\x1b[0m        спуститься / подняться по лестнице\n"
-            "  \x1b[38;5;180mp\x1b[0m           принести жертву на капище (_)\n"
-            "  \x1b[38;5;180mS  L\x1b[0m        сохранить / загрузить\n"
-            "  \x1b[38;5;180mT\x1b[0m           переключить язык\n"
-            "  \x1b[38;5;180mq\x1b[0m           выйти\n\n"
-            "  \x1b[38;5;244mЗнаки:\x1b[0m  @ ты   # стена   . пол   + дверь   ~ вода   > лестница\n"
-            "          ! зелье   ? свиток   ) оружие   [ доспех   \" оберег   $ золото   _ капище\n\n"
-            "  \x1b[38;5;244mЗелья и свитки не подписаны, пока их не испробуешь. Это часть игры.\x1b[0m";
+/// Language and control scheme, remembered between runs.
+///
+/// Deliberately not part of the save file: a preference belongs to the person,
+/// not to the run. Someone who likes WASD likes it in their next game too, and
+/// loading someone else's save should not reach over and change their keyboard.
+struct Preferences {
+    Lang lang{Lang::Ru};
+    KeyScheme scheme{KeyScheme::Classic};
+};
+
+Preferences read_preferences() {
+    Preferences p;
+    std::string blob;
+    if (!read_file(config_path(), blob)) return p;
+    std::istringstream in(blob);
+    std::string magic;
+    int version = 0;
+    if (!(in >> magic >> version) || magic != "NAVCONF" || version != 1) return p;
+    std::string lang, scheme;
+    if (!(in >> lang >> scheme)) return p;
+    p.lang = lang == "en" ? Lang::En : Lang::Ru;
+    p.scheme = scheme == "wasd" ? KeyScheme::Wasd : KeyScheme::Classic;
+    return p;
+}
+
+void write_preferences(const Preferences& p) {
+    write_file(config_path(), std::string("NAVCONF 1 ") + (p.lang == Lang::En ? "en" : "ru") + " " +
+                                  key_scheme_key(p.scheme) + "\n");
+}
+
+/// The last few blows and what was left unused.
+///
+/// Shown on the ending screen because a death that is not explained reads as
+/// unfair, and because the pack usually contains the explanation.
+std::string postmortem_text(const Game& g, Lang lang) {
+    const Postmortem pm = g.postmortem();
+    if (pm.blows.empty() && pm.unspent.empty()) return "";
+
+    std::string out = "\n\x1b[38;5;244m";
+    out += lang == Lang::Ru ? "Последние удары" : "The last blows";
+    out += "\x1b[0m\n";
+    for (const Postmortem::Blow& b : pm.blows) {
+        out += "  \x1b[38;5;240m" + pad_to("ход " + std::to_string(b.turn), 10) + "\x1b[0m";
+        out += pad_to(b.source.get(lang), 24);
+        out += "\x1b[38;5;174m-" + std::to_string(b.amount) + "\x1b[0m";
+        out += "\x1b[38;5;240m  \u2192 " + std::to_string(b.hp_left) + "\x1b[0m\n";
     }
-    return
-        "\x1b[1mNAV — how to play\x1b[0m\n\n"
-        "  You descend through twelve circles of the underworld. Koschei waits at the bottom.\n"
-        "  Death is final: a save is a pause, not a spare life.\n\n"
-        "  \x1b[38;5;180mMovement\x1b[0m   hjkl yubn, arrows or the numeric keypad. Step into a creature to attack.\n"
-        "  \x1b[38;5;180m.\x1b[0m or 5     wait a turn\n"
-        "  \x1b[38;5;180mg\x1b[0m           pick up\n"
-        "  \x1b[38;5;180mi\x1b[0m           pack: use, equip, remove\n"
-        "  \x1b[38;5;180md\x1b[0m           drop an item\n"
-        "  \x1b[38;5;180mz\x1b[0m           cast a spell\n"
-        "  \x1b[38;5;180m>  <\x1b[0m        descend / climb stairs\n"
-        "  \x1b[38;5;180mp\x1b[0m           make an offering at a shrine (_)\n"
-        "  \x1b[38;5;180mS  L\x1b[0m        save / load\n"
-        "  \x1b[38;5;180mT\x1b[0m           switch language\n"
-        "  \x1b[38;5;180mq\x1b[0m           quit\n\n"
-        "  \x1b[38;5;244mGlyphs:\x1b[0m  @ you   # wall   . floor   + door   ~ water   > stairs\n"
-        "          ! potion   ? scroll   ) weapon   [ armour   \" charm   $ gold   _ shrine\n\n"
-        "  \x1b[38;5;244mPotions and scrolls are unlabelled until you try them. That is the game.\x1b[0m";
+
+    if (!pm.unspent.empty()) {
+        out += "\n\x1b[38;5;244m";
+        out += lang == Lang::Ru ? "Осталось неиспользованным" : "Left unused in the pack";
+        out += "\x1b[0m\n";
+        for (const Text& line : pm.unspent) out += "  " + line.get(lang) + "\n";
+    }
+    return out;
+}
+
+/// The help screen, generated from the engine's key table.
+///
+/// Written out rather than hand-maintained for a reason that cost this project
+/// a bug report elsewhere: two copies of the same fact drift. If a scheme gains
+/// a key, this screen gains a line, because it is reading the same table the
+/// keypress went through.
+std::string help_text(Lang lang, KeyScheme scheme) {
+    std::string out = lang == Lang::Ru ? "\x1b[1mНАВЬ — как играть\x1b[0m\n\n"
+                                       : "\x1b[1mNAV — how to play\x1b[0m\n\n";
+    out += lang == Lang::Ru
+               ? "  Ты спускаешься в шестнадцать кругов подземного мира.\n"
+                 "  Смерть окончательна: сохранение — это пауза, а не запасная жизнь.\n\n"
+               : "  You descend through sixteen circles of the underworld.\n"
+                 "  Death is final: a save is a pause, not a spare life.\n\n";
+    out += "  \x1b[38;5;244m" +
+           std::string(lang == Lang::Ru ? "Схема: " : "Scheme: ") +
+           key_scheme_name(scheme).get(lang) +
+           std::string(lang == Lang::Ru ? "  (сменить — в меню по Esc)" : "  (change it in the Esc menu)") +
+           "\x1b[0m\n\n";
+
+    for (const KeyHelpRow& row : key_help(scheme))
+        out += "  \x1b[38;5;180m" + pad_to(row.keys.get(lang), 18) + "\x1b[0m" +
+               row.what.get(lang) + "\n";
+
+    out += lang == Lang::Ru
+               ? "\n  \x1b[38;5;244mЗнаки:\x1b[0m  @ ты   # стена   . пол   + дверь   ~ вода   > лестница\n"
+                 "          ! зелье   ? свиток   ) оружие   [ доспех   \" оберег   $ золото   _ капище\n\n"
+                 "  \x1b[38;5;244mЗелья и свитки не подписаны, пока их не испробуешь. Это часть игры.\x1b[0m"
+               : "\n  \x1b[38;5;244mGlyphs:\x1b[0m  @ you   # wall   . floor   + door   ~ water   > stairs\n"
+                 "          ! potion   ? scroll   ) weapon   [ armour   \" charm   $ gold   _ shrine\n\n"
+                 "  \x1b[38;5;244mPotions and scrolls are unlabelled until you try them. That is the game.\x1b[0m";
+    return out;
+}
+
+/// Save, load and drop, factored out so the key dispatch reads as a list of
+/// commands rather than as a wall of screen handling.
+void do_save(const Game& g, const Ui& ui) {
+    ui.notice(write_file(save_path(), g.save())
+                  ? (ui.lang == Lang::Ru ? "Сохранено в ~/.nav_save" : "Saved to ~/.nav_save")
+                  : (ui.lang == Lang::Ru ? "Не удалось сохранить." : "Could not save."));
+}
+
+void do_load(Game& g, const Ui& ui) {
+    std::string blob;
+    if (read_file(save_path(), blob) && g.load(blob))
+        ui.notice(ui.lang == Lang::Ru ? "Загружено." : "Loaded.");
+    else
+        ui.notice(ui.lang == Lang::Ru ? "Сохранение не найдено или повреждено."
+                                      : "No save found, or it is damaged.");
+}
+
+void drop_menu(Game& g, const Ui& ui) {
+    std::vector<std::string> entries;
+    for (std::size_t k = 0; k < g.hero().inv.items.size(); ++k)
+        entries.push_back(inventory_line(g, k, ui.lang));
+    const int pick = ui.menu(ui.lang == Lang::Ru ? "Что бросить?" : "Drop what?", entries,
+                             ui.lang == Lang::Ru ? "Esc — назад." : "Esc to go back.");
+    if (pick >= 0) g.perform(Action{ActionType::DropItem, {}, pick, {}});
+}
+
+/// The Esc menu. Returns true when the player chose to abandon the run.
+///
+/// It exists because the WASD scheme cannot spare the letters for saving and
+/// loading — but the better reason is that a player who has just opened this
+/// game for the first time knows exactly one key that opens menus, and it is
+/// this one. Everything reachable by a shortcut is reachable here as well.
+bool game_menu(Game& g, Ui& ui) {
+    while (true) {
+        std::vector<std::string> entries = {
+            ui.lang == Lang::Ru ? "Продолжить"        : "Back to the game",
+            ui.lang == Lang::Ru ? "Сохранить"         : "Save",
+            ui.lang == Lang::Ru ? "Загрузить"         : "Load",
+            ui.lang == Lang::Ru ? "Карта этажа"       : "The whole floor",
+            std::string(ui.lang == Lang::Ru ? "Управление: " : "Controls: ") +
+                key_scheme_name(ui.scheme).get(ui.lang),
+            ui.lang == Lang::Ru ? "Язык: русский / English" : "Language: Русский / English",
+            ui.lang == Lang::Ru ? "Как играть"        : "How to play",
+            ui.lang == Lang::Ru ? "Бросить партию"    : "Abandon the run",
+        };
+        const int pick = ui.menu(ui.lang == Lang::Ru ? "Меню" : "Menu", entries,
+                                 ui.lang == Lang::Ru ? "Esc — назад в игру." : "Esc goes back.");
+        switch (pick) {
+            case -1: case 0: return false;
+            case 1: do_save(g, ui); break;
+            case 2: do_load(g, ui); return false;
+            case 3: ui.map_screen(g); break;
+            case 4:
+                ui.scheme = ui.scheme == KeyScheme::Classic ? KeyScheme::Wasd : KeyScheme::Classic;
+                write_preferences(Preferences{ui.lang, ui.scheme});
+                ui.notice(help_text(ui.lang, ui.scheme));
+                break;
+            case 5:
+                ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru;
+                write_preferences(Preferences{ui.lang, ui.scheme});
+                break;
+            case 6: ui.notice(help_text(ui.lang, ui.scheme)); break;
+            case 7: return true;
+            default: break;
+        }
+    }
 }
 
 /// Title screen: language, class and seed.
@@ -557,6 +774,12 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
                                    : "  \x1b[38;5;180mT\x1b[0m) language: English\n";
         out += ui.lang == Lang::Ru ? "  \x1b[38;5;180mL\x1b[0m) загрузить сохранение\n"
                                    : "  \x1b[38;5;180mL\x1b[0m) load a save\n";
+        // Offered here as well as in the in-game menu: the scheme is the first
+        // thing a player wants to change and the last thing they should have to
+        // start a run to find.
+        out += ui.lang == Lang::Ru ? "  \x1b[38;5;180mk\x1b[0m) управление: "
+                                   : "  \x1b[38;5;180mk\x1b[0m) controls: ";
+        out += key_scheme_name(ui.scheme).get(ui.lang) + std::string("\n");
         out += ui.lang == Lang::Ru ? "  \x1b[38;5;180m?\x1b[0m) как играть      \x1b[38;5;180mq\x1b[0m) выход\n"
                                    : "  \x1b[38;5;180m?\x1b[0m) how to play     \x1b[38;5;180mq\x1b[0m) quit\n";
         std::fputs(out.c_str(), stdout);
@@ -564,8 +787,17 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
 
         const int key = read_key_decoded();
         if (key == 'q' || key == kEsc) return false;
-        if (key == 'T') { ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru; continue; }
-        if (key == '?') { ui.notice(help_text(ui.lang)); continue; }
+        if (key == 'T') {
+            ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru;
+            write_preferences(Preferences{ui.lang, ui.scheme});
+            continue;
+        }
+        if (key == 'k') {
+            ui.scheme = ui.scheme == KeyScheme::Classic ? KeyScheme::Wasd : KeyScheme::Classic;
+            write_preferences(Preferences{ui.lang, ui.scheme});
+            continue;
+        }
+        if (key == '?') { ui.notice(help_text(ui.lang, ui.scheme)); continue; }
         if (key == 'L') { cfg.seed_text = "\x01load"; return true; }
         if (key == 's') {
             ui.clear();
@@ -765,6 +997,11 @@ int main(int argc, char** argv) {
 
     RawMode raw;
     Ui ui;
+    // Language and control scheme belong to the player, not to the run, so they
+    // are read once here and written back the moment either changes.
+    const Preferences prefs = read_preferences();
+    ui.lang = prefs.lang;
+    ui.scheme = prefs.scheme;
     GameConfig cfg;
 
     while (true) {
@@ -825,80 +1062,96 @@ int main(int argc, char** argv) {
                     body += (ui.lang == Lang::Ru ? "\n\nВ таблице: место " : "\n\nOn the board: place ") +
                             std::to_string(place + 1);
 
+                body += "\n" + postmortem_text(game, ui.lang);
                 body += "\n" + score_table_text(table, ui.lang, place);
                 ui.notice(body);
                 break;
             }
 
-            const int key = read_key_decoded();
-            Vec2 dir{};
+            const int pressed = read_key_decoded();
 
-            if (key_to_direction(key, dir)) {
-                game.perform(Action{ActionType::Move, dir, -1, {}});
-            } else switch (key) {
-                case '.': case '5':
+            // Arrow keys are the terminal's own thing and never reach the
+            // engine's table; everything else does, and the table decides what
+            // it means under the scheme in force.
+            KeyPress k{};
+            switch (pressed) {
+                case kUp:    k = KeyPress{Command::Move, Vec2{0, -1}}; break;
+                case kDown:  k = KeyPress{Command::Move, Vec2{0, 1}};  break;
+                case kLeft:  k = KeyPress{Command::Move, Vec2{-1, 0}}; break;
+                case kRight: k = KeyPress{Command::Move, Vec2{1, 0}};  break;
+                case kEsc:   k = KeyPress{Command::Menu, Vec2{0, 0}};  break;
+                default:
+                    if (pressed > 0 && pressed < 128)
+                        k = command_for(ui.scheme, static_cast<char>(pressed));
+                    break;
+            }
+
+            switch (k.cmd) {
+                case Command::Move:
+                    game.perform(Action{ActionType::Move, k.dir, -1, {}});
+                    break;
+                case Command::Run:
+                    game.perform(Action{ActionType::Run, k.dir, -1, {}});
+                    break;
+                case Command::Explore:
+                    game.perform(Action{ActionType::Explore, {}, -1, {}});
+                    break;
+                case Command::Wait:
                     game.perform(Action{ActionType::Wait, {}, -1, {}});
                     break;
-                case 'g': case ',':
+                case Command::PickUp:
                     game.perform(Action{ActionType::PickUp, {}, -1, {}});
                     break;
-                case 'i':
+                case Command::Inventory:
                     show_inventory(game, ui);
                     ui.clear();
                     break;
-                case 'd': {
-                    std::vector<std::string> entries;
-                    for (std::size_t k = 0; k < game.hero().inv.items.size(); ++k)
-                        entries.push_back(inventory_line(game, k, ui.lang));
-                    const int pick = ui.menu(ui.lang == Lang::Ru ? "Что бросить?" : "Drop what?",
-                                             entries,
-                                             ui.lang == Lang::Ru ? "Esc — назад." : "Esc to go back.");
-                    if (pick >= 0) game.perform(Action{ActionType::DropItem, {}, pick, {}});
+                case Command::Drop:
+                    drop_menu(game, ui);
                     ui.clear();
                     break;
-                }
-                case 'z':
+                case Command::Cast:
                     cast_menu(game, ui);
                     ui.clear();
                     break;
-                case '>':
+                case Command::Descend:
                     game.perform(Action{ActionType::Descend, {}, -1, {}});
                     break;
-                case '<':
+                case Command::Ascend:
                     game.perform(Action{ActionType::Ascend, {}, -1, {}});
                     break;
-                case 'p':
+                case Command::Pray:
                     game.perform(Action{ActionType::Pray, {}, -1, {}});
                     break;
-                case 'S':
-                    ui.notice(write_file(save_path(), game.save())
-                                  ? (ui.lang == Lang::Ru ? "Сохранено в ~/.nav_save"
-                                                         : "Saved to ~/.nav_save")
-                                  : (ui.lang == Lang::Ru ? "Не удалось сохранить."
-                                                         : "Could not save."));
+                case Command::Map:
+                    ui.map_screen(game);
                     ui.clear();
                     break;
-                case 'L': {
-                    std::string blob;
-                    if (read_file(save_path(), blob) && game.load(blob))
-                        ui.notice(ui.lang == Lang::Ru ? "Загружено." : "Loaded.");
-                    else
-                        ui.notice(ui.lang == Lang::Ru ? "Сохранение не найдено или повреждено."
-                                                      : "No save found, or it is damaged.");
+                case Command::Save:
+                    do_save(game, ui);
                     ui.clear();
                     break;
-                }
-                case 'T':
+                case Command::Load:
+                    do_load(game, ui);
+                    ui.clear();
+                    break;
+                case Command::Lang:
                     ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru;
+                    write_preferences(Preferences{ui.lang, ui.scheme});
                     break;
-                case '?':
-                    ui.notice(help_text(ui.lang));
+                case Command::Help:
+                    ui.notice(help_text(ui.lang, ui.scheme));
                     ui.clear();
                     break;
-                case 'q': case kEsc:
+                case Command::Menu:
+                    if (game_menu(game, ui)) quit_to_title = true;
+                    ui.clear();
+                    break;
+                case Command::Quit:
                     quit_to_title = true;
                     break;
-                default:
+                case Command::None:
+                case Command::Count:
                     break;
             }
         }

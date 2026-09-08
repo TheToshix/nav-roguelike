@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "nav/game.hpp"
+#include "nav/keys.hpp"
 #include "nav/score.hpp"
 
 #ifdef __EMSCRIPTEN__
@@ -309,6 +310,17 @@ std::string build_state_json() {
         out += ",\"count\":" + std::to_string(it.count);
         out += ",\"equipped\":" + std::string(h.inv.is_equipped(static_cast<int>(i)) ? "true" : "false");
         out += ",\"wearable\":" + std::string(item_slot(it) != Slot::None ? "true" : "false");
+        // What wearing it would change. The engine works it out by trying the
+        // item on and asking the character sheet, so the page never has to
+        // reimplement — or mispredict — the rules it is previewing.
+        const EquipPreview pv = g_game.equip_preview(static_cast<int>(i));
+        if (pv.valid && !pv.taking_off && !pv.changes_nothing()) {
+            out += ",\"delta\":{\"atk\":" + std::to_string(pv.attack) +
+                   ",\"def\":" + std::to_string(pv.defence) +
+                   ",\"hp\":" + std::to_string(pv.max_hp) +
+                   ",\"spd\":" + std::to_string(pv.speed) +
+                   ",\"sight\":" + std::to_string(pv.sight) + "}";
+        }
         out += "}";
     }
     out += "]";
@@ -396,7 +408,7 @@ EMSCRIPTEN_KEEPALIVE void nav_new_game(const char* seed_text, int hero_class,
 
 /// Applies one action. Returns 1 when a turn was consumed.
 EMSCRIPTEN_KEEPALIVE int nav_perform(int type, int dx, int dy, int index, int tx, int ty) {
-    if (type < 0 || type > static_cast<int>(nav::ActionType::Pray)) return 0;
+    if (type < 0 || type > static_cast<int>(nav::ActionType::Explore)) return 0;
     nav::Action action;
     action.type = static_cast<nav::ActionType>(type);
     action.dir = {dx, dy};
@@ -550,6 +562,71 @@ EMSCRIPTEN_KEEPALIVE char* nav_score_table(const char* blob) {
         out += "}";
     }
     out += "]";
+    return to_c_string(out);
+}
+
+/// The keyboard table for one scheme, as JSON.
+///
+/// The browser resolves keys itself — one lookup per keypress, no call into
+/// WebAssembly — but the table it looks them up in is built here, by the same
+/// function the terminal calls. That is the point: there is one keymap in this
+/// project, and both frontends read it rather than each keeping its own.
+EMSCRIPTEN_KEEPALIVE char* nav_keys_json(int scheme_id) {
+    const nav::KeyScheme scheme =
+        scheme_id == 1 ? nav::KeyScheme::Wasd : nav::KeyScheme::Classic;
+
+    std::string out = "{\"scheme\":";
+    append_json_string(out, nav::key_scheme_key(scheme));
+    out += ",\"name\":";
+    append_json_string(out, nav::key_scheme_name(scheme).get(g_lang));
+    out += ",\"keys\":{";
+
+    bool first = true;
+    for (int c = 32; c < 127; ++c) {
+        const nav::KeyPress k = nav::command_for(scheme, static_cast<char>(c));
+        if (k.cmd == nav::Command::None) continue;
+        if (!first) out += ',';
+        first = false;
+        append_json_string(out, std::string(1, static_cast<char>(c)));
+        out += ":{\"cmd\":" + std::to_string(static_cast<int>(k.cmd)) +
+               ",\"dx\":" + std::to_string(k.dir.x) +
+               ",\"dy\":" + std::to_string(k.dir.y) + "}";
+    }
+    out += "},\"help\":[";
+    bool first_row = true;
+    for (const nav::KeyHelpRow& row : nav::key_help(scheme)) {
+        if (!first_row) out += ',';
+        first_row = false;
+        out += "{\"cmd\":" + std::to_string(static_cast<int>(row.cmd)) + ",\"keys\":";
+        append_json_string(out, row.keys.get(g_lang));
+        out += ",\"what\":";
+        append_json_string(out, row.what.get(g_lang));
+        out += "}";
+    }
+    out += "]}";
+    return to_c_string(out);
+}
+
+/// The post-mortem for the ending screen, as JSON.
+EMSCRIPTEN_KEEPALIVE char* nav_postmortem_json() {
+    const nav::Postmortem pm = g_game.postmortem();
+    std::string out = "{\"killedBy\":";
+    append_json_string(out, pm.killed_by.get(g_lang));
+    out += ",\"blows\":[";
+    for (std::size_t i = 0; i < pm.blows.size(); ++i) {
+        if (i) out += ',';
+        out += "{\"source\":";
+        append_json_string(out, pm.blows[i].source.get(g_lang));
+        out += ",\"amount\":" + std::to_string(pm.blows[i].amount);
+        out += ",\"left\":" + std::to_string(pm.blows[i].hp_left);
+        out += ",\"turn\":" + std::to_string(pm.blows[i].turn) + "}";
+    }
+    out += "],\"unspent\":[";
+    for (std::size_t i = 0; i < pm.unspent.size(); ++i) {
+        if (i) out += ',';
+        append_json_string(out, pm.unspent[i].get(g_lang));
+    }
+    out += "]}";
     return to_c_string(out);
 }
 

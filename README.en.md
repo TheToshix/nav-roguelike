@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-329-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-365-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -218,6 +218,39 @@ of them is accepted.
 | **Kuznets** | Gear | Every item counts one grade better; shrines charge him half |
 | **Bogatyr** | Melee | Every blow sweeps everything adjacent — paid for in speed |
 
+### Walking one square at a time is dull, and that is fixable
+
+`Shift` and a direction runs down a corridor to the next junction, `o` walks to the nearest
+place the hero has not been, and `m` shows the whole explored floor with the way down marked.
+Sixteen floors crossed one keypress at a time was the most tiring thing about this game, and
+nobody makes a decision walking down an empty corridor.
+
+Both are ordinary steps the engine takes on the player's behalf rather than a new way to move:
+hunger, poison, monster turns and every invariant apply during a run exactly as they do during
+a walk. The interesting part is not the running but the brakes. A run stops when something
+comes into view, when the hero is hurt, when a new effect lands, when there is an item, a
+staircase or a shrine underfoot, and where the corridor offers a choice. Auto-explore refuses
+to set off at all while anything is in sight.
+
+### Combat you can follow
+
+A blow now reports what actually got through and what is left: "Anchutka hits you for 7 —
+12/34 left". It used to report the dice roll, and stayed quiet when the warding shirt ate the
+blow entirely. Effects name themselves and their duration instead of "something foul takes
+hold of you".
+
+In the pack, every wearable says what it would change: `+2 atk, -1 def`, green or red. The
+engine works that out by putting the item on, asking the character sheet, and taking it off
+again, so the preview cannot disagree with what actually happens. The test checks that
+equality rather than the numbers themselves.
+
+### Death explains itself
+
+Death here is final, so it owes the player a reason. The ending screen shows the last five
+blows — turn, source, damage, health left — and, separately, everything still unused in the
+pack. That list is usually the answer to "what did I do wrong": the healing draught was in
+there the whole time.
+
 ### The score table
 
 Death here is final, and the only thing a run leaves behind is a line in the table. It keeps the
@@ -257,7 +290,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 329 tests
+ctest --test-dir build --output-on-failure    # 365 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -272,21 +305,26 @@ python3 -m http.server -d dist 8080
 
 ## Controls
 
-| Keys | Action |
-|---|---|
-| `hjkl` `yubn`, arrows, numeric keypad | move; step into a creature to attack |
-| `.` or `5` | wait a turn |
-| `g` | pick up |
-| `i` | pack: use, equip, remove |
-| `d` | drop an item |
-| `z` | cast a spell |
-| `>` `<` | descend / climb |
-| `p` | make an offering at a shrine |
-| `S` `L` | save / load |
-| `T` | switch language |
-| `G` | sprites / ASCII |
-| `M` | music |
-| `?` | help |
+There are two schemes, switchable in play: `k` on the title screen, the `Esc` menu during a
+run, or the button up top in the browser. The choice is remembered between runs.
+
+| | Classic | WASD |
+|---|---|---|
+| Move | `hjkl` `yubn` | `wasd` `qezc` |
+| Run to the next junction | `Shift` + the same | `Shift` + the same |
+| Drop an item | `d` | `r` |
+| Cast | `z` | `f` |
+| Quit | `q` | from the menu |
+| Save / load | `S` `R` | from the menu |
+
+Everything else is the same in both: arrows and the numeric keypad also walk, `.` or `5`
+waits, `g` picks up, `i` opens the pack, `o` walks to what has not been seen, `m` shows the
+whole floor, `>` `<` take the stairs, `p` makes an offering, `T` switches language, `?` is
+help, `Esc` is the menu. The browser build adds `G` for sprites/ASCII and `M` for music.
+
+The help screen is not hand-written: it and the keymap come out of one table in the engine
+(`engine/src/keys.cpp`), so a scheme cannot gain a key the help forgets to mention. There is
+a test for that.
 
 The browser build adds mouse control and an on-screen pad on phones.
 
@@ -301,7 +339,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **329** across 46 suites |
+| Unit and integration tests | **365** across 49 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -341,7 +379,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           329 GoogleTest cases
+tests/           365 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

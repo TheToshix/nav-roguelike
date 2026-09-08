@@ -219,6 +219,24 @@ void Game::enter_level(int depth, bool descending) {
         message(theme.arrival, Severity::Critical);
     }
 
+    // A handful of lines the first time the dungeon proper is entered. Someone
+    // opening this for the first time knows none of the conventions a roguelike
+    // treats as obvious, and the cheapest place to say so is the log they are
+    // already reading. Said once, never again — a game that keeps explaining
+    // itself is a game that does not trust the player.
+    if (depth_ == 1 && !hinted_start_) {
+        hinted_start_ = true;
+        message(Text{"Шаг в чудище — это удар. Отдельной кнопки для драки нет.",
+                     "Stepping into a creature attacks it. There is no separate attack key."},
+                Severity::System);
+        message(Text{"Не спеши вниз: на этаже есть еда, зелья и опыт, а внизу будет труднее.",
+                     "Do not rush down: this floor holds food, potions and experience, and the next is worse."},
+                Severity::System);
+        message(Text{"Зелья и свитки не подписаны, пока не испробуешь. Это часть игры.",
+                     "Potions and scrolls are unlabelled until you try one. That is the game."},
+                Severity::System);
+    }
+
     needs_flow_rebuild_ = true;
     recompute_fov();
 }
@@ -398,6 +416,16 @@ void Game::populate(Level& lvl, int depth) {
 bool Game::perform(const Action& action) {
     if (state_ != RunState::Playing) return false;
 
+    // The travel commands are loops over `perform_single`, so they are peeled
+    // off here rather than inside the switch: they consume many turns, not one.
+    if (action.type == ActionType::Run) return act_run(action.dir);
+    if (action.type == ActionType::Explore) return act_explore();
+    return perform_single(action);
+}
+
+bool Game::perform_single(const Action& action) {
+    if (state_ != RunState::Playing) return false;
+
     bool consumed = false;
     switch (action.type) {
         case ActionType::Move:      consumed = act_move(action.dir); break;
@@ -413,6 +441,10 @@ bool Game::perform(const Action& action) {
             consumed = act_cast(static_cast<Spell>(action.index), action.target);
             break;
         case ActionType::Pray:      consumed = act_pray(); break;
+        // Handled by `perform` before it ever gets here; listed so that adding
+        // an action to the enum still fails the build until it is handled.
+        case ActionType::Run:
+        case ActionType::Explore:
         case ActionType::None:      break;
     }
 
@@ -635,6 +667,25 @@ int Game::hero_speed() const {
     if (const GearTemplate* a = worn(hero_.inv, hero_.inv.armor))
         if (a->powers & GpQuick) speed += 15;
     return speed;
+}
+
+Postmortem Game::postmortem() const {
+    Postmortem pm;
+    pm.blows = blows_;
+    if (!blows_.empty()) pm.killed_by = blows_.back().source;
+
+    // Everything drinkable or readable still in the pack. This is the line that
+    // stings, and it should: most deaths in this game are not "the dungeon was
+    // too hard" but "the healing draught was two keys away".
+    for (const Item& it : hero_.inv.items) {
+        if (it.kind != ItemKind::Potion && it.kind != ItemKind::Scroll &&
+            it.kind != ItemKind::Food)
+            continue;
+        Text line = item_name(it, ident_);
+        if (it.count > 1) line = line + Text{" x"} + num(it.count);
+        pm.unspent.push_back(line);
+    }
+    return pm;
 }
 
 int Game::score() const {

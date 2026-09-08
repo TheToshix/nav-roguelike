@@ -128,6 +128,13 @@ const std::vector<Text>& scroll_appearances();
 const std::vector<Text>& potion_notes();
 const std::vector<Text>& scroll_notes();
 
+/// What a status effect is called, in both languages.
+///
+/// Lives here rather than in a frontend because the log names effects too, and
+/// a message that says "something foul takes hold of you" while the sidebar
+/// says "poison" is two different games describing one event.
+Text effect_name(Effect e);
+
 /// Display name, respecting what the hero has identified so far.
 Text item_name(const Item& it, const Identification& ident);
 /// One-line description of what the item does (empty while unidentified).

@@ -496,16 +496,23 @@ void Game::monster_attacks_hero(Monster& m) {
     const int high = std::max(low, m.a.attack * 5 / 4);
     const int damage = std::max(1, rng_.range(low, high) - hero_defence() * 2 / 3);
 
-    message(format(Text{"{} бьёт тебя на {}.", "{} hits you for {}."}, name, num(damage)),
-            Severity::Bad);
+    // The blow is reported after it lands, not before, and it reports what
+    // actually got through plus what is left. A player who loses a run wants to
+    // know where the health went; a line saying "hits you for 9" while the
+    // shirt ate the blow answers a question nobody asked.
     const int before = hero_.a.hp;
     damage_hero(damage, name);
+    const int taken = before - hero_.a.hp;
+    if (taken > 0)
+        message(format(Text{"{} бьёт тебя на {} — осталось {}/{}.",
+                            "{} hits you for {} — {}/{} left."},
+                       {name, num(taken), num(hero_.a.hp), num(hero_.a.max_hp)}),
+                Severity::Bad);
     if (!hero_.a.alive) return;
 
     // Бахтерец returns a third of whatever actually got through — nothing when
     // the warding shirt ate the blow, which is how the two pieces stay
     // distinguishable rather than stacking into one blur.
-    const int taken = before - hero_.a.hp;
     if (taken > 0 && hero_has(GpThorns))
         damage_monster(m, std::max(1, taken / 3), Text{"шипы бахтерца", "the cuirass's scales"});
 
@@ -513,7 +520,11 @@ void Game::monster_attacks_hero(Monster& m) {
     if (sp.on_hit_chance > 0 && rng_.chance(sp.on_hit_chance)) {
         if (!hero_resists(sp.on_hit)) {
             hero_.a.add_effect(sp.on_hit, sp.on_hit_turns, 2);
-            message(Text{"Тебя задело чем-то дурным.", "Something foul takes hold of you."},
+            // Naming the effect is not decoration. "Something foul takes hold
+            // of you" tells a player nothing they can act on; "poison, 6 turns"
+            // tells them whether to drink now or run first.
+            message(format(Text{"На тебе {} — {} ходов.", "You are under {} — {} turns."},
+                           effect_name(sp.on_hit), num(sp.on_hit_turns)),
                     Severity::Bad);
         }
     }

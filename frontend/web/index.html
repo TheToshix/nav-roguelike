@@ -375,6 +375,39 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 .help-grid span { color: var(--ink-dim); }
 .legend { font-family: var(--mono); font-size: 12.5px; color: var(--ink-dim); line-height: 1.9; }
 
+.pm-h {
+  margin: 18px 0 6px;
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-family: var(--mono);
+}
+.pm { font-family: var(--mono); font-size: 12px; }
+.pm-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 44px 44px;
+  gap: 8px;
+  padding: 3px 4px;
+  color: var(--ink-dim);
+  align-items: baseline;
+}
+.pm-turn { color: var(--ink-faint); }
+.pm-src { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-amt { color: var(--bad); text-align: right; font-variant-numeric: tabular-nums; }
+.pm-left { color: var(--ink-faint); text-align: right; font-variant-numeric: tabular-nums; }
+.pm-items { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--ink-dim); padding: 2px 4px; }
+
+.delta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  white-space: nowrap;
+  align-self: center;
+  padding-left: 8px;
+}
+.delta.up { color: var(--good); }
+.delta.down { color: var(--bad); }
+
 .board { font-family: var(--mono); font-size: 12.5px; }
 .board .row {
   display: grid;
@@ -529,6 +562,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     <span class="spacer"></span>
     <button id="btnSound" title="Музыка боссов">♪</button>
     <button id="btnGfx" title="Графика / ASCII">ASCII</button>
+    <button id="btnScheme" title="Схема управления">WASD</button>
     <button id="btnSave">Сохранить</button>
     <button id="btnLangGame">EN</button>
     <button id="btnQuit">В начало</button>
@@ -597,6 +631,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     <button id="btnDown">Вниз<kbd>&gt;</kbd></button>
     <button id="btnUp">Вверх<kbd>&lt;</kbd></button>
     <button id="btnPray">Жертва<kbd>p</kbd></button>
+    <button id="btnExplore">Обойти<kbd>o</kbd></button>
+    <button id="btnMap">Карта<kbd>m</kbd></button>
     <button id="btnHelp">?<kbd></kbd></button>
   </div>
 </section>
@@ -640,10 +676,17 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       wonText: 'Игла сломана. Навь отпускает тебя — редкий исход.',
       lostText: 'Смерть здесь окончательна. Подземелье будет другим.',
       finalScore: 'Очков', finalDepth: 'Глубина', finalKills: 'Убито', finalTurns: 'Ходов',
-      helpTitle: 'Как играть', helpSub: 'Двенадцать этажей вниз. Внизу — Кощей. Смерть окончательна.',
+      helpTitle: 'Как играть', helpSub: 'Шестнадцать этажей вниз, восемь стражей. Смерть окончательна.',
       legendTitle: 'Знаки',
       bestTitle: 'Бестиарий', bestSub: 'Кто живёт в Нави и на какой глубине.',
       bossTag: 'страж', depthTag: 'гл.',
+      mapTitle: 'Этаж', mapFound: 'Лестница вниз отмечена светлым — ты её уже нашёл.',
+      mapLost: 'Лестница вниз ещё не найдена.',
+      schemeIs: 'Управление:', schemeSwitch: 'кнопка наверху меняет схему.',
+      viaTop: 'кнопка наверху',
+      explore: 'Обойти', mapBtn: 'Карта',
+      dAtk: 'удар', dDef: 'защита', dHp: 'жизнь', dSpd: 'прыть', dSight: 'взор',
+      pmBlows: 'Последние удары', pmUnspent: 'Осталось неиспользованным', pmTurn: 'ход',
       boardTitle: 'Лучшие спуски', boardSub: 'Десять лучших партий в этом браузере.',
       boardEmpty: 'Пока никто не спускался.', boardBtn: 'Рекорды',
       wonTag: 'победа', best: 'Лучший спуск.', placed: 'В таблице: место ',
@@ -690,10 +733,17 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       wonText: 'The needle snaps. Nav lets you go — few ever see this.',
       lostText: 'Death here is final. The dungeon will be a different one.',
       finalScore: 'Score', finalDepth: 'Depth', finalKills: 'Kills', finalTurns: 'Turns',
-      helpTitle: 'How to play', helpSub: 'Twelve floors down. Koschei waits at the bottom. Death is final.',
+      helpTitle: 'How to play', helpSub: 'Sixteen floors down, eight guardians. Death is final.',
       legendTitle: 'Glyphs',
       bestTitle: 'Bestiary', bestSub: 'What lives in Nav, and how deep.',
       bossTag: 'guardian', depthTag: 'depth',
+      mapTitle: 'Floor', mapFound: 'The way down is marked pale — you have found it.',
+      mapLost: 'The way down has not been found yet.',
+      schemeIs: 'Controls:', schemeSwitch: 'the button up top switches schemes.',
+      viaTop: 'button up top',
+      explore: 'Explore', mapBtn: 'Map',
+      dAtk: 'atk', dDef: 'def', dHp: 'hp', dSpd: 'spd', dSight: 'sight',
+      pmBlows: 'The last blows', pmUnspent: 'Left unused in the pack', pmTurn: 'turn',
       boardTitle: 'Best descents', boardSub: 'The ten best runs in this browser.',
       boardEmpty: 'Nobody has gone down yet.', boardBtn: 'Scores',
       wonTag: 'won', best: 'Your best descent yet.', placed: 'On the board: place ',
@@ -737,6 +787,37 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   }
   function storeScoreBlob(blob) {
     try { localStorage.setItem(SCORES_KEY, blob); } catch (e) { /* private mode */ }
+  }
+
+  /// The last few blows and what was never used.
+  ///
+  /// Only shown when the run ended badly and there is something to say. A
+  /// player who just lost a run they cannot repeat deserves to see where the
+  /// health went — and, more often than not, the healing draught they were
+  /// still carrying.
+  function postmortemHtml() {
+    if (!Api) return '';
+    var pm;
+    try { pm = Api.postmortem(); } catch (e) { return ''; }
+    if ((!pm.blows || !pm.blows.length) && (!pm.unspent || !pm.unspent.length)) return '';
+
+    var out = '';
+    if (pm.blows && pm.blows.length) {
+      out += '<h3 class="pm-h">' + t('pmBlows') + '</h3><div class="pm">';
+      pm.blows.forEach(function (b) {
+        out += '<div class="pm-row"><span class="pm-turn">' + t('pmTurn') + ' ' + b.turn +
+               '</span><span class="pm-src">' + esc(b.source) + '</span>' +
+               '<span class="pm-amt">-' + b.amount + '</span>' +
+               '<span class="pm-left">' + b.left + '</span></div>';
+      });
+      out += '</div>';
+    }
+    if (pm.unspent && pm.unspent.length) {
+      out += '<h3 class="pm-h">' + t('pmUnspent') + '</h3><div class="pm pm-items">' +
+             pm.unspent.map(function (x) { return '<span>' + esc(x) + '</span>'; }).join('') +
+             '</div>';
+    }
+    return out;
   }
 
   /// The board, as rows. `highlight` marks the run just finished, or -1.
@@ -790,15 +871,52 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       scoreTable: function (blob) {
         return JSON.parse(readString(
           m.ccall('nav_score_table', 'number', ['string'], [blob || ''])));
+      },
+      // The keymap comes from the engine as well. The browser resolves keys
+      // itself for speed, but out of the same table the terminal reads, so the
+      // two builds cannot end up disagreeing about what a key does.
+      keys: function (schemeId) {
+        return JSON.parse(readString(m._nav_keys_json(schemeId | 0)));
+      },
+      postmortem: function () {
+        return JSON.parse(readString(m._nav_postmortem_json()));
       }
     };
   }
 
   var ACT = {
     Move: 1, Wait: 2, PickUp: 3, UseItem: 4, Drop: 5, Equip: 6,
-    Descend: 7, Ascend: 8, Cast: 9
+    Descend: 7, Ascend: 8, Cast: 9, Pray: 11, Run: 12, Explore: 13
   };
-  var ACT_PRAY = 11;
+  var ACT_PRAY = ACT.Pray;
+
+  // nav::Command, mirrored. The values come across in the key table.
+  var CMD = {
+    None: 0, Move: 1, Run: 2, Wait: 3, PickUp: 4, Inventory: 5, Drop: 6, Cast: 7,
+    Descend: 8, Ascend: 9, Pray: 10, Map: 11, Explore: 12, Save: 13, Load: 14,
+    Lang: 15, Help: 16, Menu: 17, Quit: 18
+  };
+
+  var SCHEME_KEY = 'nav.scheme.v1';
+  var scheme = 0;              // 0 classic, 1 wasd
+  var keyTable = {keys: {}, help: [], name: ''};
+
+  function loadScheme() {
+    try {
+      var v = localStorage.getItem(SCHEME_KEY);
+      if (v === 'wasd') scheme = 1;
+    } catch (e) { /* private mode */ }
+  }
+
+  function saveScheme() {
+    try { localStorage.setItem(SCHEME_KEY, scheme === 1 ? 'wasd' : 'classic'); }
+    catch (e) { /* private mode */ }
+  }
+
+  function refreshKeyTable() {
+    if (!Api) return;
+    keyTable = Api.keys(scheme);
+  }
 
   // -------------------------------------------------------------- sprites --
   //
@@ -1203,6 +1321,27 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 
   function letterFor(i) { return String.fromCharCode(97 + i); }
 
+  /// "+2 удар, -1 защита" — what a piece of gear would change if worn.
+  ///
+  /// The numbers come from the engine, which works them out by trying the item
+  /// on and reading the character sheet back. Without this line the pack is a
+  /// list of names, and picking gear — the commonest decision in the game — is
+  /// a coin toss.
+  function deltaHtml(d) {
+    if (!d) return '';
+    var parts = [], good = 0;
+    [['atk', t('dAtk')], ['def', t('dDef')], ['hp', t('dHp')],
+     ['spd', t('dSpd')], ['sight', t('dSight')]].forEach(function (pair) {
+      var v = d[pair[0]];
+      if (!v) return;
+      parts.push((v > 0 ? '+' : '') + v + ' ' + pair[1]);
+      good += v > 0 ? 1 : -1;
+    });
+    if (!parts.length) return '';
+    return '<span class="delta ' + (good >= 0 ? 'up' : 'down') + '">' +
+           esc(parts.join(', ')) + '</span>';
+  }
+
   function showInventory() {
     var rows = state.inventory.map(function (it, i) {
       return '<button class="row-item" data-index="' + it.i + '">' +
@@ -1210,6 +1349,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
         '<span class="body"><b>' + esc(it.glyph) + ' ' + esc(it.name) +
         (it.count > 1 ? ' &times;' + it.count : '') + '</b>' +
         (it.note ? '<small>' + esc(it.note) + '</small>' : '') + '</span>' +
+        deltaHtml(it.delta) +
         (it.equipped ? '<span class="tag">' + t('worn') + '</span>' : '') +
         '</button>';
     }).join('');
@@ -1286,15 +1426,88 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     act(ACT.Cast, 0, 0, id, target.x, target.y);
   }
 
+  function toggleLanguage() {
+    LANG = LANG === 'ru' ? 'en' : 'ru';
+    applyLanguage();
+  }
+
+  function toggleScheme() {
+    scheme = scheme === 1 ? 0 : 1;
+    saveScheme();
+    refreshKeyTable();
+    applyLanguage();
+    showHelp();
+  }
+
+  /// The whole explored floor at once.
+  ///
+  /// The play view follows the hero and shows a window onto the floor, which is
+  /// what a fight needs and the opposite of what "where do I go now" needs. The
+  /// map is drawn small and flat: no sprites, no lighting, just shape, the
+  /// stairs, and where you are standing.
+  function showFloorMap() {
+    if (!state || !state.map) return;
+    var w = state.w, h = state.h;
+    var px = Math.max(2, Math.min(6, Math.floor(560 / w)));
+    var out = '<canvas id="floorMap" width="' + (w * px) + '" height="' + (h * px) +
+              '" style="width:100%;max-width:' + (w * px) + 'px;image-rendering:pixelated;' +
+              'background:#0d0b09;border:1px solid var(--line);border-radius:3px"></canvas>';
+    // The terrain layer, not the glyphs: a monster standing on the staircase
+    // replaces its glyph but never its terrain, and "where are the stairs" is
+    // the question this screen exists to answer.
+    var m = state.map;
+    var terrainAt = function (i) {
+      var c = m.terrain.charCodeAt(i) - 65;
+      return c >= 0 ? m.terrainKeys[c] : null;
+    };
+    var found = false;
+    for (var i = 0; i < m.vis.length; i++)
+      if (m.vis[i] !== '0' && terrainAt(i) === 'stairs_down') { found = true; break; }
+
+    openModal(
+      '<h2>' + (state.depth > 0 ? t('mapTitle') + ' ' + state.depth : esc(state.zone)) + '</h2>' +
+      '<p class="sub">' + (found ? t('mapFound') : t('mapLost')) + '</p>' + out +
+      '<div style="margin-top:14px"><button id="mClose">' + t('close') + '</button></div>',
+      function (overlay) {
+        overlay.querySelector('#mClose').addEventListener('click', closeModal);
+        var c = overlay.querySelector('#floorMap');
+        var g = c.getContext('2d');
+        var COLORS = {
+          wall: '#3b342b', floor: '#5a5147', door: '#a5763f', door_open: '#a5763f',
+          water: '#3f6a72', chasm: '#151210', altar: '#c8a45c',
+          stairs_down: '#e8d08a', stairs_up: '#8fa9c4'
+        };
+        for (var y = 0; y < h; y++) {
+          for (var x = 0; x < w; x++) {
+            var i = y * w + x;
+            if (m.vis[i] === '0') continue;
+            var key = terrainAt(i);
+            g.fillStyle = COLORS[key] || '#5a5147';
+            g.fillRect(x * px, y * px, px, px);
+          }
+        }
+        g.fillStyle = '#f4ead6';
+        g.fillRect(state.hero.x * px, state.hero.y * px, px, px);
+      });
+  }
+
   function showHelp() {
-    var keys = t('keys').map(function (k) {
-      return '<code>' + k[0] + '</code><span>' + k[1] + '</span>';
+    // Three commands have no letter in the WASD scheme, and the engine's table
+    // sends them to a menu — which is the terminal's answer. The browser's
+    // answer is the row of buttons along the top, so the rows are relabelled
+    // here rather than the table being taught about two different frontends.
+    var TOP_BAR = {13: 1, 14: 1, 18: 1};   // Save, Load, Quit
+    var keys = (keyTable.help || []).map(function (row) {
+      var shown = (TOP_BAR[row.cmd] && !/[A-Za-z?<>.,]/.test(row.keys)) ? t('viaTop') : row.keys;
+      return '<code>' + esc(shown) + '</code><span>' + esc(row.what) + '</span>';
     }).join('');
     var legend = t('legend').map(function (l) {
       return '<div><code style="color:var(--gold)">' + l[0] + '</code> &nbsp;' + l[1] + '</div>';
     }).join('');
     openModal(
       '<h2>' + t('helpTitle') + '</h2><p class="sub">' + t('helpSub') + '</p>' +
+      '<p class="sub" style="color:var(--gold)">' + t('schemeIs') + ' ' +
+      esc(keyTable.name || '') + ' — ' + t('schemeSwitch') + '</p>' +
       '<div class="help-grid">' + keys + '</div>' +
       '<h3 style="margin:20px 0 8px;color:var(--ink-faint);font-size:10.5px;letter-spacing:.16em;' +
       'text-transform:uppercase;font-family:var(--mono)">' + t('legendTitle') + '</h3>' +
@@ -1354,6 +1567,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       '</div>' +
       (board.place === 0 ? '<p class="sub" style="color:var(--gold)">' + t('best') + '</p>'
        : board.place > 0 ? '<p class="sub">' + t('placed') + (board.place + 1) + '</p>' : '') +
+      postmortemHtml() +
       scoreTableHtml(board.rows || [], board.place) +
       '<div style="height:14px"></div>' +
       '<button class="primary" id="mAgain">' + t('again') + '</button> ' +
@@ -1380,12 +1594,11 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   }
 
   // ----------------------------------------------------------------- input --
-  var MOVES = {
-    h: [-1, 0], j: [0, 1], k: [0, -1], l: [1, 0],
-    y: [-1, -1], u: [1, -1], b: [-1, 1], n: [1, 1],
-    ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1],
-    '4': [-1, 0], '6': [1, 0], '8': [0, -1], '2': [0, 1],
-    '7': [-1, -1], '9': [1, -1], '1': [-1, 1], '3': [1, 1]
+  // Arrows never go through the engine's table — they are the browser's own
+  // names for keys, not characters. Held with Shift they run instead of walk,
+  // which is the same gesture the letter keys use.
+  var ARROWS = {
+    ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]
   };
 
   // No browser will make a sound before the player has touched something, so
@@ -1428,22 +1641,38 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       return;
     }
 
-    var move = MOVES[e.key];
-    if (move) { act(ACT.Move, move[0], move[1]); e.preventDefault(); return; }
+    var arrow = ARROWS[e.key];
+    if (arrow) {
+      act(e.shiftKey ? ACT.Run : ACT.Move, arrow[0], arrow[1]);
+      e.preventDefault();
+      return;
+    }
 
-    switch (e.key) {
-      case '.': case '5': act(ACT.Wait); break;
-      case 'g': case ',': act(ACT.PickUp); break;
-      case 'i': showInventory(); break;
-      case 'z': showSpells(); break;
-      case '>': act(ACT.Descend); break;
-      case '<': act(ACT.Ascend); break;
-      case 'p': act(ACT_PRAY); break;
-      case 'G': toggleRenderer(); break;
-      case 'M': toggleSound(); break;
-      case 'S': doSave(); break;
-      case 'L': doLoad(); break;
-      case '?': showHelp(); break;
+    // Two keys stay outside the scheme because they belong to the browser build
+    // alone: the renderer switch and the sound switch have no terminal twin.
+    if (e.key === 'G') { toggleRenderer(); e.preventDefault(); return; }
+    if (e.key === 'M') { toggleSound(); e.preventDefault(); return; }
+
+    var bound = keyTable.keys[e.key];
+    if (!bound) return;
+    switch (bound.cmd) {
+      case CMD.Move:      act(ACT.Move, bound.dx, bound.dy); break;
+      case CMD.Run:       act(ACT.Run, bound.dx, bound.dy); break;
+      case CMD.Explore:   act(ACT.Explore); break;
+      case CMD.Wait:      act(ACT.Wait); break;
+      case CMD.PickUp:    act(ACT.PickUp); break;
+      case CMD.Inventory: showInventory(); break;
+      case CMD.Drop:      showInventory(); break;
+      case CMD.Cast:      showSpells(); break;
+      case CMD.Descend:   act(ACT.Descend); break;
+      case CMD.Ascend:    act(ACT.Ascend); break;
+      case CMD.Pray:      act(ACT_PRAY); break;
+      case CMD.Map:       showFloorMap(); break;
+      case CMD.Save:      doSave(); break;
+      case CMD.Load:      doLoad(); break;
+      case CMD.Lang:      toggleLanguage(); break;
+      case CMD.Help:      showHelp(); break;
+      case CMD.Menu:      showHelp(); break;
       default: return;
     }
     e.preventDefault();
@@ -1518,15 +1747,22 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('lKills').textContent = t('kills');
     $('lFoes').textContent = t('foes');
 
+    // The little key hints on the buttons follow the scheme in force. A hint
+    // naming a key the player does not have is worse than no hint at all.
+    var castKey = scheme === 1 ? 'f' : 'z';
     $('btnPick').innerHTML = t('pick') + '<kbd>g</kbd>';
     $('btnInv').innerHTML = t('inv') + '<kbd>i</kbd>';
-    $('btnCast').innerHTML = t('cast') + '<kbd>z</kbd>';
+    $('btnCast').innerHTML = t('cast') + '<kbd>' + castKey + '</kbd>';
     $('btnDown').innerHTML = t('down') + '<kbd>&gt;</kbd>';
     $('btnUp').innerHTML = t('up') + '<kbd>&lt;</kbd>';
     $('btnPray').innerHTML = t('pray') + '<kbd>p</kbd>';
+    $('btnExplore').innerHTML = t('explore') + '<kbd>o</kbd>';
+    $('btnMap').innerHTML = t('mapBtn') + '<kbd>m</kbd>';
+    $('btnScheme').textContent = scheme === 1 ? 'WASD' : 'HJKL';
 
     if (Api) {
       statics = Api.statics();
+      refreshKeyTable();
       renderClasses();
       if (state) refresh();
     }
@@ -1625,10 +1861,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     LANG = LANG === 'ru' ? 'en' : 'ru';
     applyLanguage();
   });
-  $('btnLangGame').addEventListener('click', function () {
-    LANG = LANG === 'ru' ? 'en' : 'ru';
-    applyLanguage();
-  });
+  $('btnLangGame').addEventListener('click', toggleLanguage);
   $('btnSound').addEventListener('click', toggleSound);
   $('btnGfx').addEventListener('click', toggleRenderer);
   $('btnSave').addEventListener('click', doSave);
@@ -1639,7 +1872,10 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   $('btnDown').addEventListener('click', function () { act(ACT.Descend); });
   $('btnUp').addEventListener('click', function () { act(ACT.Ascend); });
   $('btnPray').addEventListener('click', function () { act(ACT_PRAY); });
+  $('btnExplore').addEventListener('click', function () { act(ACT.Explore); });
+  $('btnMap').addEventListener('click', showFloorMap);
   $('btnHelp').addEventListener('click', showHelp);
+  $('btnScheme').addEventListener('click', toggleScheme);
 
   window.addEventListener('resize', function () {
     if (!state) return;
@@ -1650,6 +1886,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   NavModule().then(function (m) {
     Api = makeApi(m);
     Api.setLanguage(LANG);
+    loadScheme();
+    refreshKeyTable();
     statics = Api.statics();
     renderClasses();
     applyLanguage();
