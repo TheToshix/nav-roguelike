@@ -33,10 +33,17 @@ add_executable(nav_tests
   test_bosses.cpp
   test_classes.cpp
   test_save.cpp
+  test_sprites.cpp
   test_integration.cpp
 )
 
 target_link_libraries(nav_tests PRIVATE nav_engine GTest::gtest_main)
+
+# The sprite test reads the generated artwork out of the source tree, so that
+# it checks the engine against the real pictures rather than against a second
+# list that would drift alongside it.
+target_compile_definitions(nav_tests PRIVATE
+  NAV_SPRITES_JS="${CMAKE_CURRENT_SOURCE_DIR}/../frontend/web/sprites.js")
 
 if(MSVC)
   target_compile_options(nav_tests PRIVATE /utf-8)

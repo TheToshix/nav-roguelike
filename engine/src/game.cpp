@@ -517,6 +517,56 @@ int Game::score() const {
 }
 
 // ---------------------------------------------------------------------------
+// Sprite keys
+//
+// Deliberately strings rather than the enum values: a frontend keyed on numbers
+// silently draws the wrong thing the day an enum gains a member, while a
+// missing string key is caught by the test that walks every tile, species and
+// item and demands a sprite for each.
+// ---------------------------------------------------------------------------
+
+const char* hero_sprite_key(HeroClass c) {
+    switch (c) {
+        case HeroClass::Vityaz:  return "hero_vityaz";
+        case HeroClass::Vedun:   return "hero_vedun";
+        case HeroClass::Tat:     return "hero_tat";
+        case HeroClass::Znahar:  return "hero_znahar";
+        case HeroClass::Kuznets: return "hero_kuznets";
+        case HeroClass::Bogatyr: return "hero_bogatyr";
+        default:                 return "hero_vityaz";
+    }
+}
+
+const char* item_sprite_key(ItemKind kind) {
+    switch (kind) {
+        case ItemKind::Weapon: return "item_weapon";
+        case ItemKind::Armor:  return "item_armor";
+        case ItemKind::Amulet: return "item_amulet";
+        case ItemKind::Potion: return "item_potion";
+        case ItemKind::Scroll: return "item_scroll";
+        case ItemKind::Food:   return "item_food";
+        case ItemKind::Gold:   return "item_gold";
+        case ItemKind::Needle: return "item_needle";
+    }
+    return "item_gold";
+}
+
+const char* tile_sprite_key(Tile t) {
+    switch (t) {
+        case Tile::Wall:       return "wall";
+        case Tile::Floor:      return "floor";
+        case Tile::StairsDown: return "stairs_down";
+        case Tile::StairsUp:   return "stairs_up";
+        case Tile::Door:       return "door";
+        case Tile::OpenDoor:   return "door_open";
+        case Tile::Water:      return "water";
+        case Tile::Chasm:      return "chasm";
+        case Tile::Altar:      return "altar";
+    }
+    return "floor";
+}
+
+// ---------------------------------------------------------------------------
 // Spatial queries
 // ---------------------------------------------------------------------------
 
@@ -565,6 +615,7 @@ RenderCell Game::render_at(Vec2 p) const {
     // made rooms hard to read at small cell sizes. The three values come from
     // the belt, so a glance at the screen says which part of the dungeon this is.
     const ZoneTheme& theme = zone_theme_for_depth(depth_);
+    cell.terrain = tile_sprite_key(m.at(p));
     switch (m.at(p)) {
         case Tile::Wall:       cell.glyph = '#'; cell.color = theme.wall_color; break;
         case Tile::Floor:      cell.glyph = '.'; cell.color = theme.floor_color; break;
@@ -584,15 +635,24 @@ RenderCell Game::render_at(Vec2 p) const {
         const Item& it = level().items[static_cast<std::size_t>(item)];
         cell.glyph = item_glyph(it);
         cell.color = it.kind == ItemKind::Gold ? "#e0c060" : "#9fd0c0";
+        cell.entity = item_sprite_key(it.kind);
     }
 
     if (const Monster* mon = monster_at(p)) {
         const auto& beasts = bestiary();
         const std::size_t i = static_cast<std::size_t>(mon->species);
-        if (i < beasts.size()) { cell.glyph = beasts[i].glyph; cell.color = beasts[i].color; }
+        if (i < beasts.size()) {
+            cell.glyph = beasts[i].glyph;
+            cell.color = beasts[i].color;
+            cell.entity = beasts[i].key;
+        }
     }
 
-    if (p == hero_.a.pos) { cell.glyph = '@'; cell.color = "#ffffff"; }
+    if (p == hero_.a.pos) {
+        cell.glyph = '@';
+        cell.color = "#ffffff";
+        cell.entity = hero_sprite_key(hero_.cls);
+    }
     return cell;
 }
 

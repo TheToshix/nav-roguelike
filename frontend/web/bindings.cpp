@@ -73,29 +73,36 @@ void append_field(std::string& out, const char* key, const std::string& value, b
     append_json_string(out, value);
 }
 
-/// Collects the distinct colours used by a frame so the map can reference them
-/// by a single character each.
-class Palette {
+/// Collects the distinct strings a frame refers to — colours, terrain sprite
+/// keys, entity sprite keys — so the per-cell maps can name each with a single
+/// character and the string itself is sent once.
+///
+/// Three of these per frame is what keeps a 2448-cell floor at a few kilobytes
+/// instead of a few hundred: the payload is three flat strings plus three short
+/// lists, not 2448 objects.
+class StringTable {
 public:
-    char index_of(const char* color) {
-        for (std::size_t i = 0; i < colors_.size(); ++i)
-            if (colors_[i] == color) return static_cast<char>('A' + static_cast<int>(i));
-        colors_.emplace_back(color);
-        return static_cast<char>('A' + static_cast<int>(colors_.size()) - 1);
+    /// ' ' means "nothing here"; a real entry starts at 'A'.
+    char index_of(const char* s) {
+        if (s == nullptr) return ' ';
+        for (std::size_t i = 0; i < values_.size(); ++i)
+            if (values_[i] == s) return static_cast<char>('A' + static_cast<int>(i));
+        values_.emplace_back(s);
+        return static_cast<char>('A' + static_cast<int>(values_.size()) - 1);
     }
 
     std::string to_json() const {
         std::string out = "[";
-        for (std::size_t i = 0; i < colors_.size(); ++i) {
+        for (std::size_t i = 0; i < values_.size(); ++i) {
             if (i) out += ',';
-            append_json_string(out, colors_[i]);
+            append_json_string(out, values_[i]);
         }
         out += ']';
         return out;
     }
 
 private:
-    std::vector<std::string> colors_;
+    std::vector<std::string> values_;
 };
 
 const char* severity_name(nav::Severity s) {
@@ -138,13 +145,15 @@ std::string build_state_json() {
     const Hero& h = g.hero();
     const Map& map = g.map();
 
-    Palette palette;
-    std::string glyphs, colors, visibility;
+    StringTable palette, terrain_keys, entity_keys;
+    std::string glyphs, colors, visibility, terrain, entities;
     const std::size_t cells =
         static_cast<std::size_t>(map.width()) * static_cast<std::size_t>(map.height());
     glyphs.reserve(cells);
     colors.reserve(cells);
     visibility.reserve(cells);
+    terrain.reserve(cells);
+    entities.reserve(cells);
 
     for (int y = 0; y < map.height(); ++y) {
         for (int x = 0; x < map.width(); ++x) {
@@ -152,6 +161,11 @@ std::string build_state_json() {
             glyphs += cell.explored ? cell.glyph : ' ';
             colors += palette.index_of(cell.color);
             visibility += cell.visible ? '2' : (cell.explored ? '1' : '0');
+            // Sprite keys travel next to the glyphs rather than instead of
+            // them: the page can switch between the two renderers without
+            // asking the engine for a different frame.
+            terrain += cell.explored ? terrain_keys.index_of(cell.terrain) : ' ';
+            entities += cell.explored ? entity_keys.index_of(cell.entity) : ' ';
         }
     }
 
@@ -169,6 +183,15 @@ std::string build_state_json() {
     // The belt the hero is in — the frontends show its name beside the depth.
     append_field(out, "zone", zone_theme_for_depth(g.depth()).name.get(g_lang), first);
     append_field(out, "needleIntact", g.needle_intact() ? 1 : 0, first);
+    // The belt's three colours. The sprite renderer tints one neutral set of
+    // stones with these, which is why the crypts, the mire and the frozen
+    // kingdom do not need three copies of every tile.
+    {
+        const ZoneTheme& theme = zone_theme_for_depth(g.depth());
+        append_field(out, "tintWall", std::string(theme.wall_color), first);
+        append_field(out, "tintFloor", std::string(theme.floor_color), first);
+        append_field(out, "tintLiquid", std::string(theme.liquid_color), first);
+    }
 
     out += ",\"map\":{";
     out += "\"glyphs\":";
@@ -178,6 +201,12 @@ std::string build_state_json() {
     out += ",\"vis\":";
     append_json_string(out, visibility);
     out += ",\"palette\":" + palette.to_json();
+    out += ",\"terrain\":";
+    append_json_string(out, terrain);
+    out += ",\"terrainKeys\":" + terrain_keys.to_json();
+    out += ",\"entities\":";
+    append_json_string(out, entities);
+    out += ",\"entityKeys\":" + entity_keys.to_json();
     out += "}";
 
     // --- Hero -------------------------------------------------------------
@@ -220,6 +249,8 @@ std::string build_state_json() {
         monster_first = false;
         out += "{\"x\":" + std::to_string(m.a.pos.x);
         out += ",\"y\":" + std::to_string(m.a.pos.y);
+        out += ",\"key\":";           // sprite key, so the panel can show the picture
+        append_json_string(out, sp.key);
         out += ",\"hp\":" + std::to_string(m.a.hp);
         out += ",\"maxHp\":" + std::to_string(m.a.max_hp);
         out += ",\"name\":";
@@ -367,6 +398,8 @@ EMSCRIPTEN_KEEPALIVE char* nav_static_json() {
         const auto& c = nav::class_table()[i];
         if (i) out += ',';
         out += "{\"id\":" + std::to_string(static_cast<int>(c.cls));
+        out += ",\"key\":";           // sprite key for the portrait on the card
+        append_json_string(out, nav::hero_sprite_key(c.cls));
         out += ",\"name\":";
         append_json_string(out, c.name.get(g_lang));
         out += ",\"blurb\":";
@@ -412,6 +445,8 @@ EMSCRIPTEN_KEEPALIVE char* nav_static_json() {
         first = false;
         out += "{\"name\":";
         append_json_string(out, s.name.get(g_lang));
+        out += ",\"key\":";           // sprite key, so the bestiary can show the picture
+        append_json_string(out, s.key);
         out += ",\"glyph\":";
         append_json_string(out, std::string(1, s.glyph));
         out += ",\"color\":";

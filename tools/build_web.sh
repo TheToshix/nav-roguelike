@@ -30,7 +30,12 @@ cmake --build "$build" -j"$(nproc 2>/dev/null || echo 4)"
 
 echo "==> packaging into dist/"
 mkdir -p "$dist"
-cp "$root/frontend/web/index.html" "$dist/index.html"
+
+# The pixel art is authored as text and generated into sprites.js. Inlining it
+# here keeps dist/ at two files and keeps the published page from needing a
+# third request before it can draw anything.
+python3 "$root/tools/sprites/build.py" >/dev/null
+python3 "$root/tools/inline_sprites.py" "$dist" >/dev/null
 cp "$build/nav.js" "$dist/nav.js"
 touch "$dist/.nojekyll"   # GitHub Pages otherwise hides files starting with _
 

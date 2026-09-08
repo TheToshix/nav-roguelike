@@ -34,3 +34,7 @@ nav_save.txt
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Python bytecode from the sprite tools
+__pycache__/
+*.pyc

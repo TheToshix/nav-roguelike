@@ -36,12 +36,28 @@ struct Level {
 };
 
 /// Everything the frontends need to draw one cell.
+///
+/// `glyph`/`color` are what the terminal draws. `terrain` and `entity` are
+/// stable string keys naming *what* is there, so a frontend with real artwork
+/// can look up a sprite instead — and can draw the two as separate layers, with
+/// a creature standing on a floor rather than replacing it. The engine still
+/// decides what is where; it just no longer decides that the answer is a
+/// character.
 struct RenderCell {
     char glyph{' '};
     const char* color{"#888"};
     bool visible{false};
     bool explored{false};
+    const char* terrain{"floor"};   ///< Ground: "wall", "water", "stairs_down", ...
+    const char* entity{nullptr};    ///< On top: a species key, "hero_vityaz", "item_gold", ...
 };
+
+/// Sprite key for the hero of a given class ("hero_vityaz" and so on).
+const char* hero_sprite_key(HeroClass c);
+/// Sprite key for an item ("item_potion", "item_gold", ...).
+const char* item_sprite_key(ItemKind kind);
+/// Sprite key for a tile ("wall", "floor", "door", ...).
+const char* tile_sprite_key(Tile t);
 
 /// The complete rules engine.
 ///

@@ -38,8 +38,7 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p dist
-          cp frontend/web/index.html dist/
+          python3 tools/inline_sprites.py dist
           cp build-web/nav.js dist/
           touch dist/.nojekyll
 

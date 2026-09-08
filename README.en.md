@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-279-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-285-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -70,6 +70,48 @@ up, blows against her barely land, and she backs off and calls for help. The hut
 **Koschei** does not die. Beaten to nothing, he simply rises again, because his death is on a
 needle's point and the needle lies somewhere on that same floor. After the first resurrection
 the whole floor is revealed: a mechanic nobody can guess at is not a puzzle, it is a trap.
+
+### The artwork is 16x16, and it is written as text
+
+You can play it in glyphs or in pixels: the **ASCII** button in the top bar (or `G`)
+switches renderers mid-run. Both are fed the same frame — the engine reports a glyph
+*and* a sprite key for every cell.
+
+<img src="docs/media/sprites.png" alt="Every sprite" width="740">
+
+Forty-one sprites: nine tiles, eight item kinds, six heroes and eighteen creatures. There
+is not a single PNG in the repository. All of it lives in `tools/sprites/pixels.py` as
+text — sixteen rows per sprite, `.` for transparent, every other character an index into
+that sprite's own palette:
+
+```python
+beast('volkolak', {'1': '#4a3520', '2': '#6f4f2d', '3': '#8f6b40', 'w': '#e8e0d0',
+                   'r': '#a8433c'}, [
+    '.oo..........oo.',
+    'o33o........o33o',
+    'o333oo....oo333o',
+    '.o3333oooo3333o.',
+    '.o33e333333e33o.',
+    ...
+```
+
+That buys the art something a PNG never has: a changed pixel shows up in a diff as a
+changed character rather than as "binary files differ". `tools/sprites/build.py` turns it
+into `frontend/web/sprites.js` (a palette plus 256 index characters per sprite — 14 KB for
+the lot) and into the contact sheet above. A CI job regenerates the file and fails if what
+is committed has fallen behind its source.
+
+**The ground and whoever stands on it are separate layers.** The engine reports `terrain`
+and `entity` as different fields, so an upyr on a staircase no longer erases the staircase.
+
+**One set of stones for three belts.** Terrain is drawn in neutral grey and tinted at
+runtime with the colour of the belt. The alternative is three copies of every tile and
+three chances to forget one of them.
+
+The `Sprites.*` tests walk every tile, species, item kind and hero class and demand a
+drawing for each — and, in the other direction, catch a drawing nothing ever asks for.
+They read the generated artwork itself rather than a second list kept beside the engine: a
+list would agree with the engine and disagree with the pictures.
 
 ## What is interesting about it, engineering-wise
 
@@ -155,7 +197,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 279 tests
+ctest --test-dir build --output-on-failure    # 285 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ```
 
@@ -181,6 +223,7 @@ python3 -m http.server -d dist 8080
 | `p` | make an offering at a shrine |
 | `S` `L` | save / load |
 | `T` | switch language |
+| `G` | sprites / ASCII |
 | `?` | help |
 
 The browser build adds mouse control and an on-screen pad on phones.
@@ -196,7 +239,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **279** across 41 suites |
+| Unit and integration tests | **285** across 43 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, the WebAssembly build |
@@ -224,10 +267,11 @@ engine/          the core: game rules, no I/O
   src/           map generation, field of view, pathfinding, combat, AI, saves
 frontend/
   terminal/      ANSI rendering and raw keyboard input
-  web/           the C binding layer for WebAssembly, and the game page
-tests/           279 GoogleTest cases
+  web/           the C binding layer for WebAssembly, the game page and the sprites
+tests/           285 GoogleTest cases
 docs/            architecture, test plan, test cases, bug reports
 tools/           the web build script
+  sprites/       the pixel art as text, and the generator that reads it
 ```
 
 ## License

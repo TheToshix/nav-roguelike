@@ -127,6 +127,15 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   width: 100%;
 }
 .class-card[aria-pressed="true"] { border-color: var(--gold); background: #2c2620; }
+.class-card { position: relative; padding-right: 58px; }
+.class-card .portrait {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+}
 .class-card strong { display: block; font-size: 16px; margin-bottom: 3px; }
 .class-card span { color: var(--ink-dim); font-size: 13.5px; line-height: 1.45; }
 .class-card .trait {
@@ -244,6 +253,9 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 
 .foe { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12.5px; }
 .foe .g { font-family: var(--mono); font-weight: 700; width: 12px; text-align: center; }
+img.g { image-rendering: pixelated; flex-shrink: 0; }
+.foe img.g { width: 18px; height: 18px; }
+.beast img.g { width: 26px; height: 26px; }
 .foe .n { flex: 1; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .foe .hp { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
 
@@ -470,6 +482,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     <span class="stat"><span id="lTurn">Ход</span> <b id="tTurn">0</b></span>
     <span class="stat"><span id="lScore">Очки</span> <b id="tScore">0</b></span>
     <span class="spacer"></span>
+    <button id="btnGfx" title="Графика / ASCII">ASCII</button>
     <button id="btnSave">Сохранить</button>
     <button id="btnLangGame">EN</button>
     <button id="btnQuit">В начало</button>
@@ -539,6 +552,9 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
+<!-- Pixel art, generated from tools/sprites/pixels.py by tools/sprites/build.py.
+     tools/build_web.sh inlines it, so dist/ stays two files. -->
+<script src="sprites.js"></script>
 <script src="nav.js"></script>
 <script>
 (function () {
@@ -688,6 +704,111 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
   };
   var ACT_PRAY = 11;
 
+  // -------------------------------------------------------------- sprites --
+  //
+  // The artwork arrives as a palette and 256 index characters per sprite (see
+  // tools/sprites/pixels.py). Turning that into a canvas once and reusing it is
+  // what makes drawing a floor cheap: a frame is a few hundred drawImage calls
+  // on cached bitmaps, not a few hundred thousand pixel writes.
+  //
+  // Terrain is drawn in neutral grey and tinted here with the colour of the
+  // belt, so one set of stones serves the crypts, the mire and Кощей's halls.
+  // Tinted variants are cached under their own key, so each belt pays for its
+  // palette exactly once.
+  var Sprites = (function () {
+    var data = window.NAV_SPRITES || null;
+    var cache = {};
+    var urls = {};
+
+    function rgb(hex) {
+      var n = parseInt(hex.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    // A tint is applied as a multiply against the colour normalised to full
+    // brightness. Multiplying by the raw belt colour would darken every tile
+    // towards black and lose the shading the art already has; normalising
+    // keeps the ramp and changes only the hue.
+    function normalise(hex) {
+      var c = rgb(hex), top = Math.max(c[0], c[1], c[2]) || 255;
+      var k = 255 / top;
+      return [c[0] * k / 255, c[1] * k / 255, c[2] * k / 255];
+    }
+
+    function build(name, tint) {
+      var s = data.sprites[name];
+      if (!s) return null;
+      var n = data.size;
+      var c = document.createElement('canvas');
+      c.width = n; c.height = n;
+      var g = c.getContext('2d');
+      var img = g.createImageData(n, n), px = img.data;
+      var pal = [], i;
+      for (i = 0; i < s.p.length; i++) pal.push(rgb(s.p[i]));
+      var mul = (tint && s.t) ? normalise(tint) : null;
+      for (i = 0; i < n * n; i++) {
+        var ch = s.d.charCodeAt(i);
+        if (ch === 46) continue;                       // '.' — transparent
+        var col = pal[ch <= 57 ? ch - 48 : ch - 87];   // '0'-'9' then 'a'-'v'
+        if (!col) continue;
+        var o = i * 4;
+        px[o]     = mul ? Math.round(col[0] * mul[0]) : col[0];
+        px[o + 1] = mul ? Math.round(col[1] * mul[1]) : col[1];
+        px[o + 2] = mul ? Math.round(col[2] * mul[2]) : col[2];
+        px[o + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+      return c;
+    }
+
+    return {
+      available: function () { return !!data; },
+      has: function (name) { return !!(data && data.sprites[name]); },
+      /// The bitmap for `name`, tinted with `tint` if the sprite allows it.
+      get: function (name, tint) {
+        if (!data) return null;
+        var key = tint ? name + '|' + tint : name;
+        if (!(key in cache)) cache[key] = build(name, tint);
+        return cache[key];
+      },
+      /// The same bitmap as a data URL, for the places that want an <img>
+      /// rather than a canvas — the foe list and the bestiary.
+      icon: function (name) {
+        var bmp = this.get(name, null);
+        if (!bmp) return null;
+        if (!(name in urls)) urls[name] = bmp.toDataURL();
+        return urls[name];
+      }
+    };
+  })();
+
+  /// The little picture beside a creature's name, in the panel and in the
+  /// bestiary. Falls back to the coloured letter when the art is unavailable
+  /// or the player has chosen the ASCII renderer, so the two views never
+  /// disagree about what the game looks like.
+  function creatureIcon(c) {
+    var url = (spriteMode && c.key) ? Sprites.icon(c.key) : null;
+    if (url) return '<img class="g" src="' + url + '" alt="" width="16" height="16">';
+    return '<span class="g" style="color:' + esc(c.color) + '">' + esc(c.glyph) + '</span>';
+  }
+
+  // Which of the belt's three colours each piece of terrain takes.
+  var TINT_OF = {
+    wall: 'tintWall', floor: 'tintFloor', stairs_down: 'tintFloor',
+    stairs_up: 'tintFloor', water: 'tintLiquid'
+  };
+
+  var spriteMode = Sprites.available();
+  try {
+    var saved = localStorage.getItem('nav.render');
+    if (saved === 'ascii') spriteMode = false;
+    if (saved === 'sprite' && Sprites.available()) spriteMode = true;
+  } catch (e) { /* private mode: fall back to the default */ }
+
+  /// Cell height as a multiple of cell width. Sprites are square; the ASCII
+  /// renderer wants the taller cell a terminal would give it.
+  function aspect() { return spriteMode ? 1 : 1.5; }
+
   // ------------------------------------------------------------ rendering --
   function fitCanvas() {
     if (!state) return;
@@ -700,21 +821,24 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     // rather than shrinking the whole floor to fit. Showing all 72x34 cells at
     // once made the glyphs too small to read and left the hero in a corner.
     // A phone gets a tighter viewport so the glyphs stay legible at arm's length.
+    // Sprites want a tighter viewport than glyphs: a 16x16 drawing needs
+    // roughly twice the pixels of a letter before its details survive, so the
+    // pixel-art mode trades width of view for size of cell.
     var narrow = window.innerWidth < 860;
-    var TARGET_COLS = narrow ? 29 : 46;
-    var TARGET_ROWS = narrow ? 15 : 23;
-    var size = Math.floor(Math.min(availW / TARGET_COLS, availH / TARGET_ROWS / 1.5));
-    size = Math.max(10, Math.min(28, size));
+    var TARGET_COLS = spriteMode ? (narrow ? 21 : 34) : (narrow ? 29 : 46);
+    var TARGET_ROWS = spriteMode ? (narrow ? 13 : 19) : (narrow ? 15 : 23);
+    var size = Math.floor(Math.min(availW / TARGET_COLS, availH / TARGET_ROWS / aspect()));
+    size = Math.max(10, Math.min(spriteMode ? 40 : 28, size));
 
     cell.size = size;
     cell.w = Math.max(12, Math.min(state.w, Math.floor(availW / size)));
-    cell.h = Math.max(8, Math.min(state.h, Math.floor(availH / (size * 1.5))));
+    cell.h = Math.max(8, Math.min(state.h, Math.floor(availH / (size * aspect()))));
 
     var dpr = window.devicePixelRatio || 1;
     canvas.width = Math.floor(cell.w * size * dpr);
-    canvas.height = Math.floor(cell.h * size * 1.5 * dpr);
+    canvas.height = Math.floor(cell.h * size * aspect() * dpr);
     canvas.style.width = (cell.w * size) + 'px';
-    canvas.style.height = (cell.h * size * 1.5) + 'px';
+    canvas.style.height = (cell.h * size * aspect()) + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -726,15 +850,18 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 
   function drawMap() {
     if (!state || !cell.w) return;
-    var m = state.map, size = cell.size, lineH = size * 1.5;
+    var m = state.map, size = cell.size, lineH = size * aspect();
     var origin = viewOrigin();
 
     ctx.fillStyle = '#0e0c0b';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = false;   // pixel art scaled with hard edges
     ctx.font = Math.floor(size * 1.18) + 'px ' +
       'ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
+
+    var useSprites = spriteMode && Sprites.available() && m.terrain;
 
     for (var row = 0; row < cell.h; row++) {
       var y = origin.y + row;
@@ -746,14 +873,33 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
         var vis = m.vis.charCodeAt(idx) - 48;
         if (vis === 0) continue;
 
+        // Remembered-but-unseen terrain is drawn dimmed.
+        ctx.globalAlpha = vis === 2 ? 1 : 0.45;
+        var px = col * size, py = row * lineH;
+
+        if (useSprites) {
+          // Two layers, because the engine reports them separately: the
+          // ground, then whoever is standing on it. That is why a monster on
+          // a staircase no longer erases the staircase.
+          var tk = m.terrainKeys[m.terrain.charCodeAt(idx) - 65];
+          if (tk) {
+            var tint = TINT_OF[tk] ? state[TINT_OF[tk]] : null;
+            var floorBmp = Sprites.get(tk, tint);
+            if (floorBmp) ctx.drawImage(floorBmp, px, py, size, lineH);
+          }
+          var ec = m.entities.charCodeAt(idx) - 65;
+          if (ec >= 0) {
+            var ebmp = Sprites.get(m.entityKeys[ec], null);
+            if (ebmp) ctx.drawImage(ebmp, px, py, size, lineH);
+          }
+          continue;
+        }
+
         var glyph = m.glyphs[idx];
         if (glyph === ' ') continue;
         var color = m.palette[m.colors.charCodeAt(idx) - 65] || '#888';
-
-        // Remembered-but-unseen terrain is drawn dimmed.
-        ctx.globalAlpha = vis === 2 ? 1 : 0.45;  // remembered terrain, dimmed but readable
         ctx.fillStyle = color;
-        ctx.fillText(glyph, col * size + size / 2, row * lineH + lineH / 2);
+        ctx.fillText(glyph, px + size / 2, py + lineH / 2);
       }
     }
     ctx.globalAlpha = 1;
@@ -816,8 +962,8 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     }).slice(0, 7);
     $('foes').innerHTML = foes.length
       ? foes.map(function (f) {
-          return '<div class="foe"><span class="g" style="color:' + esc(f.color) + '">' +
-                 esc(f.glyph) + '</span><span class="n" title="' + esc(f.desc) + '">' +
+          return '<div class="foe">' + creatureIcon(f) +
+                 '<span class="n" title="' + esc(f.desc) + '">' +
                  esc(f.name) + '</span><span class="hp">' + f.hp + '/' + f.maxHp + '</span></div>';
         }).join('')
       : '<p style="color:var(--ink-faint);font-size:12.5px;margin:0">' + t('empty') + '</p>';
@@ -993,8 +1139,8 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 
   function showBestiary() {
     var rows = statics.bestiary.map(function (b) {
-      return '<div class="beast"><span class="g" style="color:' + esc(b.color) + '">' +
-        esc(b.glyph) + '</span><span class="b"><b>' + esc(b.name) + '</b><small>' +
+      return '<div class="beast">' + creatureIcon(b) +
+        '<span class="b"><b>' + esc(b.name) + '</b><small>' +
         esc(b.desc) + '</small></span><span class="d">' +
         (b.boss ? t('bossTag') + ' ' + b.minDepth
                 : t('depthTag') + ' ' + b.minDepth + '–' + b.maxDepth) + '</span></div>';
@@ -1092,6 +1238,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
       case '>': act(ACT.Descend); break;
       case '<': act(ACT.Ascend); break;
       case 'p': act(ACT_PRAY); break;
+      case 'G': toggleRenderer(); break;
       case 'S': doSave(); break;
       case 'L': doLoad(); break;
       case '?': showHelp(); break;
@@ -1106,7 +1253,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     var rect = canvas.getBoundingClientRect();
     var origin = viewOrigin();
     var col = Math.floor((e.clientX - rect.left) / cell.size) + origin.x;
-    var row = Math.floor((e.clientY - rect.top) / (cell.size * 1.5)) + origin.y;
+    var row = Math.floor((e.clientY - rect.top) / (cell.size * aspect())) + origin.y;
 
     if (aiming) {
       for (var i = 0; i < aiming.targets.length; i++) {
@@ -1154,6 +1301,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     $('btnSave').textContent = t('save');
     $('btnQuit').textContent = t('quit');
     $('btnLangGame').textContent = LANG === 'ru' ? 'EN' : 'RU';
+    updateGfxButton();
 
     $('lHp').textContent = t('hp');
     $('lMana').textContent = t('mana');
@@ -1182,8 +1330,11 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 
   function renderClasses() {
     $('classList').innerHTML = statics.classes.map(function (c) {
+      var url = c.key ? Sprites.icon(c.key) : null;
       return '<button class="class-card" data-class="' + c.id + '" aria-pressed="' +
-        (c.id === chosenClass) + '"><strong>' + esc(c.name) + '</strong><span>' +
+        (c.id === chosenClass) + '">' +
+        (url ? '<img class="portrait" src="' + url + '" alt="" width="32" height="32">' : '') +
+        '<strong>' + esc(c.name) + '</strong><span>' +
         esc(c.blurb) + '</span>' +
         (c.trait ? '<span class="trait">▸ ' + esc(c.trait) + '</span>' : '') +
         '<em>hp ' + c.hp + (c.mana ? ' · ' + t('mana').toLowerCase() + ' ' + c.mana : '') +
@@ -1220,6 +1371,27 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     $('btnContinue').classList.toggle('hidden', !loadSave());
   }
 
+  /// Switches between the pixel-art renderer and the ASCII one.
+  ///
+  /// Both are fed by the same frame — the engine reports the glyph and the
+  /// sprite key for every cell — so this costs a relayout and nothing else.
+  /// It is kept because a roguelike player who prefers glyphs is not a
+  /// hypothetical, and because it makes the two renderers easy to compare.
+  function updateGfxButton() {
+    // The button says what pressing it would switch to, not what is on now.
+    $('btnGfx').textContent = spriteMode ? 'ASCII' : (LANG === 'ru' ? 'Графика' : 'Sprites');
+    $('btnGfx').classList.toggle('hidden', !Sprites.available());
+  }
+
+  function toggleRenderer() {
+    if (!Sprites.available()) return;
+    spriteMode = !spriteMode;
+    try { localStorage.setItem('nav.render', spriteMode ? 'sprite' : 'ascii'); } catch (e) {}
+    updateGfxButton();
+    fitCanvas();
+    refresh();
+  }
+
   function doSave() {
     autosave();
     toast(t('saved'));
@@ -1251,6 +1423,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     LANG = LANG === 'ru' ? 'en' : 'ru';
     applyLanguage();
   });
+  $('btnGfx').addEventListener('click', toggleRenderer);
   $('btnSave').addEventListener('click', doSave);
   $('btnQuit').addEventListener('click', toTitle);
   $('btnPick').addEventListener('click', function () { act(ACT.PickUp); });

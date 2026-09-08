@@ -116,6 +116,26 @@ jobs:
             coverage.txt
 
   # ---------------------------------------------------------------------------
+  # The pixel art is authored as text and generated into frontend/web/sprites.js.
+  # A generated file that is committed can drift from its source, and the drift
+  # is invisible until someone notices the wrong picture, so the build regenerates
+  # it and fails if the result differs from what is checked in.
+  # ---------------------------------------------------------------------------
+  art:
+    name: Sprites are up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Pillow
+        run: python3 -m pip install --quiet pillow
+      - name: Regenerate
+        run: python3 tools/sprites/build.py
+      - name: Fail if the checked-in artwork is stale
+        run: |
+          git diff --exit-code -- frontend/web/sprites.js docs/media/sprites.png \
+            || { echo "::error::run tools/sprites/build.py and commit the result"; exit 1; }
+
+  # ---------------------------------------------------------------------------
   # The browser build. This job only proves the WebAssembly target compiles and
   # loads; publishing lives in pages.yml.
   # ---------------------------------------------------------------------------
