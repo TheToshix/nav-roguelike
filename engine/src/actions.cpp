@@ -52,13 +52,64 @@ void Game::damage_hero(int amount, const Text& source) {
 
 void Game::damage_monster(Monster& m, int amount, const Text& source) {
     if (amount <= 0 || !m.a.alive) return;
+
+    const auto& beasts_all = bestiary();
+    const std::size_t idx = static_cast<std::size_t>(m.species);
+    const char* key = idx < beasts_all.size() ? beasts_all[idx].key : "";
+
+    // Вий with his eyelids down cannot see the blow coming: the window between
+    // gazes is when the fight is actually winnable.
+    if (std::strcmp(key, "viy") == 0 && m.charge < 3) amount = amount * 3 / 2;
+
+    // Баба-Яга is shielded while her huts stand. Knocking them down is the fight.
+    if (std::strcmp(key, "babayaga") == 0 && huts_standing()) {
+        amount = std::max(1, amount / 5);
+        if (rng_.chance(25))
+            message(Text{"Удар вязнет — изба держит хозяйку.",
+                         "The blow goes nowhere — the hut is holding her."},
+                    Severity::Bad);
+    }
+
     m.a.damage(amount);
     m.awake = true;
+
+    // Кощей's death is not in his body. Until the needle is broken he simply
+    // gets back up, and the first time he does the floor gives up the needle's
+    // location — a mechanic the player cannot guess is a mechanic that is only
+    // unfair.
+    if (!m.a.alive && std::strcmp(key, "koschei") == 0 && !needle_broken_) {
+        m.a.alive = true;
+        m.a.hp = std::max(1, m.a.max_hp * 3 / 5);
+        ++m.revives;
+        message(Text{"Кощей поднимается. Смерть его не здесь.",
+                     "Koschei rises again. His death is not here."},
+                Severity::Critical);
+        if (m.revives == 1) {
+            message(Text{"Смерть его — на конце иглы. Игла — на этом этаже.",
+                         "His death is on a needle's point. The needle is on this floor."},
+                    Severity::System);
+            mutable_level().map.reveal_all();
+        }
+        return;
+    }
+
     if (m.a.alive) return;
 
     const Text name = monster_name(m);
     message(format(Text{"{} падает замертво.", "{} falls dead."}, name), Severity::Good);
     ++hero_.kills;
+
+    if (std::strcmp(key, "izbushka") == 0) {
+        // `huts_standing()` still counts this one until the corpse is reaped,
+        // so look for a second hut rather than trusting the count.
+        int remaining = 0;
+        for (const auto& other : level().monsters)
+            if (&other != &m && other.a.alive && other.species == m.species) ++remaining;
+        if (remaining == 0)
+            message(Text{"Изба оседает. Баба-Яга остаётся без защиты.",
+                         "The hut collapses. Baba Yaga stands unprotected."},
+                    Severity::Good);
+    }
 
     const auto& beasts = bestiary();
     const std::size_t si = static_cast<std::size_t>(m.species);
@@ -198,7 +249,27 @@ void Game::hero_attacks(Monster& m) {
         message(format(Text{"Ты бьёшь: {} получает {} урона.", "You hit {} for {} damage."},
                        name, num(damage)));
 
+    const Vec2 struck = m.a.pos;
     damage_monster(m, damage, Text{"твой удар", "your blow"});
+
+    // Богатырь's swing carries through to everything else within reach. The
+    // sweep is resolved after the main target so a cleave cannot kill the
+    // creature whose position the loop is reading.
+    if (class_has(hero_.cls, TraitCleave)) {
+        int swept = 0;
+        for (Vec2 d : directions8()) {
+            const Vec2 p = hero_.a.pos + d;
+            if (p == struck) continue;
+            Monster* other = monster_at_mut(p);
+            if (!other) continue;
+            damage_monster(*other, std::max(1, damage / 2), Text{"размах", "the sweep"});
+            ++swept;
+        }
+        if (swept > 0)
+            message(format(Text{"Размах достаёт ещё {}.", "The sweep catches {} more."},
+                           num(swept)),
+                    Severity::Good);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -317,6 +388,13 @@ bool Game::act_use_item(int index) {
             hero_.nutrition = std::min(1600, hero_.nutrition + 700);
             message(Text{"Ты ешь. Стало легче.", "You eat. That helps."}, Severity::Good);
             break;
+        case ItemKind::Needle:
+            hero_.inv.take(index, 1);
+            needle_broken_ = true;
+            message(Text{"Ты ломаешь иглу. Где-то далеко Кощей чувствует это.",
+                         "You snap the needle. Somewhere far off, Koschei feels it."},
+                    Severity::Critical);
+            break;
         case ItemKind::Weapon:
         case ItemKind::Armor:
         case ItemKind::Amulet:
@@ -334,16 +412,22 @@ void Game::quaff(const Item& it) {
     const Text name = item_name(it, ident_);
     message(format(Text{"Ты выпил: {}.", "You drink: {}."}, name));
 
+    // In a herbalist's hands a draught goes half again as far, and its ill
+    // effects run shorter — he knows what he is holding.
+    const bool herbalist = class_has(hero_.cls, TraitHerbalist);
+    const auto boost = [herbalist](int amount) { return herbalist ? amount * 3 / 2 : amount; };
+    const auto shorten = [herbalist](int turns) { return herbalist ? turns / 2 : turns; };
+
     switch (static_cast<PotionKind>(it.subtype)) {
         case PotionKind::Heal: {
-            const int amount = 15 + hero_.level * 2;
+            const int amount = boost(15 + hero_.level * 2);
             hero_.a.heal(amount);
             message(format(Text{"Раны затягиваются (+{}).", "Your wounds close (+{})."},
                            num(amount)), Severity::Good);
             break;
         }
         case PotionKind::GreaterHeal: {
-            const int amount = 40 + hero_.level * 3;
+            const int amount = boost(40 + hero_.level * 3);
             hero_.a.heal(amount);
             hero_.a.clear_effect(Effect::Poison);
             hero_.a.clear_effect(Effect::Burn);
@@ -356,16 +440,16 @@ void Game::quaff(const Item& it) {
             message(Text{"Силы возвращаются.", "Your power returns."}, Severity::Good);
             break;
         case PotionKind::Might:
-            hero_.a.add_effect(Effect::Might, 25, 5);
+            hero_.a.add_effect(Effect::Might, boost(25), herbalist ? 7 : 5);
             message(Text{"Руки наливаются силой.", "Strength floods your arms."}, Severity::Good);
             break;
         case PotionKind::Haste:
-            hero_.a.add_effect(Effect::Haste, 25, 1);
+            hero_.a.add_effect(Effect::Haste, boost(25), 1);
             message(Text{"Всё вокруг замедлилось.", "Everything around you slows down."},
                     Severity::Good);
             break;
         case PotionKind::Regen:
-            hero_.a.add_effect(Effect::Regen, 40, 2);
+            hero_.a.add_effect(Effect::Regen, boost(40), herbalist ? 3 : 2);
             message(Text{"Живая вода. Раны заживают на глазах.",
                          "Living water. Your wounds knit closed."}, Severity::Good);
             break;
@@ -374,12 +458,12 @@ void Game::quaff(const Item& it) {
                 message(Text{"Оберег гасит отраву.", "Your charm neutralises the venom."},
                         Severity::Good);
             } else {
-                hero_.a.add_effect(Effect::Poison, 14, 2);
+                hero_.a.add_effect(Effect::Poison, shorten(14), 2);
                 message(Text{"Отрава! Горло жжёт.", "Venom! Your throat burns."}, Severity::Bad);
             }
             break;
         case PotionKind::Confusion:
-            hero_.a.add_effect(Effect::Confusion, 14, 1);
+            hero_.a.add_effect(Effect::Confusion, shorten(14), 1);
             message(Text{"Пол уходит из-под ног.", "The floor tilts under you."}, Severity::Bad);
             break;
         case PotionKind::Count:
@@ -512,7 +596,8 @@ bool Game::act_pray() {
     }
 
     // The shrine strengthens what you already carry, and takes payment in gold.
-    const int price = 40 + depth_ * 20;
+    int price = 40 + depth_ * 20;
+    if (class_has(hero_.cls, TraitSmith)) price /= 2;
     if (hero_.gold < price) {
         message(format(Text{"Капище требует {} золота. У тебя {}.",
                             "The shrine asks {} gold. You have {}."},

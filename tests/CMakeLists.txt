@@ -29,6 +29,9 @@ add_executable(nav_tests
   test_combat.cpp
   test_consumables.cpp
   test_ai.cpp
+  test_zones.cpp
+  test_bosses.cpp
+  test_classes.cpp
   test_save.cpp
   test_integration.cpp
 )

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <functional>
 
 namespace nav {
@@ -170,6 +171,120 @@ void place_doors(Rng& rng, Map& map, int chance) {
     }
 }
 
+/// Counts wall neighbours in the 3x3 block around `p`, treating out-of-bounds
+/// as wall so the cave never opens onto the edge of the map.
+int wall_neighbours(const Map& map, Vec2 p) {
+    int count = 0;
+    for (int dy = -1; dy <= 1; ++dy)
+        for (int dx = -1; dx <= 1; ++dx) {
+            if (dx == 0 && dy == 0) continue;
+            const Vec2 q{p.x + dx, p.y + dy};
+            if (!map.in_bounds(q) || map.at(q) == Tile::Wall) ++count;
+        }
+    return count;
+}
+
+/// Cellular-automaton cave: random fill, then smoothing.
+///
+/// Unlike the BSP generator this produces many disconnected pockets, and
+/// tunnelling to each of them with the repair pass would leave the ruler-straight
+/// corridors a cave is supposed to be free of. Instead the largest region is
+/// kept and everything else is filled back in — the result is one organic cave,
+/// connected by construction.
+void carve_caves(Rng& rng, Map& map, const MapGenConfig& cfg) {
+    for (int y = 1; y < map.height() - 1; ++y)
+        for (int x = 1; x < map.width() - 1; ++x)
+            map.set({x, y}, rng.chance(cfg.cave_fill) ? Tile::Wall : Tile::Floor);
+
+    for (int pass = 0; pass < cfg.cave_passes; ++pass) {
+        // The first passes also fill cells that have almost no wall around
+        // them. Without that rule the automaton smooths the whole level into
+        // one open cavern; with it, pillars and alcoves survive and the cave
+        // has somewhere to hide.
+        const bool seed_pillars = pass < 2;
+        Map next = map;
+        for (int y = 1; y < map.height() - 1; ++y)
+            for (int x = 1; x < map.width() - 1; ++x) {
+                const int neighbours = wall_neighbours(map, {x, y});
+                const bool wall = neighbours >= 5 || (seed_pillars && neighbours <= 1);
+                next.set({x, y}, wall ? Tile::Wall : Tile::Floor);
+            }
+        map = std::move(next);
+    }
+}
+
+/// Fills in every region except the largest, and returns one cell of the one
+/// that survived.
+Vec2 keep_largest_region(Map& map) {
+    std::vector<std::uint8_t> visited(
+        static_cast<std::size_t>(map.width()) * static_cast<std::size_t>(map.height()), 0);
+    auto index = [&map](Vec2 p) {
+        return static_cast<std::size_t>(p.y) * static_cast<std::size_t>(map.width()) +
+               static_cast<std::size_t>(p.x);
+    };
+
+    std::vector<Vec2> best;
+    for (int y = 0; y < map.height(); ++y) {
+        for (int x = 0; x < map.width(); ++x) {
+            const Vec2 origin{x, y};
+            if (!map.walkable(origin) || visited[index(origin)]) continue;
+
+            std::vector<Vec2> region{origin};
+            std::vector<Vec2> stack{origin};
+            visited[index(origin)] = 1;
+            while (!stack.empty()) {
+                const Vec2 cur = stack.back();
+                stack.pop_back();
+                for (Vec2 d : directions4()) {
+                    const Vec2 nxt = cur + d;
+                    if (!map.walkable(nxt) || visited[index(nxt)]) continue;
+                    visited[index(nxt)] = 1;
+                    region.push_back(nxt);
+                    stack.push_back(nxt);
+                }
+            }
+            if (region.size() > best.size()) best = std::move(region);
+        }
+    }
+
+    if (best.empty()) return {-1, -1};
+
+    std::vector<std::uint8_t> keep(visited.size(), 0);
+    for (Vec2 p : best) keep[index(p)] = 1;
+    for (int y = 0; y < map.height(); ++y)
+        for (int x = 0; x < map.width(); ++x)
+            if (map.walkable({x, y}) && !keep[index({x, y})]) map.set({x, y}, Tile::Wall);
+
+    return best.front();
+}
+
+/// Furthest walkable cell from `start`, by step count. Two sweeps of this find
+/// the two ends of a cave, which is where the staircases belong.
+Vec2 furthest_from(const Map& map, Vec2 start) {
+    std::vector<int> dist(
+        static_cast<std::size_t>(map.width()) * static_cast<std::size_t>(map.height()), -1);
+    auto index = [&map](Vec2 p) {
+        return static_cast<std::size_t>(p.y) * static_cast<std::size_t>(map.width()) +
+               static_cast<std::size_t>(p.x);
+    };
+
+    std::deque<Vec2> frontier{start};
+    dist[index(start)] = 0;
+    Vec2 best = start;
+    while (!frontier.empty()) {
+        const Vec2 cur = frontier.front();
+        frontier.pop_front();
+        if (dist[index(cur)] > dist[index(best)]) best = cur;
+        for (Vec2 d : directions4()) {
+            const Vec2 nxt = cur + d;
+            if (!map.walkable(nxt) || dist[index(nxt)] >= 0) continue;
+            dist[index(nxt)] = dist[index(cur)] + 1;
+            frontier.push_back(nxt);
+        }
+    }
+    return best;
+}
+
 }  // namespace
 
 int count_reachable(const Map& map, Vec2 start) {
@@ -194,6 +309,36 @@ GeneratedLevel generate_level(Rng& rng, const MapGenConfig& cfg, int depth) {
     GeneratedLevel out;
     out.map.resize(cfg.width, cfg.height);
 
+    // --- Caves: a different world, carved a different way -----------------
+    if (cfg.caves) {
+        carve_caves(rng, out.map, cfg);
+        const Vec2 seed_cell = keep_largest_region(out.map);
+        if (seed_cell.x >= 0) {
+            // Two sweeps of "furthest cell" land on the two ends of the cave,
+            // which is where the staircases belong.
+            out.entrance = furthest_from(out.map, seed_cell);
+            out.exit = furthest_from(out.map, out.entrance);
+
+            // The spawner and the altar placement both want rooms; a cave has
+            // none, so a handful of open cells stand in for them.
+            const auto cells = out.map.walkable_cells();
+            for (int i = 0; i < 8 && !cells.empty(); ++i) {
+                const Vec2 c = cells[static_cast<std::size_t>(rng.below(static_cast<int>(cells.size())))];
+                out.rooms.push_back(Rect{c.x, c.y, 1, 1});
+            }
+        }
+        // A pathological smoothing result can leave almost nothing open; fall
+        // back to the room generator rather than hand back an unplayable level.
+        if (out.map.walkable_cells().size() < 80) {
+            out.map.resize(cfg.width, cfg.height);
+            out.rooms.clear();
+            MapGenConfig fallback = cfg;
+            fallback.caves = false;
+            return generate_level(rng, fallback, depth);
+        }
+    }
+
+    if (!cfg.caves) {
     // --- 1. Partition the level -------------------------------------------
     std::vector<Node> nodes;
     nodes.push_back(Node{Rect{1, 1, cfg.width - 2, cfg.height - 2}, -1, -1, -1});
@@ -280,6 +425,8 @@ GeneratedLevel generate_level(Rng& rng, const MapGenConfig& cfg, int depth) {
     out.exit = out.rooms[best_b].center();
     if (out.entrance == out.exit) out.exit = out.exit + Vec2{1, 0};
 
+    }
+
     repair_connectivity(rng, out.map, out.entrance);
 
     // --- 5. Decoration ----------------------------------------------------
@@ -288,7 +435,7 @@ GeneratedLevel generate_level(Rng& rng, const MapGenConfig& cfg, int depth) {
     if (depth >= 3 && rng.chance(cfg.chasm_chance))
         scatter(rng, out.map, Tile::Chasm, 6 + depth, out.entrance);
 
-    place_doors(rng, out.map, cfg.door_chance);
+    if (cfg.door_chance > 0) place_doors(rng, out.map, cfg.door_chance);
 
     if (cfg.place_altar && out.rooms.size() > 2) {
         const Rect& r = out.rooms[static_cast<std::size_t>(rng.below(static_cast<int>(out.rooms.size())))];

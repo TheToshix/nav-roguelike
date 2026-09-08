@@ -80,6 +80,11 @@ public:
     int hero_sight() const;
     int hero_speed() const;
 
+    /// The belt of the dungeon the hero is currently in.
+    Zone zone() const { return zone_for_depth(depth_); }
+    /// True while Кощей can still rise again — that is, the needle is unbroken.
+    bool needle_intact() const { return !needle_broken_; }
+
     /// The monster standing on `p`, or nullptr.
     const Monster* monster_at(Vec2 p) const;
     /// Index of the topmost floor item at `p`, or -1.
@@ -155,6 +160,10 @@ private:
     void monster_ranged(Monster& m);
     void monster_summon(Monster& m);
     bool spawn_species(Level& lvl, int species, Vec2 near, int radius);
+    /// Runs a boss's own mechanic. Returns true when it consumed the turn.
+    bool boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance);
+    /// True while any of Баба-Яга's huts still stands on this floor.
+    bool huts_standing() const;
 
     // --- Shared helpers ---------------------------------------------------
     Monster* monster_at_mut(Vec2 p);
@@ -176,6 +185,7 @@ private:
     int turn_{0};
     RunState state_{RunState::Playing};
     bool needs_flow_rebuild_{true};
+    bool needle_broken_{false};  ///< Until this is true, Кощей does not stay dead.
 };
 
 }  // namespace nav

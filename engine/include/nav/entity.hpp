@@ -117,6 +117,9 @@ struct Monster {
     Vec2 last_seen{-1, -1};  ///< Where the hero was last spotted; drives searching.
     int search_turns{0};
     int summon_cooldown{0};
+    /// Boss bookkeeping. Ordinary monsters leave both at zero.
+    int charge{0};   ///< Вий: how far along his eyelids are.
+    int revives{0};  ///< Кощей: how many times he has risen again.
 };
 
 /// One inventory slot's worth of goods, plus what is currently worn.

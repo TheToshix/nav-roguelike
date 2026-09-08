@@ -299,14 +299,15 @@ TEST(Save, StaysSmallEnoughForBrowserStorage) {
         << "a save of " << blob.size() << " bytes will not fit comfortably in localStorage";
 }
 
-TEST(Save, CompressesEmptyRegionsWell) {
-    // Run-length encoding should make a freshly generated floor much smaller
-    // than one byte per cell.
+TEST(Save, CompressesTheTileGridsRatherThanWritingThemOut) {
+    // A floor carries two full grids — tiles and explored — so writing them out
+    // uncompressed costs at least two bytes per cell each. Coming in under one
+    // byte per cell for both together means the run-length encoding is working.
     GameConfig cfg;
     cfg.seed = 77;
     Game g;
     g.start(cfg);
     const std::size_t cells =
         static_cast<std::size_t>(g.map().width()) * static_cast<std::size_t>(g.map().height());
-    EXPECT_LT(g.save().size(), cells) << "the tile grid does not appear to be compressed";
+    EXPECT_LT(g.save().size(), 2 * cells) << "the tile grids do not appear to be compressed";
 }

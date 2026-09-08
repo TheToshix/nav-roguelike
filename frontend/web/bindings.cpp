@@ -166,6 +166,9 @@ std::string build_state_json() {
     append_field(out, "score", g.score(), first);
     append_field(out, "state", static_cast<int>(g.state()), first);
     append_field(out, "seedText", g.config().seed_text, first);
+    // The belt the hero is in — the frontends show its name beside the depth.
+    append_field(out, "zone", zone_theme_for_depth(g.depth()).name.get(g_lang), first);
+    append_field(out, "needleIntact", g.needle_intact() ? 1 : 0, first);
 
     out += ",\"map\":{";
     out += "\"glyphs\":";
@@ -327,7 +330,7 @@ EMSCRIPTEN_KEEPALIVE void nav_new_game(const char* seed_text, int hero_class,
                    ? static_cast<std::uint64_t>(fallback_seed) | 1ULL
                    : nav::Rng::hash_seed(cfg.seed_text);
     cfg.hero_class = static_cast<nav::HeroClass>(
-        hero_class < 0 || hero_class > 2 ? 0 : hero_class);
+        hero_class < 0 || hero_class >= static_cast<int>(nav::HeroClass::Count) ? 0 : hero_class);
     g_game.start(cfg);
 }
 
@@ -373,6 +376,33 @@ EMSCRIPTEN_KEEPALIVE char* nav_static_json() {
         out += ",\"attack\":" + std::to_string(c.attack);
         out += ",\"defence\":" + std::to_string(c.defence);
         out += ",\"speed\":" + std::to_string(c.speed);
+        out += ",\"trait\":";
+        if (c.traits & nav::TraitHerbalist)
+            append_json_string(out, g_lang == nav::Lang::Ru
+                                        ? "знает все зелья, и они крепче"
+                                        : "knows every potion, and they work harder");
+        else if (c.traits & nav::TraitSmith)
+            append_json_string(out, g_lang == nav::Lang::Ru
+                                        ? "снаряжение на ступень лучше, капища вполовину дешевле"
+                                        : "gear one grade better, shrines at half price");
+        else if (c.traits & nav::TraitCleave)
+            append_json_string(out, g_lang == nav::Lang::Ru
+                                        ? "удар достаёт всех, кто стоит рядом"
+                                        : "every blow sweeps all adjacent enemies");
+        else
+            out += "null";
+        out += "}";
+    }
+    out += "],\"zones\":[";
+    bool zone_first = true;
+    for (nav::Zone z : {nav::Zone::Pogost, nav::Zone::Chernotop, nav::Zone::Koshchei}) {
+        const auto& theme = nav::zone_theme(z);
+        if (!zone_first) out += ',';
+        zone_first = false;
+        out += "{\"name\":";
+        append_json_string(out, theme.name.get(g_lang));
+        out += ",\"blurb\":";
+        append_json_string(out, theme.arrival.get(g_lang));
         out += "}";
     }
     out += "],\"bestiary\":[";

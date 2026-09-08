@@ -41,16 +41,38 @@ inline bool blocks_sight(Tile t) {
 // Hero classes
 // ---------------------------------------------------------------------------
 
-enum class HeroClass : std::uint8_t { Vityaz, Vedun, Tat };  // warrior / sorcerer / rogue
+/// New classes are appended, never inserted: the value is written into save
+/// files, so reordering would silently turn one hero into another.
+enum class HeroClass : std::uint8_t {
+    Vityaz,    ///< warrior — armour and health
+    Vedun,     ///< sorcerer — spells
+    Tat,       ///< rogue — speed, evasion, critical hits
+    Znahar,    ///< herbalist — knows every potion, and they work better
+    Kuznets,   ///< smith — every worn item counts as one grade better
+    Bogatyr,   ///< champion — every blow sweeps all adjacent enemies
+    Count
+};
 
 inline const char* hero_class_key(HeroClass c) {
     switch (c) {
-        case HeroClass::Vityaz: return "vityaz";
-        case HeroClass::Vedun:  return "vedun";
-        case HeroClass::Tat:    return "tat";
+        case HeroClass::Vityaz:  return "vityaz";
+        case HeroClass::Vedun:   return "vedun";
+        case HeroClass::Tat:     return "tat";
+        case HeroClass::Znahar:  return "znahar";
+        case HeroClass::Kuznets: return "kuznets";
+        case HeroClass::Bogatyr: return "bogatyr";
+        default:                 return "vityaz";
     }
-    return "vityaz";
 }
+
+/// What sets a class apart mechanically. Stat spreads alone make classes that
+/// play the same; a trait changes how the game is played.
+enum ClassTrait : std::uint32_t {
+    TraitNone      = 0,
+    TraitHerbalist = 1u << 0,  ///< Every potion is known on sight and works harder.
+    TraitSmith     = 1u << 1,  ///< Worn gear counts as +1, and shrines charge half.
+    TraitCleave    = 1u << 2,  ///< A melee blow also strikes every other adjacent foe.
+};
 
 // ---------------------------------------------------------------------------
 // Status effects
@@ -81,7 +103,8 @@ struct ActiveEffect {
 // Items
 // ---------------------------------------------------------------------------
 
-enum class ItemKind : std::uint8_t { Weapon, Armor, Amulet, Potion, Scroll, Food, Gold };
+/// Appended, never reordered — the value goes into save files.
+enum class ItemKind : std::uint8_t { Weapon, Armor, Amulet, Potion, Scroll, Food, Gold, Needle };
 
 enum class PotionKind : std::uint8_t {
     Heal, GreaterHeal, Mana, Might, Haste, Regen, Poison, Confusion, Count

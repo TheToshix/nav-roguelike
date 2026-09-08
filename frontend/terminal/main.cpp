@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "nav/fov.hpp"
 #include "nav/game.hpp"
 
 #if defined(_WIN32)
@@ -250,6 +251,7 @@ struct Ui {
         add("");
         add((lang == Lang::Ru ? "Глубина: " : "Depth:  ") + std::to_string(g.depth()) + " / " +
             std::to_string(kMaxDepth));
+        add("\x1b[38;5;180m" + t(zone_theme_for_depth(g.depth()).name) + "\x1b[0m");
         add((lang == Lang::Ru ? "Удар:    " : "Attack: ") + std::to_string(g.hero_attack()));
         add((lang == Lang::Ru ? "Защита:  " : "Armour: ") + std::to_string(g.hero_defence()));
         add((lang == Lang::Ru ? "Золото:  " : "Gold:   ") + std::to_string(h.gold));
@@ -607,6 +609,7 @@ int run_demo(std::uint64_t seed, int turns, bool verbose) {
     int floor_turns = 0;
     int last_depth = g.depth();
     Vec2 previous = g.hero().a.pos;
+    bool moved_aside = false;
 
     for (int i = 0; i < turns && g.state() == RunState::Playing; ++i) {
         const Vec2 me = g.hero().a.pos;
@@ -642,7 +645,25 @@ int run_demo(std::uint64_t seed, int turns, bool verbose) {
             if (ate) continue;
         }
 
-        // 3. Attack anything adjacent.
+        // 3. Duck out of Вий's line of sight when his eyelids are about to
+        //    rise. This is the fight's actual counter-play, and having the bot
+        //    perform it is what proves the mechanic is beatable rather than
+        //    merely punishing.
+        for (const auto& m : g.monsters()) {
+            const auto& sp = bestiary()[static_cast<std::size_t>(m.species)];
+            if (std::strcmp(sp.key, "viy") != 0 || m.charge < 3) continue;
+            if (!has_line_of_sight(g.map(), me, m.a.pos, sp.sight)) break;
+            for (Vec2 d : directions8()) {
+                const Vec2 step = me + d;
+                if (!g.map().walkable(step) || g.monster_at(step)) continue;
+                if (has_line_of_sight(g.map(), step, m.a.pos, sp.sight)) continue;
+                if (g.perform(Action{ActionType::Move, d, -1, {}})) { moved_aside = true; break; }
+            }
+            break;
+        }
+        if (moved_aside) { moved_aside = false; continue; }
+
+        // 4. Attack anything adjacent.
         bool fought = false;
         for (Vec2 d : directions8()) {
             if (!g.monster_at(me + d)) continue;
@@ -651,7 +672,7 @@ int run_demo(std::uint64_t seed, int turns, bool verbose) {
         }
         if (fought) continue;
 
-        // 4. Otherwise throw a spell at whatever is in range.
+        // 5. Otherwise throw a spell at whatever is in range.
         const auto spells = g.castable_spells();
         if (!spells.empty() && policy.chance(40)) {
             const Spell s = spells[static_cast<std::size_t>(policy.below(static_cast<int>(spells.size())))];
@@ -661,7 +682,7 @@ int run_demo(std::uint64_t seed, int turns, bool verbose) {
                 if (g.perform(Action{ActionType::CastSpell, {}, static_cast<int>(s), aim})) continue;
         }
 
-        // 5. Collect loot underfoot, and take the stairs when standing on them.
+        // 6. Collect loot underfoot, and take the stairs when standing on them.
         if (g.item_index_at(me) >= 0 && g.perform(Action{ActionType::PickUp, {}, -1, {}})) continue;
         if (ready_to_descend && g.map().at(me) == Tile::StairsDown &&
             g.perform(Action{ActionType::Descend, {}, -1, {}})) {
@@ -669,7 +690,7 @@ int run_demo(std::uint64_t seed, int turns, bool verbose) {
             continue;
         }
 
-        // 6. Head for the nearest monster, or for the stairs once the floor is
+        // 7. Head for the nearest monster, or for the stairs once the floor is
         //    cleared. The bot reads the true map rather than only what it has
         //    explored — it is a test harness, not a player.
         Vec2 goal = g.level().exit;

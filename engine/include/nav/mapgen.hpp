@@ -16,6 +16,12 @@ struct MapGenConfig {
     int door_chance{55};  ///< Percent chance a room/corridor junction gets a door.
     int water_chance{35}; ///< Percent chance the level has water at all.
     int chasm_chance{25};
+    /// Carve the level as a cellular-automaton cave instead of BSP rooms.
+    /// Caves have no doors and no straight corridors, which is what makes the
+    /// middle belt of the dungeon feel like somewhere else entirely.
+    bool caves{false};
+    int cave_fill{48};    ///< Initial wall percentage before smoothing.
+    int cave_passes{4};   ///< Smoothing iterations.
     bool place_altar{false};
     bool place_stairs_up{true};
 };

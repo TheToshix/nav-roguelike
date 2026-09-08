@@ -16,6 +16,77 @@ constexpr int kSearchPersistence = 8;
 
 }  // namespace
 
+bool Game::huts_standing() const {
+    const int hut = species_index("izbushka");
+    if (hut < 0) return false;
+    for (const auto& m : level().monsters)
+        if (m.a.alive && m.species == hut) return true;
+    return false;
+}
+
+/// A boss's own mechanic, run before the ordinary behaviour.
+///
+/// Each of the three fights is built from the story it comes from rather than
+/// from a bigger pile of health, because a boss that is only a large monster is
+/// not a boss — it is a wall.
+bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance) {
+    if (!(sp.ai & AiBoss)) return false;
+
+    // --- Вий: "поднимите мне веки" -----------------------------------------
+    //
+    // Three turns with his eyelids down, during which he is nearly blind and
+    // takes the punishment; then he opens them, and anything he can see is
+    // struck hard and left blind. The counter-play is to break line of sight on
+    // the turn he is telegraphed to open — which is why the warning arrives one
+    // turn early.
+    if (std::strcmp(sp.key, "viy") == 0) {
+        ++m.charge;
+        if (m.charge == 3 && map().visible(m.a.pos))
+            message(Text{"Вий заносит руку к векам. Уйди с глаз!",
+                         "Viy raises a hand towards his eyelids. Get out of sight!"},
+                    Severity::Critical);
+
+        if (m.charge >= 4) {
+            m.charge = 0;
+            if (sees_hero && distance <= sp.sight) {
+                message(Text{"«Поднимите мне веки!» — взгляд Вия находит тебя.",
+                             "\"Lift up my eyelids!\" — Viy's gaze finds you."},
+                        Severity::Critical);
+                damage_hero(12 + depth_, Text{"взгляд Вия", "Viy's gaze"});
+                if (hero_.a.alive) hero_.a.add_effect(Effect::Blind, 8, 1);
+            } else {
+                // Deliberately not gated on seeing him: a player who has just
+                // ducked behind a wall has played the fight correctly and
+                // deserves to be told it worked.
+                message(Text{"Где-то рядом Вий ревёт впустую — взгляд не нашёл тебя.",
+                             "Somewhere close Viy roars at nothing — the gaze does not find you."},
+                        Severity::Good);
+            }
+            return true;  // opening his eyes is the whole turn
+        }
+        return false;  // otherwise he closes in like anything else
+    }
+
+    // --- Баба-Яга: пока стоит изба ------------------------------------------
+    //
+    // She keeps her distance and calls for help while her huts stand; the fight
+    // is about knocking those down first.
+    if (std::strcmp(sp.key, "babayaga") == 0 && huts_standing()) {
+        if (m.summon_cooldown > 0) --m.summon_cooldown;
+        else if (sees_hero && rng_.chance(50)) { monster_summon(m); return true; }
+
+        // While protected she backs away rather than trading blows.
+        if (sees_hero && distance <= 3) {
+            const Vec2 self = m.a.pos;
+            const Vec2 away = to_hero_.best_step(
+                self, [&](Vec2 p) { return !blocked_for_monster(p, self); }, /*descend=*/false);
+            if (away != self) { m.a.pos = away; return true; }
+        }
+    }
+
+    return false;
+}
+
 bool Game::spawn_species(Level& lvl, int species, Vec2 near, int radius) {
     const auto& beasts = bestiary();
     const std::size_t si = static_cast<std::size_t>(species);
@@ -86,6 +157,9 @@ void Game::monster_turn(std::size_t index) {
         if (!blocked_for_monster(step, m.a.pos)) m.a.pos = step;
         return;
     }
+
+    // --- A boss's own mechanic comes before the ordinary behaviour --------
+    if (boss_turn(m, sp, sees_hero, distance)) return;
 
     // --- Melee, when already adjacent -------------------------------------
     if (distance <= 1 && !(sp.ai & AiStationary)) {

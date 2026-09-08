@@ -20,7 +20,11 @@ namespace nav {
 namespace {
 
 constexpr const char* kMagic = "NAV";
-constexpr int kFormatVersion = 1;
+// Version 2 added the zones, the three extra hero classes, the boss state
+// (Вий's eyelids, Кощей's revivals) and the broken-needle flag. There is no
+// migration: a version 1 save is refused rather than loaded as something it is
+// not — see docs/TEST_CASES.md, "what stayed unchecked".
+constexpr int kFormatVersion = 2;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -174,7 +178,7 @@ void write_item(Writer& w, const Item& it) {
 bool read_item(Reader& r, Item& it) {
     int kind = 0, ident = 0;
     r >> kind >> it.subtype >> it.power >> it.enchant >> it.count >> ident >> it.pos.x >> it.pos.y;
-    if (!r.ok() || kind < 0 || kind > static_cast<int>(ItemKind::Gold)) return false;
+    if (!r.ok() || kind < 0 || kind > static_cast<int>(ItemKind::Needle)) return false;
     if (it.count < 0 || it.count > 1000000) return false;
     it.kind = static_cast<ItemKind>(kind);
     it.identified = ident != 0;
@@ -197,7 +201,7 @@ std::string Game::save() const {
     const std::uint64_t* rs = rng_.state();
     w << rs[0] << rs[1] << rs[2] << rs[3];
 
-    w << depth_ << turn_ << static_cast<int>(state_);
+    w << depth_ << turn_ << static_cast<int>(state_) << (needle_broken_ ? 1 : 0);
 
     // --- Hero --------------------------------------------------------------
     write_actor(w, hero_.a);
@@ -239,7 +243,7 @@ std::string Game::save() const {
         for (const auto& m : lvl.monsters) {
             write_actor(w, m.a);
             w << m.species << (m.awake ? 1 : 0) << m.last_seen.x << m.last_seen.y
-              << m.search_turns << m.summon_cooldown;
+              << m.search_turns << m.summon_cooldown << m.charge << m.revives;
         }
 
         w << lvl.items.size();
@@ -265,7 +269,7 @@ bool Game::load(const std::string& blob) {
     r.str(g.cfg_.seed_text);
     int hero_class = 0;
     r >> hero_class >> g.cfg_.map_width >> g.cfg_.map_height;
-    if (!r.ok() || hero_class < 0 || hero_class > static_cast<int>(HeroClass::Tat)) return false;
+    if (!r.ok() || hero_class < 0 || hero_class >= static_cast<int>(HeroClass::Count)) return false;
     if (g.cfg_.map_width <= 0 || g.cfg_.map_width > 512) return false;
     if (g.cfg_.map_height <= 0 || g.cfg_.map_height > 512) return false;
     g.cfg_.hero_class = static_cast<HeroClass>(hero_class);
@@ -275,9 +279,10 @@ bool Game::load(const std::string& blob) {
     if (!r.ok()) return false;
     g.rng_.set_state(rs);
 
-    int run_state = 0;
-    r >> g.depth_ >> g.turn_ >> run_state;
+    int run_state = 0, needle = 0;
+    r >> g.depth_ >> g.turn_ >> run_state >> needle;
     if (!r.ok() || run_state < 0 || run_state > static_cast<int>(RunState::Ascended)) return false;
+    g.needle_broken_ = needle != 0;
     if (g.depth_ < 1 || g.depth_ > kMaxDepth) return false;
     g.state_ = static_cast<RunState>(run_state);
 
@@ -285,7 +290,7 @@ bool Game::load(const std::string& blob) {
     int cls = 0;
     r >> cls >> g.hero_.mana >> g.hero_.max_mana >> g.hero_.level >> g.hero_.xp >>
         g.hero_.gold >> g.hero_.sight >> g.hero_.nutrition >> g.hero_.kills >> g.hero_.deepest;
-    if (!r.ok() || cls < 0 || cls > static_cast<int>(HeroClass::Tat)) return false;
+    if (!r.ok() || cls < 0 || cls >= static_cast<int>(HeroClass::Count)) return false;
     g.hero_.cls = static_cast<HeroClass>(cls);
 
     std::size_t n = 0;
@@ -352,7 +357,7 @@ bool Game::load(const std::string& blob) {
             if (!read_actor(r, m.a)) return false;
             int awake = 0;
             r >> m.species >> awake >> m.last_seen.x >> m.last_seen.y >> m.search_turns >>
-                m.summon_cooldown;
+                m.summon_cooldown >> m.charge >> m.revives;
             if (!r.ok() || m.species < 0 || m.species >= static_cast<int>(bestiary().size()))
                 return false;
             m.awake = awake != 0;

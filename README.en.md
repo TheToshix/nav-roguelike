@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-234-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-279-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -24,14 +24,52 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 
 ## What it is
 
-Twelve floors down into Nav, the underworld of Slavic folk tales. Viy waits on the fourth floor,
-Baba Yaga on the eighth, Koschei the Deathless on the twelfth. Death is final: a save is a pause,
-not a spare life.
+Twelve floors down into Nav, the underworld of Slavic folk tales. Death is final: a save is a
+pause, not a spare life.
 
 Every dungeon is generated from a seed. The same seed always produces the same floor, the same
 creatures and the same loot, so any find — and any bug — can be reproduced from a single string.
 
-<img src="docs/media/screenshot.png" alt="Screenshot" width="880">
+### Three belts, three guardians
+
+The descent is cut into three parts of four floors. Each has its own generator, palette and
+hazards, and its own master at the bottom — so twelve floors read as a journey rather than as
+repetition.
+
+| Belt | Depth | What is there | Guardian |
+|---|---|---|---|
+| **The Boneyard** | 1–4 | Dry crypts and corridors, doors, the odd pool | **Viy** |
+| **The Black Mire** | 5–8 | Caves instead of rooms, water nearly everywhere, no doors at all | **Baba Yaga** |
+| **Koschei's Kingdom** | 9–12 | Cold halls with chasms underfoot | **Koschei the Deathless** |
+
+<img src="docs/media/screenshot.png" alt="The Boneyard" width="880">
+
+<table>
+<tr>
+<td><img src="docs/media/belt-mire.png" alt="The Black Mire"></td>
+<td><img src="docs/media/belt-ice.png" alt="Koschei's Kingdom"></td>
+</tr>
+<tr>
+<td align="center"><sub><b>The Black Mire</b> — cellular-automaton caves</sub></td>
+<td align="center"><sub><b>Koschei's Kingdom</b> — halls and chasms</sub></td>
+</tr>
+</table>
+
+### The bosses fight by their own rules
+
+None of the three is a bigger pile of health. Each carries a mechanic out of the story it comes
+from, and each mechanic has a counter.
+
+**Viy** stands three turns with his eyelids down, and takes half again as much damage while
+they are. On the fourth he lifts them, and anything caught in that gaze is struck hard and left
+blind. The warning arrives a turn early. The answer is the one from the story: get out of sight.
+
+**Baba Yaga** does not come alone — her huts on hen's legs stand with her. While any of them is
+up, blows against her barely land, and she backs off and calls for help. The huts come first.
+
+**Koschei** does not die. Beaten to nothing, he simply rises again, because his death is on a
+needle's point and the needle lies somewhere on that same floor. After the first resurrection
+the whole floor is revealed: a mechanic nobody can guess at is not a puzzle, it is a trap.
 
 ## What is interesting about it, engineering-wise
 
@@ -71,16 +109,29 @@ of them is accepted.
 
 | | |
 |---|---|
-| **Classes** | Vityaz (armour and health), Vedun (magic), Tat (speed, evasion, critical hits) |
-| **Bestiary** | 14 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement |
-| **Bosses** | Viy (depth 4), Baba Yaga (depth 8), Koschei the Deathless (depth 12) |
+| **Classes** | Six, and three of them carry a mechanic rather than a stat spread (see below) |
+| **Bestiary** | 15 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement |
+| **Bosses** | Viy (depth 4), Baba Yaga (depth 8), Koschei the Deathless (depth 12) — each with its own mechanic |
 | **Items** | 18 pieces of gear, 8 potions, 8 scrolls; consumables are unlabelled until you try them |
 | **Magic** | 6 spells, aimed along the line of sight |
 | **Effects** | Poison, burning, freezing, confusion, blindness, haste, slow, regeneration, might, ward |
 | **Also** | Hunger, water and chasms, doors, shrines that bless your gear, a speed-based turn scheduler, saved games |
 
+### Six heroes
+
+| Class | Plays on | Trait |
+|---|---|---|
+| **Vityaz** | Health and armour | — |
+| **Vedun** | Spells at range | — |
+| **Tat** | Speed, evasion, critical hits | — |
+| **Znahar** | Potions | Knows every potion from the first turn, and they work half again as hard |
+| **Kuznets** | Gear | Every item counts one grade better; shrines charge him half |
+| **Bogatyr** | Melee | Every blow sweeps everything adjacent — paid for in speed |
+
 Both languages, Russian and English, live inside the engine: every string is stored in both
 variants, so the language can be switched at any moment — including for messages already in the log.
+
+<img src="docs/media/title.png" alt="Title screen" width="700">
 
 ## Running it
 
@@ -104,7 +155,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 234 tests
+ctest --test-dir build --output-on-failure    # 279 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ```
 
@@ -140,12 +191,12 @@ The browser build adds mouse control and an on-screen pad on phones.
 
 The project was written with tests from the first day rather than "covered" afterwards. The details
 are in the [test plan](docs/TEST_PLAN.md), the [test cases](docs/TEST_CASES.md) and the
-[bug reports](docs/BUG_REPORTS.md), which record eight defects found during development along with
+[bug reports](docs/BUG_REPORTS.md), which record nine defects found during development along with
 reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **234** across 32 suites |
+| Unit and integration tests | **279** across 41 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, the WebAssembly build |
@@ -161,6 +212,10 @@ random 1500-turn games and, after each turn, checks about fifteen conditions: he
 the hero not inside a wall, no two monsters on one cell, equipment indices pointing at real items of
 the right kind. That is how states no hand-written scenario would ever build get found.
 
+**Probabilistic mechanics get measured, not guessed at.** "Viy is softer with his eyes shut" and
+"the huts protect Baba Yaga" are claims about a distribution, not about one swing. Those tests
+average dozens of runs and demand "less than half", not merely "less" — otherwise they would flake.
+
 ## Layout
 
 ```
@@ -170,7 +225,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering and raw keyboard input
   web/           the C binding layer for WebAssembly, and the game page
-tests/           234 GoogleTest cases
+tests/           279 GoogleTest cases
 docs/            architecture, test plan, test cases, bug reports
 tools/           the web build script
 ```

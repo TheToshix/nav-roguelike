@@ -29,6 +29,11 @@ void Game::start(const GameConfig& cfg) {
     rng_.shuffle(ident_.potion_look);
     rng_.shuffle(ident_.scroll_look);
 
+    // A herbalist never has to gamble on a draught: he recognises them all.
+    if (class_has(cfg.hero_class, TraitHerbalist))
+        for (int i = 0; i < static_cast<int>(PotionKind::Count); ++i)
+            ident_.learn(ItemKind::Potion, i);
+
     const ClassTemplate& tpl = class_info(cfg.hero_class);
     hero_ = Hero{};
     hero_.cls = cfg.hero_class;
@@ -95,14 +100,21 @@ void Game::ensure_level(int depth) {
     Level& lvl = levels_[static_cast<std::size_t>(depth)];
     if (lvl.generated) return;
 
+    const ZoneTheme& theme = zone_theme_for_depth(depth);
+
     MapGenConfig mg;
     mg.width = cfg_.map_width;
     mg.height = cfg_.map_height;
-    // Deeper floors get more rooms and more hazards.
     mg.max_depth = 4 + (depth >= 5 ? 1 : 0);
     mg.place_altar = (depth % 3 == 0);
     mg.place_stairs_up = depth > 1;
-    mg.chasm_chance = 15 + depth * 3;
+    // Everything that gives a belt its character comes from its theme rather
+    // than from the depth number: caves or rooms, how much water, how many
+    // chasms, whether there are doors at all.
+    mg.caves = theme.caves;
+    mg.water_chance = theme.water_chance;
+    mg.chasm_chance = theme.chasm_chance;
+    mg.door_chance = theme.door_chance;
 
     GeneratedLevel gen = generate_level(rng_, mg, depth);
     lvl.map = std::move(gen.map);
@@ -117,13 +129,25 @@ void Game::ensure_level(int depth) {
 }
 
 void Game::enter_level(int depth, bool descending) {
+    const int previous = depth_;
+    const bool first_level = !levels_[static_cast<std::size_t>(std::clamp(depth, 1, kMaxDepth))].generated;
+
     ensure_level(depth);
+    const bool crossed_belt = zone_for_depth(previous) != zone_for_depth(depth);
     depth_ = std::clamp(depth, 1, kMaxDepth);
     Level& lvl = mutable_level();
 
     hero_.a.pos = descending ? lvl.entrance : lvl.exit;
     if (!lvl.map.walkable(hero_.a.pos)) hero_.a.pos = random_free_spot(lvl);
     hero_.deepest = std::max(hero_.deepest, depth_);
+
+    // The belts are the shape of the descent, so crossing into one is worth
+    // saying out loud — but only the first time, and only going down.
+    if (descending && (crossed_belt || first_level)) {
+        const ZoneTheme& theme = zone_theme_for_depth(depth_);
+        message(format(Text{"— {} —", "— {} —"}, theme.name), Severity::System);
+        message(theme.arrival, Severity::Critical);
+    }
 
     needs_flow_rebuild_ = true;
     recompute_fov();
@@ -182,7 +206,7 @@ void Game::populate(Level& lvl, int depth) {
         total += weights[i];
     }
 
-    const int count = 6 + depth + rng_.below(4);
+    const int count = 6 + depth + rng_.below(4) + zone_theme_for_depth(depth).extra_monsters;
     if (total > 0) {
         for (int i = 0; i < count; ++i) {
             const int pick = rng_.weighted(weights);
@@ -222,7 +246,39 @@ void Game::populate(Level& lvl, int depth) {
             if (spot.x < 0) spot = random_free_spot(lvl);
             boss.a.pos = spot;
             lvl.monsters.push_back(boss);
+
+            // Баба-Яга does not fight alone: her huts stand with her, and she
+            // is all but untouchable while any of them is still standing.
+            if (std::strcmp(key, "babayaga") == 0) {
+                const int hut = species_index("izbushka");
+                if (hut >= 0) {
+                    const Species& hut_sp = beasts[static_cast<std::size_t>(hut)];
+                    for (int i = 0; i < 2; ++i) {
+                        const Vec2 place = free_spot_near(lvl, spot, 4);
+                        if (place.x < 0) continue;
+                        Monster m{};
+                        m.species = hut;
+                        m.a.pos = place;
+                        m.a.hp = m.a.max_hp = hut_sp.hp;
+                        m.a.attack = hut_sp.attack;
+                        m.a.defence = hut_sp.defence;
+                        m.a.speed = hut_sp.speed;
+                        m.awake = true;
+                        lvl.monsters.push_back(m);
+                    }
+                }
+            }
         }
+    }
+
+    // Кощей's death is on a needle's point, and the needle is on his floor.
+    // Without it he simply rises again, so its placement is not optional.
+    if (depth == kMaxDepth) {
+        Item needle{};
+        needle.kind = ItemKind::Needle;
+        needle.identified = true;
+        needle.pos = random_free_spot(lvl, lvl.entrance, 12);
+        if (lvl.map.walkable(needle.pos)) lvl.items.push_back(needle);
     }
 
     // --- Loot -------------------------------------------------------------
@@ -289,8 +345,14 @@ bool Game::perform(const Action& action) {
 
     if (!consumed) return false;
 
+    // Corpses are cleared here as well as inside the scheduler. The scheduler
+    // returns early once the run is over, so a monster killed by the blow that
+    // ends the game used to stay in the list as a dead entry — a state every
+    // frontend and every invariant check assumes cannot happen.
+    reap_dead();
     recompute_fov();
     advance_until_hero_turn();
+    reap_dead();
     recompute_fov();
     return true;
 }
@@ -400,8 +462,11 @@ void Game::recompute_fov() {
 int Game::hero_attack() const {
     int atk = hero_.a.attack;
     const auto& inv = hero_.inv;
-    if (inv.weapon >= 0 && inv.weapon < static_cast<int>(inv.items.size()))
+    if (inv.weapon >= 0 && inv.weapon < static_cast<int>(inv.items.size())) {
         atk += inv.items[static_cast<std::size_t>(inv.weapon)].total_power();
+        // A smith gets one extra grade out of whatever he is holding.
+        if (class_has(hero_.cls, TraitSmith)) ++atk;
+    }
     if (inv.amulet >= 0 && inv.amulet < static_cast<int>(inv.items.size())) {
         const Item& am = inv.items[static_cast<std::size_t>(inv.amulet)];
         if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, "ob_sily") == 0)
@@ -414,8 +479,10 @@ int Game::hero_attack() const {
 int Game::hero_defence() const {
     int def = hero_.a.defence;
     const auto& inv = hero_.inv;
-    if (inv.armor >= 0 && inv.armor < static_cast<int>(inv.items.size()))
+    if (inv.armor >= 0 && inv.armor < static_cast<int>(inv.items.size())) {
         def += inv.items[static_cast<std::size_t>(inv.armor)].total_power();
+        if (class_has(hero_.cls, TraitSmith)) ++def;
+    }
     def += hero_.a.effect_power(Effect::Shield);
     return std::max(0, def);
 }
@@ -495,15 +562,17 @@ RenderCell Game::render_at(Vec2 p) const {
 
     // Walls are the brighter of the two: they are what gives a floor its shape,
     // and the first palette had them almost the same value as the floor, which
-    // made rooms hard to read at small cell sizes.
+    // made rooms hard to read at small cell sizes. The three values come from
+    // the belt, so a glance at the screen says which part of the dungeon this is.
+    const ZoneTheme& theme = zone_theme_for_depth(depth_);
     switch (m.at(p)) {
-        case Tile::Wall:       cell.glyph = '#'; cell.color = "#7d6c58"; break;
-        case Tile::Floor:      cell.glyph = '.'; cell.color = "#453d34"; break;
+        case Tile::Wall:       cell.glyph = '#'; cell.color = theme.wall_color; break;
+        case Tile::Floor:      cell.glyph = '.'; cell.color = theme.floor_color; break;
         case Tile::StairsDown: cell.glyph = '>'; cell.color = "#e8d8a0"; break;
         case Tile::StairsUp:   cell.glyph = '<'; cell.color = "#e8d8a0"; break;
         case Tile::Door:       cell.glyph = '+'; cell.color = "#a97c50"; break;
         case Tile::OpenDoor:   cell.glyph = '\''; cell.color = "#a97c50"; break;
-        case Tile::Water:      cell.glyph = '~'; cell.color = "#4d7fa8"; break;
+        case Tile::Water:      cell.glyph = '~'; cell.color = theme.liquid_color; break;
         case Tile::Chasm:      cell.glyph = ' '; cell.color = "#1a1a20"; break;
         case Tile::Altar:      cell.glyph = '_'; cell.color = "#c9b6e0"; break;
     }

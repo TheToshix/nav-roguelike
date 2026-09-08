@@ -86,6 +86,12 @@ const std::vector<Species>& bestiary() {
         {"koschei",   Text{"Кощей Бессмертный", "Koschei the Deathless"},'!', "#f0f0f0", 240, 24,  9, 110, 14, 1500, 12, 12, 0,
          AiMelee | AiRanged | AiSummoner | AiBoss, Effect::Freeze, 20, 2,
          Text{"Смерть его на конце иглы. Игла — в этом подземелье.", "His death is on a needle's point. The needle is in this dungeon."}},
+
+        // Баба-Яга's huts. Stationary, placed with her, and she is all but
+        // invulnerable while any of them still stands.
+        {"izbushka",  Text{"Избушка на курьих ножках", "Hut on Hen's Legs"}, 'A', "#b06a3a", 55, 7, 6, 100, 4, 60, 8, 8, 0,
+         AiStationary | AiMelee, Effect::Poison, 0, 0,
+         Text{"Пока стоит изба — хозяйку не взять.", "While the hut stands, its mistress cannot be touched."}},
     };
     return table;
 }
@@ -108,6 +114,49 @@ int spawn_weight(const Species& s, int depth) {
     const int from_end = s.max_depth - depth;
     const int edge = from_start < from_end ? from_start : from_end;
     return s.weight * (2 + edge) / 2;
+}
+
+// ---------------------------------------------------------------------------
+// Zones
+// ---------------------------------------------------------------------------
+
+Zone zone_for_depth(int depth) {
+    if (depth <= 4) return Zone::Pogost;
+    if (depth <= 8) return Zone::Chernotop;
+    return Zone::Koshchei;
+}
+
+bool is_zone_entrance(int depth) { return depth == 1 || depth == 5 || depth == 9; }
+
+const ZoneTheme& zone_theme(Zone zone) {
+    static const ZoneTheme themes[] = {
+        {Zone::Pogost,
+         Text{"Погост", "The Boneyard"},
+         Text{"Сухая земля и тёсаный камень. Здесь ещё пахнет ладаном.",
+              "Dry earth and dressed stone. There is still incense in the air here."},
+         "#7d6c58", "#453d34", "#4d7fa8",
+         Text{"вода", "water"},
+         /*caves=*/false, /*water=*/35, /*chasm=*/10, /*door=*/55, /*extra=*/0},
+
+        {Zone::Chernotop,
+         Text{"Чернотопь", "The Black Mire"},
+         Text{"Стены кончились. Дальше — топь, коряги и вода по колено.",
+              "The walls give out. Beyond is mire, deadwood and water to the knee."},
+         "#6b8055", "#3d4a33", "#4a7d60",
+         Text{"трясина", "mire"},
+         /*caves=*/true, /*water=*/95, /*chasm=*/15, /*door=*/0, /*extra=*/2},
+
+        {Zone::Koshchei,
+         Text{"Кощеево царство", "Koschei's Kingdom"},
+         Text{"Холод берёт за горло. Стены здесь белые, и это не камень.",
+              "The cold takes you by the throat. The walls here are white, and they are not stone."},
+         "#8e9aa8", "#333b45", "#5f7f9a",
+         Text{"полынья", "black ice"},
+         /*caves=*/false, /*water=*/15, /*chasm=*/55, /*door=*/40, /*extra=*/1},
+    };
+    for (const auto& theme : themes)
+        if (theme.zone == zone) return theme;
+    return themes[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +291,7 @@ const std::vector<Text>& scroll_appearances() {
 
 char item_glyph(const Item& it) {
     switch (it.kind) {
+        case ItemKind::Needle: return '/';
         case ItemKind::Potion: return '!';
         case ItemKind::Scroll: return '?';
         case ItemKind::Food:   return '%';
@@ -256,6 +306,8 @@ char item_glyph(const Item& it) {
 
 Text item_name(const Item& it, const Identification& ident) {
     switch (it.kind) {
+        case ItemKind::Needle:
+            return Text{"Игла Кощеева", "Koschei's Needle"};
         case ItemKind::Gold:
             return format(Text{"золото ({})", "gold ({})"}, num(it.count));
         case ItemKind::Food:
@@ -292,6 +344,9 @@ Text item_name(const Item& it, const Identification& ident) {
 
 Text item_note(const Item& it, const Identification& ident) {
     switch (it.kind) {
+        case ItemKind::Needle:
+            return Text{"Сломай её — и Кощей станет смертен.",
+                        "Break it, and Koschei becomes mortal."};
         case ItemKind::Food: return Text{"Утоляет голод.", "Staves off hunger."};
         case ItemKind::Gold: return Text{"", ""};
         case ItemKind::Potion: {
@@ -323,19 +378,38 @@ const std::vector<ClassTemplate>& class_table() {
         {HeroClass::Vityaz, Text{"Витязь", "Vityaz"},
          Text{"Много здоровья и брони, никакого колдовства. Прямой путь вниз.",
               "Deep reserves of health and armour, no magic at all. The straight road down."},
-         34, 0, 6, 2, 100, 8, 7, 0, 5, 5, "topor", "kozha"},
+         34, 0, 6, 2, 100, 8, 7, 0, 5, 5, TraitNone, "topor", "kozha"},
 
         {HeroClass::Vedun, Text{"Ведун", "Vedun"},
          Text{"Слаб в ближнем бою, но бьёт заклятьями издалека.",
               "Frail up close, but strikes with spells from a distance."},
-         20, 20, 4, 0, 100, 9, 4, 5, 5, 8, "posokh", "mantiya"},
+         20, 20, 4, 0, 100, 9, 4, 5, 5, 8, TraitNone, "posokh", "mantiya"},
 
         {HeroClass::Tat, Text{"Тать", "Tat"},
          Text{"Быстр, уклончив, бьёт в уязвимое место. Хрупок, если попадут.",
               "Fast, evasive, strikes at the weak point. Fragile once caught."},
-         24, 8, 5, 1, 115, 9, 5, 2, 25, 20, "nozh", "rubaha"},
+         24, 8, 5, 1, 115, 9, 5, 2, 25, 20, TraitNone, "nozh", "rubaha"},
+
+        {HeroClass::Znahar, Text{"Знахарь", "Znahar"},
+         Text{"Знает все зелья в лицо, и в его руках они крепче. Слаб в драке.",
+              "Knows every potion by sight, and in his hands they work harder. Poor in a fight."},
+         26, 12, 4, 1, 100, 8, 5, 3, 5, 10, TraitHerbalist, "nozh", "rubaha"},
+
+        {HeroClass::Kuznets, Text{"Кузнец", "Kuznets"},
+         Text{"Всякая вещь в его руках на ступень лучше, а капища берут с него вполовину.",
+              "Every item is one grade better in his hands, and shrines charge him half."},
+         30, 0, 5, 3, 95, 7, 6, 0, 10, 5, TraitSmith, "bulava", "kozha"},
+
+        {HeroClass::Bogatyr, Text{"Богатырь", "Bogatyr"},
+         Text{"Медлителен, но одним замахом достаёт всех, кто стоит рядом.",
+              "Slow, but a single swing reaches everything standing around him."},
+         42, 0, 7, 3, 85, 7, 8, 0, 5, 0, TraitCleave, "topor", "kolchuga"},
     };
     return table;
+}
+
+bool class_has(HeroClass c, ClassTrait trait) {
+    return (class_info(c).traits & static_cast<std::uint32_t>(trait)) != 0;
 }
 
 const ClassTemplate& class_info(HeroClass c) {
@@ -383,10 +457,18 @@ const std::vector<std::pair<Spell, int>>& class_spells(HeroClass c) {
     static const std::vector<std::pair<Spell, int>> tat = {
         {Spell::Morok, 5}, {Spell::IceBind, 8},
     };
+    static const std::vector<std::pair<Spell, int>> znahar = {
+        {Spell::Heal, 1}, {Spell::Ward, 5},
+    };
+    static const std::vector<std::pair<Spell, int>> none = {};
+
     switch (c) {
-        case HeroClass::Vedun: return vedun;
-        case HeroClass::Tat:   return tat;
-        default:               return vityaz;
+        case HeroClass::Vedun:   return vedun;
+        case HeroClass::Tat:     return tat;
+        case HeroClass::Znahar:  return znahar;
+        case HeroClass::Kuznets: return none;
+        case HeroClass::Bogatyr: return vityaz;   // gains Ward at level 6, like the Vityaz
+        default:                 return vityaz;
     }
 }
 

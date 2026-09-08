@@ -110,6 +110,16 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 }
 
 .classes { display: grid; gap: 8px; }
+.belts { display: grid; gap: 6px; }
+.belt {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 11px;
+  border-left: 2px solid var(--line);
+}
+.belt b { color: var(--gold); font-size: 14px; white-space: nowrap; }
+.belt span { color: var(--ink-dim); font-size: 13px; line-height: 1.45; }
 .class-card {
   text-align: left;
   padding: 11px 13px;
@@ -119,6 +129,12 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .class-card[aria-pressed="true"] { border-color: var(--gold); background: #2c2620; }
 .class-card strong { display: block; font-size: 16px; margin-bottom: 3px; }
 .class-card span { color: var(--ink-dim); font-size: 13.5px; line-height: 1.45; }
+.class-card .trait {
+  display: block;
+  margin-top: 5px;
+  color: var(--gold);
+  font-size: 13px;
+}
 .class-card em {
   display: block;
   margin-top: 6px;
@@ -163,6 +179,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 .topbar .brand { color: var(--gold); letter-spacing: .18em; }
 .topbar .stat { color: var(--ink-dim); white-space: nowrap; }
 .topbar .stat b { color: var(--ink); font-weight: 600; }
+.topbar .zone { color: var(--gold); letter-spacing: .05em; }
 .topbar .spacer { flex: 1; }
 .topbar button { padding: 3px 8px; font-size: 12px; font-family: var(--mono); }
 
@@ -429,6 +446,11 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
       <p class="hint" id="seedHint">Одно и то же зерно всегда даёт одно и то же подземелье — так воспроизводится любая находка или баг.</p>
     </div>
 
+    <div class="field">
+      <label id="lblBelts">Три пояса, три стража</label>
+      <div class="belts" id="beltList"></div>
+    </div>
+
     <div class="title-actions">
       <button class="primary" id="btnStart">Спуститься</button>
       <button id="btnContinue" class="hidden">Продолжить</button>
@@ -444,6 +466,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
   <div class="topbar">
     <span class="brand" id="topBrand">НАВЬ</span>
     <span class="stat"><span id="lDepth">Глубина</span> <b id="tDepth">1</b></span>
+    <span class="stat zone" id="tZone"></span>
     <span class="stat"><span id="lTurn">Ход</span> <b id="tTurn">0</b></span>
     <span class="stat"><span id="lScore">Очки</span> <b id="tScore">0</b></span>
     <span class="spacer"></span>
@@ -527,14 +550,14 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     ru: {
       tagline: 'Спуск в двенадцать кругов подземного мира.',
       built: 'Игровое ядро на C++20, собрано в WebAssembly. Тот же код играется в терминале.',
-      lblClass: 'Кем спускаешься', lblSeed: 'Зерно (необязательно)',
+      lblClass: 'Кем спускаешься', lblSeed: 'Зерно (необязательно)', lblBelts: 'Три пояса, три стража',
       seedHint: 'Одно и то же зерно всегда даёт одно и то же подземелье — так воспроизводится любая находка или баг.',
       start: 'Спуститься', cont: 'Продолжить', help: 'Как играть', bestiary: 'Бестиарий',
       otherLang: 'English', brand: 'НАВЬ',
       depth: 'Глубина', turn: 'Ход', score: 'Очки', save: 'Сохранить', quit: 'В начало',
       hp: 'Жизнь', mana: 'Силы', xp: 'Опыт', who: 'Кто', level: 'Уровень',
       atk: 'Удар', def: 'Защита', gold: 'Золото', kills: 'Убито', foes: 'Рядом',
-      empty: 'Пусто.', pick: 'Взять', inv: 'Котомка', cast: 'Колдовать',
+      empty: 'Пусто.', pick: 'Взять', inv: 'Котомка', cast: 'Колдовать', speedShort: 'скор.',
       down: 'Вниз', up: 'Вверх', pray: 'Жертва',
       packTitle: 'Котомка', packSub: 'Нажми на вещь, чтобы применить или надеть.',
       packEmpty: 'Котомка пуста.',
@@ -574,14 +597,14 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     en: {
       tagline: 'A descent through twelve circles of the underworld.',
       built: 'The game core is C++20, compiled to WebAssembly. The same code plays in a terminal.',
-      lblClass: 'Who goes down', lblSeed: 'Seed (optional)',
+      lblClass: 'Who goes down', lblSeed: 'Seed (optional)', lblBelts: 'Three belts, three guardians',
       seedHint: 'The same seed always builds the same dungeon — that is how any find, or any bug, is reproduced.',
       start: 'Descend', cont: 'Continue', help: 'How to play', bestiary: 'Bestiary',
       otherLang: 'Русский', brand: 'NAV',
       depth: 'Depth', turn: 'Turn', score: 'Score', save: 'Save', quit: 'Title',
       hp: 'Life', mana: 'Power', xp: 'XP', who: 'Class', level: 'Level',
       atk: 'Attack', def: 'Armour', gold: 'Gold', kills: 'Kills', foes: 'Nearby',
-      empty: 'Nothing.', pick: 'Pick up', inv: 'Pack', cast: 'Cast',
+      empty: 'Nothing.', pick: 'Pick up', inv: 'Pack', cast: 'Cast', speedShort: 'spd',
       down: 'Down', up: 'Up', pray: 'Offer',
       packTitle: 'Pack', packSub: 'Tap an item to use or equip it.',
       packEmpty: 'Your pack is empty.',
@@ -728,7 +751,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
         var color = m.palette[m.colors.charCodeAt(idx) - 65] || '#888';
 
         // Remembered-but-unseen terrain is drawn dimmed.
-        ctx.globalAlpha = vis === 2 ? 1 : 0.34;
+        ctx.globalAlpha = vis === 2 ? 1 : 0.45;  // remembered terrain, dimmed but readable
         ctx.fillStyle = color;
         ctx.fillText(glyph, col * size + size / 2, row * lineH + lineH / 2);
       }
@@ -757,6 +780,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
   function drawSidebar() {
     var h = state.hero;
     $('tDepth').textContent = state.depth + ' / ' + state.maxDepth;
+    $('tZone').textContent = state.zone || '';
     $('tTurn').textContent = state.turn;
     $('tScore').textContent = state.score;
 
@@ -1114,6 +1138,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     $('tagline').textContent = t('tagline');
     $('builtWith').textContent = t('built');
     $('lblClass').textContent = t('lblClass');
+    $('lblBelts').textContent = t('lblBelts');
     $('lblSeed').textContent = t('lblSeed');
     $('seedHint').textContent = t('seedHint');
     $('btnStart').textContent = t('start');
@@ -1159,10 +1184,18 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
     $('classList').innerHTML = statics.classes.map(function (c) {
       return '<button class="class-card" data-class="' + c.id + '" aria-pressed="' +
         (c.id === chosenClass) + '"><strong>' + esc(c.name) + '</strong><span>' +
-        esc(c.blurb) + '</span><em>hp ' + c.hp + (c.mana ? ' · ' + t('mana').toLowerCase() + ' ' + c.mana : '') +
+        esc(c.blurb) + '</span>' +
+        (c.trait ? '<span class="trait">▸ ' + esc(c.trait) + '</span>' : '') +
+        '<em>hp ' + c.hp + (c.mana ? ' · ' + t('mana').toLowerCase() + ' ' + c.mana : '') +
         ' · ' + t('atk').toLowerCase() + ' ' + c.attack +
-        ' · ' + t('def').toLowerCase() + ' ' + c.defence + '</em></button>';
+        ' · ' + t('def').toLowerCase() + ' ' + c.defence +
+        ' · ' + t('speedShort') + ' ' + c.speed + '</em></button>';
     }).join('');
+    if (statics.zones) {
+      $('beltList').innerHTML = statics.zones.map(function (z) {
+        return '<div class="belt"><b>' + esc(z.name) + '</b><span>' + esc(z.blurb) + '</span></div>';
+      }).join('');
+    }
     $('classList').querySelectorAll('[data-class]').forEach(function (b) {
       b.addEventListener('click', function () {
         chosenClass = parseInt(b.getAttribute('data-class'), 10);

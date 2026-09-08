@@ -240,10 +240,36 @@ TEST(Combat, NoActionIsAcceptedOnceTheRunIsOver) {
     EXPECT_EQ(a.game.turn(), turn) << "the clock must stop when the run does";
 }
 
-TEST(Combat, SlayingKoscheiWinsTheRun) {
+TEST(Combat, KoscheiRisesAgainWhileTheNeedleIsWhole) {
+    // His death is not in his body. Killing him without breaking the needle
+    // first is supposed to fail — that is the whole fight.
     Arena a;
     a.spawn("koschei", {11, 10}, 1);
+    a.place_beside_hero();
     a.move({1, 0});
+
+    ASSERT_FALSE(a.game.monsters().empty()) << "Кощей stayed dead with the needle unbroken";
+    EXPECT_GT(a.game.monsters()[0].a.hp, 0);
+    EXPECT_EQ(a.game.monsters()[0].revives, 1);
+    EXPECT_EQ(a.game.state(), RunState::Playing);
+    EXPECT_TRUE(a.game.needle_intact());
+}
+
+TEST(Combat, BreakingTheNeedleMakesKoscheiMortal) {
+    Arena a;
+    Item needle{};
+    needle.kind = ItemKind::Needle;
+    needle.identified = true;
+    ASSERT_TRUE(a.game.mutable_hero().inv.add(needle));
+    const int index = static_cast<int>(a.game.hero().inv.items.size()) - 1;
+    ASSERT_TRUE(a.game.perform(Action{ActionType::UseItem, {}, index, {}}));
+    EXPECT_FALSE(a.game.needle_intact());
+
+    a.spawn("koschei", {11, 10}, 1);
+    a.place_beside_hero();
+    a.move({1, 0});
+
+    EXPECT_TRUE(a.game.monsters().empty());
     EXPECT_EQ(a.game.state(), RunState::Ascended);
     EXPECT_GT(a.game.score(), 5000) << "victory should dominate the score";
 }
