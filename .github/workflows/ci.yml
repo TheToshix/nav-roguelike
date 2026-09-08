@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The engine must build and pass its tests on all three desktop platforms and
+  # on both major compilers. Warnings are errors here: the project has none, and
+  # keeping it that way is cheaper than cleaning them up later.
+  # ---------------------------------------------------------------------------
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "Linux / GCC",      os: ubuntu-latest,  cc: gcc,   cxx: g++ }
+          - { name: "Linux / Clang",    os: ubuntu-latest,  cc: clang, cxx: clang++ }
+          - { name: "macOS / AppleClang", os: macos-latest, cc: clang, cxx: clang++ }
+          - { name: "Windows / MSVC",   os: windows-latest, cc: "",    cxx: "" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DNAV_WARNINGS_AS_ERRORS=ON
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Run unit tests
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Play twenty full runs headless
+        shell: bash
+        run: |
+          # The smoke test drives generation, combat, items, spells, stairs and
+          # the serialiser end to end. It fails if any run wedges or if a save
+          # does not round-trip.
+          if [ -f build/nav ]; then ./build/nav --demo 20;
+          else ./build/Release/nav.exe --demo 20; fi
+
+  # ---------------------------------------------------------------------------
+  # Undefined behaviour and memory errors are silent on a release build; this
+  # job is what makes them loud.
+  # ---------------------------------------------------------------------------
+  sanitizers:
+    name: Sanitizers (ASan + UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build-san
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build
+        run: cmake --build build-san --parallel
+      - name: Run unit tests
+        run: ctest --test-dir build-san --output-on-failure
+        env:
+          UBSAN_OPTIONS: print_stacktrace=1
+      - name: Run headless games
+        run: ./build-san/nav --demo 6
+
+  # ---------------------------------------------------------------------------
+  # Line coverage of the engine. The report is uploaded as an artifact and the
+  # headline number is printed into the job summary.
+  # ---------------------------------------------------------------------------
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install lcov
+        run: sudo apt-get update -qq && sudo apt-get install -y lcov
+      - name: Configure
+        run: cmake -S . -B build-cov -DCMAKE_BUILD_TYPE=Debug -DNAV_COVERAGE=ON
+      - name: Build
+        run: cmake --build build-cov --parallel
+      - name: Run tests
+        run: ctest --test-dir build-cov --output-on-failure
+      - name: Collect
+        run: |
+          lcov --directory build-cov --capture --output-file coverage.info \
+               --ignore-errors mismatch,gcov,source
+          lcov --remove coverage.info '/usr/*' '*/_deps/*' '*/tests/*' '*/frontend/*' \
+               --output-file coverage.info --ignore-errors unused
+          lcov --list coverage.info | tee coverage.txt
+          {
+            echo "### Engine line coverage"
+            echo '```'
+            tail -n 3 coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.info
+            coverage.txt
+
+  # ---------------------------------------------------------------------------
+  # The browser build. This job only proves the WebAssembly target compiles and
+  # loads; publishing lives in pages.yml.
+  # ---------------------------------------------------------------------------
+  web:
+    name: WebAssembly build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+          actions-cache-folder: emsdk-cache
+      - name: Verify the toolchain
+        run: emcc --version
+      - name: Build
+        run: |
+          emcmake cmake -S . -B build-web \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNAV_BUILD_TESTS=OFF \
+            -DNAV_BUILD_TERMINAL=OFF
+          cmake --build build-web --parallel
+      - name: Load the module and play a few turns under Node
+        run: |
+          node -e "
+            const Mod = require('./build-web/nav.js');
+            Mod().then(m => {
+              m.ccall('nav_new_game', null, ['string','number','number'], ['ci', 0, 1234]);
+              const dirs = [[0,-1],[1,0],[0,1],[-1,0]];
+              for (let i = 0; i < 200; i++) {
+                const d = dirs[i % 4];
+                m._nav_perform(1, d[0], d[1], -1, -1, -1);
+              }
+              const p = m._nav_state_json();
+              const s = JSON.parse(m.UTF8ToString(p));
+              m._nav_free_cstr(p);
+              if (!s.map || s.map.glyphs.length !== s.w * s.h) throw new Error('bad map payload');
+              const sp = m._nav_save();
+              const blob = m.UTF8ToString(sp);
+              m._nav_free_cstr(sp);
+              if (m.ccall('nav_load','number',['string'],[blob]) !== 1) throw new Error('reload failed');
+              console.log('wasm ok: turn ' + s.turn + ', save ' + blob.length + ' bytes');
+            }).catch(e => { console.error(e); process.exit(1); });
+          "
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp frontend/web/index.html dist/
+          cp build-web/nav.js dist/
+          touch dist/.nojekyll
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: dist
