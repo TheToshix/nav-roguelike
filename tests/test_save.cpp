@@ -11,6 +11,8 @@
 
 #include "nav/game.hpp"
 
+#include "support.hpp"
+
 using namespace nav;
 
 namespace {
@@ -25,6 +27,7 @@ Game played_game(std::uint64_t seed = 909, int steps = 300) {
 
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     Rng policy(seed);
     for (int i = 0; i < steps && g.state() == RunState::Playing; ++i) {
         if (g.map().at(g.hero().a.pos) == Tile::StairsDown)
@@ -70,6 +73,7 @@ TEST(Save, RoundTripsAFreshGame) {
     cfg.seed = 5;
     Game original;
     original.start(cfg);
+    leave_crossroads(original);
 
     Game restored;
     ASSERT_TRUE(restored.load(original.save()));
@@ -120,6 +124,7 @@ TEST(Save, PreservesStatusEffects) {
     cfg.seed = 88;
     Game original;
     original.start(cfg);
+    leave_crossroads(original);
     original.mutable_hero().a.add_effect(Effect::Poison, 7, 3);
     original.mutable_hero().a.add_effect(Effect::Haste, 4, 1);
 
@@ -135,6 +140,7 @@ TEST(Save, PreservesWhatHasBeenIdentified) {
     cfg.seed = 606;
     Game original;
     original.start(cfg);
+    leave_crossroads(original);
     // Empty the pack completely — the equipment slots must be released too, or
     // the save describes gear that is not there and the loader rightly refuses it.
     original.mutable_hero().inv.items.clear();
@@ -198,6 +204,7 @@ TEST(Save, PreservesSeedMetadataIncludingNonAsciiText) {
     cfg.seed_text = "баба-яга и пробел";
     Game original;
     original.start(cfg);
+    leave_crossroads(original);
 
     Game restored;
     ASSERT_TRUE(restored.load(original.save()));
@@ -212,6 +219,7 @@ TEST(Save, PreservesAnEmptySeedText) {
     cfg.seed_text.clear();
     Game original;
     original.start(cfg);
+    leave_crossroads(original);
     Game restored;
     ASSERT_TRUE(restored.load(original.save()));
     EXPECT_TRUE(restored.config().seed_text.empty());
@@ -231,6 +239,7 @@ TEST(Save, RejectsAWrongFormatVersion) {
     cfg.seed = 1;
     Game original;
     original.start(cfg);
+    leave_crossroads(original);
 
     std::string blob = original.save();
     const std::size_t space = blob.find(' ');
@@ -246,6 +255,7 @@ TEST(Save, RejectsATruncatedSaveAtEveryLength) {
     cfg.seed = 2;
     Game original;
     original.start(cfg);
+    leave_crossroads(original);
     const std::string blob = original.save();
 
     // Cutting a save short must never yield a "successful" half-loaded game.
@@ -261,6 +271,7 @@ TEST(Save, RejectsAnImpossibleDepth) {
     cfg.seed = 3;
     Game original;
     original.start(cfg);
+    leave_crossroads(original);
 
     std::string blob = original.save();
     // The depth follows the four generator words; rewrite it to a silly value
@@ -284,6 +295,7 @@ TEST(Save, AFailedLoadLeavesTheExistingGameUntouched) {
     cfg.seed = 11;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     g.perform(Action{ActionType::Wait, {}, -1, {}});
 
     const std::string before = g.save();
@@ -307,6 +319,7 @@ TEST(Save, CompressesTheTileGridsRatherThanWritingThemOut) {
     cfg.seed = 77;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     const std::size_t cells =
         static_cast<std::size_t>(g.map().width()) * static_cast<std::size_t>(g.map().height());
     EXPECT_LT(g.save().size(), 2 * cells) << "the tile grids do not appear to be compressed";

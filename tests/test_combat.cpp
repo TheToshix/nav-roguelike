@@ -9,6 +9,8 @@
 
 #include "nav/game.hpp"
 
+#include "support.hpp"
+
 using namespace nav;
 
 namespace {
@@ -21,6 +23,7 @@ public:
         cfg.seed = seed;
         cfg.hero_class = cls;
         game.start(cfg);
+        leave_crossroads(game);
         clear_floor();
     }
 
@@ -472,11 +475,18 @@ TEST(Stairs, DescendingMovesToTheNextFloor) {
     EXPECT_EQ(a.game.hero().deepest, 2);
 }
 
-TEST(Stairs, TheFirstFloorHasNoWayOut) {
+TEST(Stairs, TheFirstFloorLeadsBackToTheCrossroadsAndNoFurther) {
+    // Climbing out of the first floor returns the hero to the crossroads,
+    // which is a room and not an exit: from there the stairs only go down.
     Arena a;
     a.game.mutable_level().map.set(a.game.hero().a.pos, Tile::StairsUp);
+    ASSERT_TRUE(a.game.perform(Action{ActionType::Ascend, {}, -1, {}}));
+    EXPECT_EQ(a.game.depth(), kLobbyDepth);
+    EXPECT_TRUE(a.game.in_lobby());
+
+    a.game.mutable_level().map.set(a.game.hero().a.pos, Tile::StairsUp);
     EXPECT_FALSE(a.game.perform(Action{ActionType::Ascend, {}, -1, {}}));
-    EXPECT_EQ(a.game.depth(), 1);
+    EXPECT_EQ(a.game.depth(), kLobbyDepth) << "Nav should not open onto the sky";
 }
 
 TEST(Stairs, AFloorIsRememberedWhenTheHeroComesBack) {

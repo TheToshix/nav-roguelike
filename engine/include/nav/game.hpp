@@ -98,6 +98,21 @@ public:
 
     /// The belt of the dungeon the hero is currently in.
     Zone zone() const { return zone_for_depth(depth_); }
+    /// True while the hero stands on the crossroads rather than in the dungeon.
+    bool in_lobby() const { return depth_ <= kLobbyDepth; }
+
+    /// Every GearPower flag carried by what the hero is wearing right now.
+    std::uint32_t hero_powers() const;
+    /// The set the hero has completed, or GearSet::None.
+    ///
+    /// A set needs all three of its pieces worn at once, which is every slot
+    /// the hero has — so this is never a happy accident.
+    GearSet hero_set() const;
+    bool hero_has(GearPower p) const { return (hero_powers() & p) != 0; }
+
+    /// The boss of this floor while it still lives, or nullptr. The frontends
+    /// use it to name the fight and to choose its music.
+    const Monster* active_boss() const;
     /// True while Кощей can still rise again — that is, the needle is unbroken.
     bool needle_intact() const { return !needle_broken_; }
 
@@ -122,6 +137,17 @@ public:
     void message(const Text& t, Severity sev = Severity::Info);
     void clear_log() { log_.clear(); }
 
+    /// Hurts a monster: the one path through which damage, boss phases, death,
+    /// experience and drops are resolved.
+    ///
+    /// Public because it is a real engine operation rather than a hero action —
+    /// spells, fire and a boss's own breath all go through it — and because a
+    /// test that reaches around it would be testing a fight the game never has.
+    void damage_monster(Monster& m, int amount, const Text& source);
+    /// Hurts the hero, through the warding shirt and on into the death check.
+    /// Public for the same reason as `damage_monster`.
+    void damage_hero(int amount, const Text& source);
+
     /// Recomputes what the hero can see from where they now stand.
     ///
     /// `perform` already does this after every action, so normal play never
@@ -137,6 +163,9 @@ public:
 private:
     // --- Level management (game.cpp) --------------------------------------
     void ensure_level(int depth);
+    /// Lays out the crossroads by hand. Nothing here is random except which
+    /// three pieces of gear are on offer.
+    void build_lobby(Level& lvl);
     void enter_level(int depth, bool descending);
     void populate(Level& lvl, int depth);
     Vec2 free_spot_near(const Level& lvl, Vec2 origin, int radius) const;
@@ -178,14 +207,22 @@ private:
     bool spawn_species(Level& lvl, int species, Vec2 near, int radius);
     /// Runs a boss's own mechanic. Returns true when it consumed the turn.
     bool boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance);
+    /// Re-reads a boss's phase from its health, announcing any crossing.
+    ///
+    /// Called after damage rather than on a timer: a phase is a statement about
+    /// how hurt the boss is, and tying it to anything else would let a player
+    /// skip a pattern by out-running it.
+    void update_boss_phase(Monster& m);
+    /// Breathes fire along the line towards `target`. Змей Горыныч's attack.
+    void breathe_fire(Monster& m, Vec2 target, int damage, int length);
     /// True while any of Баба-Яга's huts still stands on this floor.
     bool huts_standing() const;
+    /// Whether worn gear keeps `e` off the hero entirely, however it arrives.
+    bool hero_resists(Effect e) const;
 
     // --- Shared helpers ---------------------------------------------------
     Monster* monster_at_mut(Vec2 p);
     bool blocked_for_monster(Vec2 p, Vec2 self) const;
-    void damage_monster(Monster& m, int amount, const Text& source);
-    void damage_hero(int amount, const Text& source);
     void apply_effect_to_monster(Monster& m, Effect e, int turns, int power);
     Text monster_name(const Monster& m) const;
     int hero_move_cost(Vec2 to) const;

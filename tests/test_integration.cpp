@@ -13,6 +13,8 @@
 #include "nav/fov.hpp"
 #include "nav/game.hpp"
 
+#include "support.hpp"
+
 using namespace nav;
 
 namespace {
@@ -27,7 +29,9 @@ void check_invariants(const Game& g, const char* where) {
     ASSERT_LE(h.mana, h.max_mana) << where << ": power exceeded the maximum";
     ASSERT_GE(h.gold, 0) << where << ": negative gold";
     ASSERT_GE(h.level, 1) << where;
-    ASSERT_GE(g.depth(), 1) << where;
+    // Zero is the crossroads, which a run may climb back to from the first
+    // floor; anything below it is a bug.
+    ASSERT_GE(g.depth(), kLobbyDepth) << where;
     ASSERT_LE(g.depth(), kMaxDepth) << where << ": descended past the bottom floor";
     ASSERT_LE(h.inv.items.size(), Inventory::kCapacity) << where << ": the pack overflowed";
 
@@ -76,6 +80,7 @@ Game play(std::uint64_t seed, int steps, bool verify_each_turn) {
 
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     Rng policy(seed * 31 + 7);
 
     for (int i = 0; i < steps && g.state() == RunState::Playing; ++i) {
@@ -158,6 +163,7 @@ TEST(Integration, TheTurnCounterOnlyEverMovesForward) {
     cfg.seed = 24;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
 
     int previous = g.turn();
     Rng policy(24);
@@ -174,6 +180,7 @@ TEST(Integration, ARefusedActionNeverAdvancesTheClock) {
     cfg.seed = 25;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
 
     const int turn = g.turn();
     EXPECT_FALSE(g.perform(Action{ActionType::None, {}, -1, {}}));
@@ -188,6 +195,7 @@ TEST(Integration, EveryFloorCanBeGeneratedAndIsConnected) {
     cfg.seed = 31415;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
 
     for (int depth = 1; depth <= kMaxDepth; ++depth) {
         ASSERT_EQ(g.depth(), depth);
@@ -207,6 +215,7 @@ TEST(Integration, EveryBossFloorActuallyContainsItsBoss) {
     cfg.seed = 27182;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
 
     for (int depth = 1; depth <= kMaxDepth; ++depth) {
         const char* expected = boss_for_depth(depth);
@@ -229,6 +238,7 @@ TEST(Integration, TheBottomFloorHasNoStairsDown) {
     cfg.seed = 999;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     for (int depth = 1; depth < kMaxDepth; ++depth) {
         g.mutable_hero().a.pos = g.level().exit;
         ASSERT_TRUE(g.perform(Action{ActionType::Descend, {}, -1, {}}));
@@ -247,6 +257,7 @@ TEST(Integration, MonstersOnlyEverSpawnWithinTheirDepthWindow) {
         cfg.seed = seed + 700;
         Game g;
         g.start(cfg);
+        leave_crossroads(g);
 
         for (int depth = 1; depth <= kMaxDepth; ++depth) {
             for (const auto& m : g.monsters()) {
@@ -270,6 +281,7 @@ TEST(Integration, NoMonsterStartsAdjacentToTheArrivalStaircase) {
         cfg.seed = seed + 20000;
         Game g;
         g.start(cfg);
+        leave_crossroads(g);
 
         for (int depth = 1; depth <= 6; ++depth) {
             for (const auto& m : g.monsters())
@@ -288,6 +300,7 @@ TEST(Integration, TheHeroCanAlwaysReachTheStairsFromWhereTheyStart) {
         cfg.seed = seed + 800;
         Game g;
         g.start(cfg);
+        leave_crossroads(g);
         for (int depth = 1; depth <= 6; ++depth) {
             const auto path = find_path(g.map(), g.hero().a.pos, g.level().exit, 20000);
             ASSERT_FALSE(path.empty())
@@ -303,6 +316,7 @@ TEST(Integration, TheFieldOfViewAlwaysIncludesTheHeroAndNothingOutOfRange) {
     cfg.seed = 4096;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
 
     Rng policy(4096);
     for (int i = 0; i < 400 && g.state() == RunState::Playing; ++i) {
@@ -325,6 +339,7 @@ TEST(Integration, StarvationEventuallyKillsAnIdleHero) {
     cfg.seed = 12;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     g.mutable_level().monsters.clear();
     g.mutable_hero().inv.items.clear();
     g.mutable_hero().nutrition = 5;
@@ -350,6 +365,7 @@ TEST(Integration, RenderingIsDefinedForEveryCellOfEveryFloor) {
     cfg.seed = 5150;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
 
     for (int depth = 1; depth <= 4; ++depth) {
         g.mutable_level().map.reveal_all();
@@ -369,6 +385,7 @@ TEST(Integration, TheScoreRewardsProgress) {
     cfg.seed = 606;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     const int start_score = g.score();
 
     g.mutable_hero().gold += 500;
@@ -387,6 +404,7 @@ TEST(Integration, EveryHeroClassIsPlayable) {
         cfg.hero_class = cls.cls;
         Game g;
         g.start(cfg);
+        leave_crossroads(g);
 
         EXPECT_EQ(g.hero().cls, cls.cls);
         EXPECT_GT(g.hero().a.max_hp, 0);

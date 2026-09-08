@@ -9,6 +9,8 @@
 
 #include "nav/game.hpp"
 
+#include "support.hpp"
+
 using namespace nav;
 
 namespace {
@@ -20,6 +22,7 @@ public:
         cfg.seed = seed;
         cfg.hero_class = cls;
         game.start(cfg);
+        leave_crossroads(game);
 
         Level& lvl = game.mutable_level();
         lvl.monsters.clear();

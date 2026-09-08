@@ -11,6 +11,8 @@
 
 #include "nav/game.hpp"
 
+#include "support.hpp"
+
 using namespace nav;
 
 namespace {
@@ -22,6 +24,7 @@ public:
         cfg.seed = seed;
         cfg.hero_class = cls;
         game.start(cfg);
+        leave_crossroads(game);
 
         Level& lvl = game.mutable_level();
         lvl.monsters.clear();
@@ -120,6 +123,7 @@ TEST(Classes, EveryOneIsPlayableFromTheFirstTurn) {
         cfg.hero_class = c.cls;
         Game g;
         g.start(cfg);
+        leave_crossroads(g);
 
         EXPECT_EQ(g.hero().cls, c.cls) << c.name.en;
         EXPECT_GT(g.hero().a.max_hp, 0) << c.name.en;
@@ -307,6 +311,7 @@ TEST(Classes, EveryOneSurvivesALongRandomisedRun) {
         cfg.hero_class = c.cls;
         Game g;
         g.start(cfg);
+        leave_crossroads(g);
 
         Rng policy(99);
         for (int i = 0; i < 900 && g.state() == RunState::Playing; ++i) {

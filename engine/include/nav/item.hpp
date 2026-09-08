@@ -11,6 +11,31 @@ namespace nav {
 /// Where an item can be worn. `None` means it is consumed, not equipped.
 enum class Slot : std::uint8_t { None, Weapon, Armor, Amulet };
 
+/// What a piece of gear does beyond its plain attack or armour number.
+///
+/// Numbers alone make gear that is only ever "the bigger one"; a flag makes a
+/// choice. Bits rather than an enum because one item may carry two.
+enum GearPower : std::uint32_t {
+    GpNone       = 0,
+    GpStun       = 1u << 0,  ///< A blow may leave the target unable to act.
+    GpVsBoss     = 1u << 1,  ///< Heavier against the floor guardians.
+    GpWard       = 1u << 2,  ///< Turns aside one blow, then needs a floor to recover.
+    GpThorns     = 1u << 3,  ///< Returns part of the damage taken.
+    GpLifesteal  = 1u << 4,  ///< A kill returns health.
+    GpQuick      = 1u << 5,  ///< Faster on your feet.
+    GpSight      = 1u << 6,  ///< Sees further.
+    GpNoBurn     = 1u << 7,  ///< Fire does not catch.
+    GpNoPoison   = 1u << 8,  ///< Venom does not take.
+    GpRegen      = 1u << 9,  ///< Slow, constant mending.
+    GpCheapSpell = 1u << 10, ///< Spells cost less.
+    GpRichGold   = 1u << 11, ///< Finds more gold.
+};
+
+/// The four matched sets. Each is exactly one weapon, one armour and one
+/// amulet, so a full set fills the hero completely — wearing one is a decision
+/// about the whole run rather than about a slot.
+enum class GearSet : std::uint8_t { None, Oberezhny, Ratny, Naviy, Hodovoy, Count };
+
 /// A static entry in the weapon/armour/amulet tables.
 struct GearTemplate {
     const char* key;
@@ -21,7 +46,19 @@ struct GearTemplate {
     int min_depth;   ///< Earliest floor this may be generated on.
     int weight;      ///< Relative spawn weight.
     Text note;       ///< Short flavour/effect line shown in the inventory.
+    std::uint32_t powers{GpNone};
+    GearSet set{GearSet::None};
 };
+
+/// Name and effect of a completed set, for the inventory screen.
+struct GearSetInfo {
+    GearSet set;
+    Text name;
+    Text note;
+};
+
+const std::vector<GearSetInfo>& gear_set_table();
+const GearSetInfo& gear_set_info(GearSet s);
 
 /// One item, either on the floor or in the pack.
 struct Item {

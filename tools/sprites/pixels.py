@@ -14,7 +14,12 @@ mire and the frozen kingdom without three copies of every tile.
 sheet for looking at.
 """
 
+# Two sizes. Everything ordinary is 16x16, one creature to one cell. The
+# bosses are 32x32 and are drawn hanging over the cells around them: a guardian
+# that is the same size as an anchutka reads as a large anchutka, and the fight
+# has to be started before the player can tell the difference.
 W = H = 16
+BOSS = 32
 
 # Shared tone ramps. Terrain uses the neutral one so it can be tinted.
 STONE = {'o': '#20201e', '1': '#3a3a36', '2': '#55554f', '3': '#6f6f67', '4': '#8b8b81', '5': '#a5a59a'}
@@ -23,12 +28,13 @@ SPRITES = {}
 
 
 def S(name, palette, rows, tintable=False):
-    assert len(rows) == H, f'{name}: {len(rows)} rows'
+    size = len(rows)
+    assert size in (H, BOSS), f'{name}: {size} rows, expected {H} or {BOSS}'
     for i, r in enumerate(rows):
-        assert len(r) == W, f'{name}: row {i} is {len(r)} wide'
+        assert len(r) == size, f'{name}: row {i} is {len(r)} wide, expected {size}'
         for c in r:
             assert c == '.' or c in palette, f'{name}: row {i} uses {c!r}'
-    SPRITES[name] = {'palette': palette, 'rows': rows, 'tintable': tintable}
+    SPRITES[name] = {'palette': palette, 'rows': rows, 'tintable': tintable, 'size': size}
 
 
 # ---------------------------------------------------------------------------
@@ -517,6 +523,29 @@ def beast(name, palette, rows):
     S(name, palette, rows)
 
 
+def boss(name, palette, rows):
+    """A guardian: drawn 16x16 like everything else, stored at 32x32.
+
+    The art is authored at the same resolution as the rest of the bestiary and
+    doubled here, so a guardian ends up twice the size of the hero with pixels
+    twice as large. That is how a 16-bit game says "this one is bigger than
+    you", and it means a boss's silhouette is designed under exactly the same
+    constraints as an anchutka's — which is what keeps them looking like they
+    belong in the same world.
+    """
+    palette = dict(palette)
+    palette.setdefault('o', '#0f0d0a')
+    palette.setdefault('e', '#f4e08a')
+    assert len(rows) == H, f'{name}: bosses are authored at {H}x{H}'
+    doubled = []
+    for r in rows:
+        assert len(r) == W, f'{name}: row is {len(r)} wide'
+        wide = ''.join(c * 2 for c in r)
+        doubled.append(wide)
+        doubled.append(wide)
+    S(name, palette, doubled)
+
+
 beast('anchutka', {'1': '#4d5a2e', '2': '#6f8040', '3': '#8fa356', '4': '#b3c777', 'r': '#a8433c'}, [
     '................',
     '................',
@@ -789,66 +818,8 @@ beast('zmey', {'1': '#7a2b10', '2': '#b0491c', '3': '#e0762c', '4': '#f7a94e', '
     '.oo11o....oo11o.',
 ])
 
-beast('viy', {'1': '#6b5a18', '2': '#9c8626', '3': '#c8ab3c', '4': '#e6cd72', 'w': '#f6ecb4',
-              'k': '#2a2410', 'r': '#c0392b'}, [
-    '................',
-    '..oooooooooooo..',
-    '.o444444444444o.',
-    'o44444444444444o',
-    'o4kkkkkkkkkkkk4o',
-    'o4wwwwwwwwwwww4o',
-    'o4kkkkkkkkkkkk4o',
-    'o44444444444444o',
-    'o44rr44444rr444o',
-    'oo3333333333333o',
-    '.o332222222233o.',
-    '.o322222222223o.',
-    'oo122222222221oo',
-    'o11122222222111o',
-    'o111o111111o111o',
-    'oooo.oooooo.oooo',
-])
 
-beast('babayaga', {'1': '#5c2a4a', '2': '#8a3f6f', '3': '#b05a90', '4': '#d68fb8', 'w': '#f0e0e8',
-                   'b': '#6b4a26', 'g': '#8fa356',
-                   's': '#c9a888', 'S': '#8f6f52'}, [
-    '............oo..',
-    '...oooooo...o1o.',
-    '..o333333o..o1o.',
-    '..o33ssss3o.o1o.',
-    '..o3sesse3o.o1o.',
-    '..o3ssSss3o.o1o.',
-    '..o3sSSss3o.o1o.',
-    '...o3ssss3o.o1o.',
-    '...o333333o.o1o.',
-    '..o22222222oo3o.',
-    '.o2211111122oo3o',
-    '.o2211111122oo3o',
-    '.o21111111112o..',
-    '..o111111111o...',
-    '...o11o..o11o...',
-    '..oo11o..oo11o..',
-])
 
-beast('koschei', {'1': '#5f6470', '2': '#8b909c', '3': '#b8bdc8', '4': '#e4e8ef', 'w': '#ffffff',
-                  'g': '#c8a45c', 'r': '#8c1f1f', 'k': '#141821'}, [
-    '.....gg..gg.....',
-    '....ggggggggg...',
-    '....og4444go....',
-    '....o4wwww4o....',
-    '....okrwwrko....',
-    '....o4wwww4o....',
-    '....o4kkkk4o....',
-    '...oo444444oo...',
-    '..o3o444444o3o..',
-    '..o3o344443o3o..',
-    '..o3oo3333oo3o..',
-    '...o.o3333o.o...',
-    '.....o3333o.....',
-    '.....o3..3o.....',
-    '....oo3..3oo....',
-    '....o33..33o....',
-])
 
 beast('izbushka', {'1': '#3d2a15', '2': '#5c3f20', '3': '#7d5629', '4': '#9c6f3a', '5': '#c49a5e',
                    'k': '#2a2018', 'd': '#241a10', 'g': '#8fa356'}, [
@@ -868,4 +839,233 @@ beast('izbushka', {'1': '#3d2a15', '2': '#5c3f20', '3': '#7d5629', '4': '#9c6f3a
     '..og1o....o1go..',
     '..o11o....o11o..',
     '.og11go..og11go.',
+])
+
+
+# ---------------------------------------------------------------------------
+# Пекло — двое своих
+# ---------------------------------------------------------------------------
+
+beast('chert', {'1': '#5c2a10', '2': '#8f4418', '3': '#c05a2a', '4': '#e0824a', 'r': '#ff5522'}, [
+    '..o..........o..',
+    '..oo........oo..',
+    '...o3o....o3o...',
+    '....o33oo33o....',
+    '...o33333333o...',
+    '...o3e3333e3o...',
+    '...o33333333o...',
+    '...o3orrrro3o...',
+    '....o333333o....',
+    '..o4422222244o..',
+    '.o422222222224o.',
+    'o1o22222222o1o..',
+    '.o.o222222o.o...',
+    '...o11..11o.....',
+    '..oo1o..o1oo....',
+    '..o11o..o11o....',
+])
+
+beast('chugaister', {'1': '#4a3418', '2': '#6f5028', '3': '#8f6a3a', '4': '#b08a52', 'w': '#e0d0b0'}, [
+    '................',
+    '....oooooooo....',
+    '...o44444444o...',
+    '..o4444444444o..',
+    '..o4e444444e4o..',
+    '..o4444444444o..',
+    '..o44wwwwww44o..',
+    '..oo44444444oo..',
+    'o3oo33333333oo3o',
+    'o33o33333333o33o',
+    'o333o333333o333o',
+    'oo33o222222o33oo',
+    '.oo3o222222o3oo.',
+    '..o.o222222o.o..',
+    '....o11oo11o....',
+    '...oo11oo11oo...',
+])
+
+
+# ---------------------------------------------------------------------------
+# Боссы — вдвое крупнее всего остального
+#
+# Thirty-two pixels instead of sixteen, drawn hanging over the cells around
+# them. A guardian the size of an anchutka reads as an anchutka until it has
+# already hit you; this is the one place where the picture has to carry the
+# warning that the rules do not.
+# ---------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+# ---------------------------------------------------------------------------
+# Стражи — та же сетка, вдвое крупнее на экране
+#
+# Eight guardians: four belt masters and the four lesser ones halfway down. All
+# authored 16x16 like everything else and doubled by `boss`, so on screen they
+# stand two cells tall and overhang the ones beside them.
+# ---------------------------------------------------------------------------
+
+boss('mara', {'1': '#3a2050', '2': '#5c3578', '3': '#8050a8', '4': '#a878d0',
+              'w': '#e8d8f8', 'k': '#160c22'}, [
+    '................',
+    '.....oooooo.....',
+    '....o444444o....',
+    '...o44444444o...',
+    '...o4kkkkkk4o...',
+    '...o4kwkkwk4o...',
+    '...o4kkkkkk4o...',
+    '...o4kwkkwk4o...',
+    '...o44kkkk44o...',
+    '..o3344444433o..',
+    '.o333333333333o.',
+    'o33322222222333o',
+    'o33222222222233o',
+    '.o2222222222220.'.replace('0', 'o'),
+    '..o2o22222o2o...',
+    '...o.o22o.o.....',
+])
+
+boss('viy', {'1': '#6b5a18', '2': '#9c8626', '3': '#c8ab3c', '4': '#e6cd72', 'w': '#f6ecb4',
+             'k': '#2a2410', 'r': '#c0392b'}, [
+    '................',
+    '..oooooooooooo..',
+    '.o444444444444o.',
+    'o44444444444444o',
+    'o4kkkkkkkkkkkk4o',
+    'o4wwwwwwwwwwww4o',
+    'o4kkkkkkkkkkkk4o',
+    'o44444444444444o',
+    'o44rr44444rr444o',
+    'oo3333333333333o',
+    '.o332222222233o.',
+    '.o322222222223o.',
+    'oo122222222221oo',
+    'o11122222222111o',
+    'o111o111111o111o',
+    'oooo.oooooo.oooo',
+])
+
+boss('vodyanoy', {'1': '#14403c', '2': '#226a62', '3': '#369a8e', '4': '#5cc4b2',
+                  'w': '#c8f0e4', 'g': '#4a7a2a', 'r': '#8c3030', 'k': '#0a2422'}, [
+    '................',
+    '..oooo....oooo..',
+    '.o4wwo....ow4wo.'.replace('4w', 'ww'),
+    '.owkwoooooowkwo.',
+    '.o4444444444440.'.replace('0', 'o'),
+    'o444444444444444'[:15] + 'o',
+    'o4kkkkkkkkkkkk4o',
+    'o4krrrrrrrrrrk4o',
+    'o44kkkkkkkkkk44o',
+    'og4444444444440g'.replace('0', '4'),
+    'oggg44444444gggo',
+    '.oggg333333gggo.',
+    '.o333333333333o.',
+    'o33222222222233o',
+    'o32222222222223o',
+    '.oo22222222222oo',
+])
+
+boss('babayaga', {'1': '#5c2a4a', '2': '#8a3f6f', '3': '#b05a90', '4': '#d68fb8', 'w': '#f0e0e8',
+                  'b': '#6b4a26', 'g': '#8fa356', 's': '#c9a888', 'S': '#8f6f52'}, [
+    '............oo..',
+    '...oooooo...o1o.',
+    '..o333333o..o1o.',
+    '..o33ssss3o.o1o.',
+    '..o3sesse3o.o1o.',
+    '..o3ssSss3o.o1o.',
+    '..o3sSSss3o.o1o.',
+    '...o3ssss3o.o1o.',
+    '...o333333o.o1o.',
+    '..o22222222oo3o.',
+    '.o2211111122oo3o',
+    '.o2211111122oo3o',
+    '.o21111111112o..',
+    '..o111111111o...',
+    '...o11o..o11o...',
+    '..oo11o..oo11o..',
+])
+
+boss('morozko', {'1': '#2a4a68', '2': '#4a7ba8', '3': '#7fb0d8', '4': '#b8dcf4',
+                 'w': '#ffffff', 's': '#d8b898', 'k': '#12283c', 'g': '#8fd8ff'}, [
+    '..........g.....',
+    '..oooooo..ogo...',
+    '.o444444o.og4o..',
+    '.o4wwww4o.ogo...',
+    '.o4wsssw4o.o....',
+    '.o4wskks4o.o....',
+    '.o4wwwww4o.o....',
+    '.o44wwww44o.o...',
+    '..o4wwww4o..o...',
+    '..o333333o..o...',
+    '.o33222233o.o...',
+    'o332222223300o..'.replace('00', 'oo'),
+    'o32222222223o...',
+    'o22222222222o...',
+    '.o1222222221o...',
+    '.oo11111111oo...',
+])
+
+boss('koschei', {'1': '#5f6470', '2': '#8b909c', '3': '#b8bdc8', '4': '#e4e8ef', 'w': '#ffffff',
+                 'g': '#c8a45c', 'r': '#8c1f1f', 'k': '#141821'}, [
+    '.....gg..gg.....',
+    '....ggggggggg...',
+    '....og4444go....',
+    '....o4wwww4o....',
+    '....okrwwrko....',
+    '....o4wwww4o....',
+    '....o4kkkk4o....',
+    '...oo444444oo...',
+    '..o3o444444o3o..',
+    '..o3o344443o3o..',
+    '..o3oo3333oo3o..',
+    '...o.o3333o.o...',
+    '.....o3333o.....',
+    '.....o3..3o.....',
+    '....oo3..3oo....',
+    '....o33..33o....',
+])
+
+boss('polozh', {'1': '#5a1c06', '2': '#96350f', '3': '#d05a1c', '4': '#f0862c', '5': '#ffc060',
+                'w': '#fff0c0', 'r': '#ff3a10', 'k': '#2a0e04'}, [
+    '.........oooo...',
+    '........o4444o..',
+    '.......o4wkkw4o.',
+    '.......o455554o.',
+    '.......o4rrrr4o.',
+    '........o4444o..',
+    '.......oo333o...',
+    '......o3333o....',
+    '.....o333oo.....',
+    '....o333o.......',
+    '...o333o........',
+    '..o3222o........',
+    '.o32222o........',
+    '.o222222ooooo...',
+    '.o2222222222o...',
+    '..oooooooooo....',
+])
+
+boss('gorynych', {'1': '#7a2b10', '2': '#b0491c', '3': '#e0762c', '4': '#f7a94e', 'w': '#ffe08a',
+                  'r': '#ff4a1a'}, [
+    '................',
+    'oooo..oooo..oooo',
+    'o44o..o44o..o44o',
+    'oeeo..oeeo..oeeo',
+    'orro..orro..orro',
+    'o33oo.o33o.oo33o',
+    '.o333oo33oo333o.',
+    '.o333333333333o.',
+    'o33333333333333o',
+    'w32222222222223w',
+    'w32222222222223w',
+    '.o222222222222o.',
+    '.o111111111111o.',
+    '..o1111111111o..',
+    '..o1o......o1o..',
+    '.oo11o....oo11o.',
 ])

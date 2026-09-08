@@ -193,6 +193,26 @@ std::string build_state_json() {
         append_field(out, "tintLiquid", std::string(theme.liquid_color), first);
     }
 
+    // The floor's guardian, while it lives. The page uses it to name the fight
+    // and to pick the music, and the phase is what makes the music change when
+    // the fight does.
+    out += ",\"boss\":";
+    if (const Monster* boss = g.active_boss()) {
+        const Species& sp = bestiary()[static_cast<std::size_t>(boss->species)];
+        out += "{\"key\":";
+        append_json_string(out, sp.key);
+        out += ",\"name\":";
+        append_json_string(out, sp.name.get(g_lang));
+        out += ",\"phase\":" + std::to_string(boss->phase);
+        out += ",\"phases\":" + std::to_string(sp.phases);
+        out += ",\"hp\":" + std::to_string(boss->a.hp);
+        out += ",\"maxHp\":" + std::to_string(boss->a.max_hp);
+        out += ",\"mini\":" + std::string((sp.ai & nav::AiMiniBoss) ? "true" : "false");
+        out += "}";
+    } else {
+        out += "null";
+    }
+
     out += ",\"map\":{";
     out += "\"glyphs\":";
     append_json_string(out, glyphs);
@@ -227,6 +247,14 @@ std::string build_state_json() {
     append_field(out, "attack", g.hero_attack(), hero_first);
     append_field(out, "defence", g.hero_defence(), hero_first);
     append_field(out, "className", class_info(h.cls).name.get(g_lang), hero_first);
+    // The completed set, if any. Named rather than numbered because the panel
+    // shows it to the player, and because a set the player cannot name is a
+    // set they will never deliberately assemble.
+    if (g.hero_set() != GearSet::None) {
+        const GearSetInfo& info = gear_set_info(g.hero_set());
+        append_field(out, "setName", info.name.get(g_lang), hero_first);
+        append_field(out, "setNote", info.note.get(g_lang), hero_first);
+    }
     out += ",\"effects\":[";
     bool effect_first = true;
     for (const auto& e : h.a.effects) {

@@ -34,9 +34,13 @@ add_executable(nav_tests
   test_classes.cpp
   test_save.cpp
   test_sprites.cpp
+  test_phases.cpp
+  test_gear.cpp
+  test_lobby.cpp
   test_integration.cpp
 )
 
+target_include_directories(nav_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(nav_tests PRIVATE nav_engine GTest::gtest_main)
 
 # The sprite test reads the generated artwork out of the source tree, so that

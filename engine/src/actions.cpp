@@ -38,6 +38,18 @@ bool has_amulet(const Hero& h, const char* key) {
 
 void Game::damage_hero(int amount, const Text& source) {
     if (amount <= 0 || !hero_.a.alive) return;
+
+    // Сорочка-неуязвимка turns one blow aside per floor. One is the whole
+    // design: a shirt that stopped everything would end the game's tension,
+    // and a shirt that stopped a tenth of everything would be a number.
+    if (hero_has(GpWard) && hero_.ward_ready) {
+        hero_.ward_ready = 0;
+        message(Text{"Сорочка-неуязвимка твердеет — удар уходит мимо.",
+                     "The warding shirt hardens, and the blow goes wide."},
+                Severity::Good);
+        return;
+    }
+
     hero_.a.damage(amount);
     if (hero_.a.alive) return;
 
@@ -72,6 +84,7 @@ void Game::damage_monster(Monster& m, int amount, const Text& source) {
 
     m.a.damage(amount);
     m.awake = true;
+    update_boss_phase(m);
 
     // Кощей's death is not in his body. Until the needle is broken he simply
     // gets back up, and the first time he does the floor gives up the needle's
@@ -177,7 +190,11 @@ void Game::apply_effect_to_monster(Monster& m, Effect e, int turns, int power) {
 // ---------------------------------------------------------------------------
 
 int Game::hero_move_cost(Vec2 to) const {
-    return map().at(to) == Tile::Water ? kEnergyPerTurn * 3 / 2 : kEnergyPerTurn;
+    // Лапти-скороходы and the rest of the traveller's kit make wading free.
+    // In the flooded belt that is not a small bonus, which is the point: a set
+    // should change where you can afford to walk, not add two to a number.
+    if (map().at(to) != Tile::Water) return kEnergyPerTurn;
+    return hero_set() == GearSet::Hodovoy ? kEnergyPerTurn : kEnergyPerTurn * 3 / 2;
 }
 
 bool Game::act_move(Vec2 dir) {
@@ -240,6 +257,12 @@ void Game::hero_attacks(Monster& m) {
     const bool crit = rng_.chance(tpl.crit_chance);
     if (crit) damage *= 2;
 
+    // Рогатина is a boar spear: it was always meant for the big ones.
+    const auto& beasts = bestiary();
+    const std::size_t si = static_cast<std::size_t>(m.species);
+    const bool big = si < beasts.size() && (beasts[si].ai & AiBoss);
+    if (big && hero_has(GpVsBoss)) damage = damage * 3 / 2;
+
     if (crit)
         message(format(Text{"Точный удар! {} получает {} урона.",
                             "A precise strike! {} takes {} damage."},
@@ -250,12 +273,33 @@ void Game::hero_attacks(Monster& m) {
                        name, num(damage)));
 
     const Vec2 struck = m.a.pos;
+    const bool was_alive = m.a.alive;
     damage_monster(m, damage, Text{"твой удар", "your blow"});
+
+    // Палица knocks them down rather than through: a lost turn is worth more
+    // than the damage it replaces, so the club is deliberately not the
+    // hardest-hitting weapon in the table.
+    if (m.a.alive && hero_has(GpStun) && !(big && m.a.max_hp > 200) && rng_.chance(20)) {
+        m.a.add_effect(Effect::Freeze, 1, 1);
+        message(format(Text{"{} сшиблен с ног.", "{} is knocked off their feet."}, name),
+                Severity::Good);
+    }
+
+    if (was_alive && !m.a.alive) {
+        if (hero_has(GpLifesteal)) hero_.a.heal(2 + depth_ / 4);
+        if (hero_set() == GearSet::Naviy) {
+            hero_.a.heal(3);
+            hero_.mana = std::min(hero_.max_mana, hero_.mana + 1);
+        }
+    }
 
     // Богатырь's swing carries through to everything else within reach. The
     // sweep is resolved after the main target so a cleave cannot kill the
     // creature whose position the loop is reading.
-    if (class_has(hero_.cls, TraitCleave)) {
+    // The war gathering sweeps like a Богатырь does. A class trait and a set
+    // that grant the same thing is on purpose: the set is how any other class
+    // buys its way into that style of fighting, at the cost of every slot.
+    if (class_has(hero_.cls, TraitCleave) || hero_set() == GearSet::Ratny) {
         int swept = 0;
         for (Vec2 d : directions8()) {
             const Vec2 p = hero_.a.pos + d;
@@ -285,6 +329,8 @@ bool Game::act_pick_up() {
 
     Item it = level().items[static_cast<std::size_t>(index)];
     if (it.kind == ItemKind::Gold) {
+        // Гривна: gold finds its way to whoever is already wearing some.
+        if (hero_has(GpRichGold)) it.count += it.count / 3 + 1;
         hero_.gold += it.count;
         message(format(Text{"Ты подобрал {} золота.", "You pick up {} gold."}, num(it.count)),
                 Severity::Good);
@@ -299,6 +345,19 @@ bool Game::act_pick_up() {
 
     auto& items = mutable_level().items;
     items.erase(items.begin() + index);
+
+    // На перекрёстке берут одно.
+    //
+    // The rule lives here rather than in a flag on the item: three things on
+    // three pedestals and one pair of hands is the whole idea of the room, and
+    // the engine already knows which floor it is standing on.
+    if (in_lobby() && !items.empty()) {
+        items.clear();
+        message(Text{"Остальное перекрёсток оставляет себе.",
+                     "The crossroads keeps the rest."},
+                Severity::System);
+    }
+
     hero_.a.energy -= kEnergyPerTurn;
     return true;
 }
@@ -577,10 +636,18 @@ bool Game::act_ascend() {
         message(Text{"Здесь нет лестницы вверх.", "There are no stairs up here."});
         return false;
     }
-    if (depth_ <= 1) {
-        message(Text{"Навь не выпускает так просто.", "Nav does not let go so easily."},
+    if (depth_ <= kLobbyDepth) {
+        message(Text{"Выше только небо, и оно не для тебя.",
+                     "There is only sky above, and it is not for you."},
                 Severity::Bad);
         return false;
+    }
+    if (depth_ == 1) {
+        // Going back up to the crossroads is allowed exactly once, and only
+        // before the first floor has been left behind: a run that could
+        // re-shop between belts would be a different game.
+        message(Text{"Ты возвращаешься на перекрёсток.", "You climb back to the crossroads."},
+                Severity::System);
     }
     enter_level(depth_ - 1, false);
     message(format(Text{"Ты поднимаешься. Глубина {}.", "You climb. Depth {}."}, num(depth_)),
@@ -639,14 +706,16 @@ bool Game::act_cast(Spell s, Vec2 target) {
     }
 
     const SpellTemplate& t = spell_info(s);
-    if (hero_.mana < t.cost) {
+    // Зеркальце takes a third off every casting, rounded in the hero's favour.
+    const int cost = hero_has(GpCheapSpell) ? std::max(1, t.cost * 2 / 3) : t.cost;
+    if (hero_.mana < cost) {
         message(Text{"Не хватает сил.", "You lack the power."}, Severity::Bad);
         return false;
     }
     if (hero_.a.has(Effect::Confusion)) {
         message(Text{"Мысли путаются — заклятье срывается.",
                      "Your thoughts scatter; the spell fails."}, Severity::Bad);
-        hero_.mana -= t.cost;
+        hero_.mana -= cost;
         hero_.a.energy -= kEnergyPerTurn;
         return true;
     }
@@ -659,7 +728,7 @@ bool Game::act_cast(Spell s, Vec2 target) {
         }
     }
 
-    hero_.mana -= t.cost;
+    hero_.mana -= cost;
     const int power = t.power + hero_.level * 2;
 
     switch (s) {

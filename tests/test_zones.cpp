@@ -11,6 +11,8 @@
 #include <string>
 
 #include "nav/game.hpp"
+
+#include "support.hpp"
 #include "nav/mapgen.hpp"
 
 using namespace nav;
@@ -31,6 +33,7 @@ void for_each_floor(std::uint64_t seed, const std::function<void(Game&, int)>& c
     cfg.seed = seed;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     for (int depth = 1; depth <= kMaxDepth; ++depth) {
         ASSERT_EQ(g.depth(), depth);
         check(g, depth);
@@ -54,17 +57,24 @@ TEST(Zones, TheBeltBoundariesLineUpWithTheBosses) {
     EXPECT_NE(boss_for_depth(4), nullptr);
     EXPECT_NE(boss_for_depth(8), nullptr);
     EXPECT_NE(boss_for_depth(12), nullptr);
+    EXPECT_NE(boss_for_depth(16), nullptr);
+
+    // And each holds a lesser guardian on its third floor.
+    EXPECT_NE(boss_for_depth(3), nullptr);
+    EXPECT_NE(boss_for_depth(7), nullptr);
+    EXPECT_NE(boss_for_depth(11), nullptr);
+    EXPECT_NE(boss_for_depth(15), nullptr);
 }
 
 TEST(Zones, EntrancesAreTheFirstFloorOfEachBelt) {
     for (int depth = 1; depth <= kMaxDepth; ++depth) {
-        const bool expected = depth == 1 || depth == 5 || depth == 9;
+        const bool expected = depth == 1 || depth == 5 || depth == 9 || depth == 13;
         EXPECT_EQ(is_zone_entrance(depth), expected) << "depth " << depth;
     }
 }
 
 TEST(Zones, EachBeltHasItsOwnPaletteAndFlavour) {
-    const Zone zones[] = {Zone::Pogost, Zone::Chernotop, Zone::Koshchei};
+    const Zone zones[] = {Zone::Pogost, Zone::Chernotop, Zone::Koshchei, Zone::Peklo};
     std::set<std::string> walls, floors, names;
     for (Zone z : zones) {
         const ZoneTheme& theme = zone_theme(z);
@@ -77,9 +87,10 @@ TEST(Zones, EachBeltHasItsOwnPaletteAndFlavour) {
         floors.insert(theme.floor_color);
         names.insert(theme.name.ru);
     }
-    EXPECT_EQ(walls.size(), 3u) << "two belts share a wall colour and will look the same";
-    EXPECT_EQ(floors.size(), 3u);
-    EXPECT_EQ(names.size(), 3u);
+    const std::size_t belts = sizeof(zones) / sizeof(zones[0]);
+    EXPECT_EQ(walls.size(), belts) << "two belts share a wall colour and will look the same";
+    EXPECT_EQ(floors.size(), belts);
+    EXPECT_EQ(names.size(), belts);
 }
 
 TEST(Zones, TheRendererUsesTheBeltPalette) {
@@ -95,7 +106,7 @@ TEST(Zones, TheRendererUsesTheBeltPalette) {
                     break;
                 }
     });
-    EXPECT_EQ(wall_colors.size(), 3u) << "the walls look the same in every belt";
+    EXPECT_EQ(wall_colors.size(), 4u) << "the walls look the same in every belt";
 }
 
 TEST(Zones, CrossingIntoABeltIsAnnouncedOnceGoingDown) {
@@ -103,6 +114,7 @@ TEST(Zones, CrossingIntoABeltIsAnnouncedOnceGoingDown) {
     cfg.seed = 8;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
 
     auto arrivals_in_log = [&](const Text& line) {
         int n = 0;

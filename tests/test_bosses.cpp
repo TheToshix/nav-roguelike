@@ -9,6 +9,8 @@
 
 #include "nav/game.hpp"
 
+#include "support.hpp"
+
 using namespace nav;
 
 namespace {
@@ -22,6 +24,7 @@ public:
         cfg.seed = seed;
         cfg.hero_class = HeroClass::Vityaz;
         game.start(cfg);
+        leave_crossroads(game);
 
         Level& lvl = game.mutable_level();
         lvl.monsters.clear();
@@ -75,6 +78,7 @@ Game descend_to(int depth, std::uint64_t seed) {
     cfg.seed = seed;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     for (int d = 1; d < depth; ++d) {
         g.mutable_hero().a.pos = g.level().exit;
         g.refresh_view();

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Writes dist/index.html with the generated pixel art inlined.
+"""Writes dist/index.html with the generated pixel art and music engine inlined.
 
     python3 tools/inline_sprites.py <dist-dir>
 
@@ -13,7 +13,8 @@ first paint does not wait on a second request.
 import pathlib
 import sys
 
-TAG = '<script src="sprites.js"></script>'
+# The generated files the published page carries inside itself.
+INLINE = ('sprites.js', 'music.js')
 
 
 def main(argv):
@@ -24,12 +25,15 @@ def main(argv):
     dist.mkdir(parents=True, exist_ok=True)
 
     page = (root / 'frontend' / 'web' / 'index.html').read_text(encoding='utf-8')
-    art = (root / 'frontend' / 'web' / 'sprites.js').read_text(encoding='utf-8')
-    if page.count(TAG) != 1:
-        raise SystemExit('the sprites.js script tag moved; fix tools/inline_sprites.py')
+    for name in INLINE:
+        tag = '<script src="%s"></script>' % name
+        if page.count(tag) != 1:
+            raise SystemExit('the %s script tag moved; fix tools/inline_sprites.py' % name)
+        body = (root / 'frontend' / 'web' / name).read_text(encoding='utf-8')
+        page = page.replace(tag, '<script>\n' + body + '</script>')
 
     out = dist / 'index.html'
-    out.write_text(page.replace(TAG, '<script>\n' + art + '</script>'), encoding='utf-8')
+    out.write_text(page, encoding='utf-8')
     print('%s (%.1f KB)' % (out, out.stat().st_size / 1024))
 
 

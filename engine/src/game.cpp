@@ -83,12 +83,16 @@ void Game::start(const GameConfig& cfg) {
         if (lvl <= 1) hero_.learn(spell);
 
     levels_.assign(static_cast<std::size_t>(kMaxDepth) + 1, Level{});
-    enter_level(1, true);
+    depth_ = kLobbyDepth;
+    enter_level(kLobbyDepth, true);
 
-    message(Text{"Ты спускаешься в Навь. Назад дороги нет.",
-                 "You descend into Nav. There is no road back."},
+    message(Text{"Перекрёсток. Три дороги, и все вниз.",
+                 "The crossroads. Three roads, and all of them lead down."},
             Severity::System);
-    message(format(Text{"{} — глубина 1.", "{} — depth 1."}, tpl.name), Severity::Info);
+    message(Text{"Возьми с собой одну вещь — остальное перекрёсток оставит себе.",
+                 "Take one thing with you; the crossroads keeps the rest."},
+            Severity::Info);
+    message(format(Text{"{} — в путь.", "{} — on your way."}, tpl.name), Severity::Info);
 }
 
 // ---------------------------------------------------------------------------
@@ -96,9 +100,11 @@ void Game::start(const GameConfig& cfg) {
 // ---------------------------------------------------------------------------
 
 void Game::ensure_level(int depth) {
-    if (depth < 1 || depth > kMaxDepth) return;
+    if (depth < kLobbyDepth || depth > kMaxDepth) return;
     Level& lvl = levels_[static_cast<std::size_t>(depth)];
     if (lvl.generated) return;
+
+    if (depth == kLobbyDepth) { build_lobby(lvl); return; }
 
     const ZoneTheme& theme = zone_theme_for_depth(depth);
 
@@ -107,7 +113,9 @@ void Game::ensure_level(int depth) {
     mg.height = cfg_.map_height;
     mg.max_depth = 4 + (depth >= 5 ? 1 : 0);
     mg.place_altar = (depth % 3 == 0);
-    mg.place_stairs_up = depth > 1;
+    // Even the first floor gets stairs up now: they lead back to the
+    // crossroads, which is a place rather than an exit.
+    mg.place_stairs_up = true;
     // Everything that gives a belt its character comes from its theme rather
     // than from the depth number: caves or rooms, how much water, how many
     // chasms, whether there are doors at all.
@@ -128,18 +136,80 @@ void Game::ensure_level(int depth) {
     populate(lvl, depth);
 }
 
+/// The crossroads: the one room in the game nothing generates.
+///
+/// It exists so that a run is prepared for rather than merely begun, and so
+/// that the first thing the player sees is a place instead of a menu. Three
+/// pieces of gear lie on it and the hero may carry exactly one away — the rule
+/// lives in act_pick_up, so nothing here needs a flag of its own.
+void Game::build_lobby(Level& lvl) {
+    const int w = cfg_.map_width, h = cfg_.map_height;
+    lvl.map = Map(w, h);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) lvl.map.set({x, y}, Tile::Wall);
+
+    // A room a little wider than it is tall, centred, with a beaten path down
+    // the middle. Odd dimensions so the altar and the stairs sit dead centre.
+    const int rw = 21, rh = 13;
+    const int x0 = (w - rw) / 2, y0 = (h - rh) / 2;
+    for (int y = y0; y < y0 + rh; ++y)
+        for (int x = x0; x < x0 + rw; ++x) lvl.map.set({x, y}, Tile::Floor);
+
+    const Vec2 centre{x0 + rw / 2, y0 + rh / 2};
+    lvl.map.set(centre, Tile::Altar);
+
+    // The way down is at the far end; the hero starts at the near one, so the
+    // room is crossed rather than stepped over.
+    lvl.exit = Vec2{centre.x, y0 + rh - 2};
+    lvl.entrance = Vec2{centre.x, y0 + 1};
+    lvl.map.set(lvl.exit, Tile::StairsDown);
+
+    // Three pedestals, evenly spaced across the upper half.
+    const Vec2 stands[3] = {{centre.x - 6, centre.y - 3},
+                            {centre.x,     centre.y - 4},
+                            {centre.x + 6, centre.y - 3}};
+
+    // The offer is drawn from the shallow, cheap end of the gear tables: the
+    // crossroads is a head start, not a shortcut past the first belt.
+    const auto& gear = gear_table();
+    std::vector<int> offer;
+    for (std::size_t i = 0; i < gear.size(); ++i)
+        if (gear[i].min_depth <= 5 && gear[i].weight > 0) offer.push_back(static_cast<int>(i));
+    rng_.shuffle(offer);
+
+    for (int i = 0; i < 3 && i < static_cast<int>(offer.size()); ++i) {
+        const GearTemplate& g = gear[static_cast<std::size_t>(offer[static_cast<std::size_t>(i)])];
+        Item it{};
+        it.kind = g.kind;
+        it.subtype = offer[static_cast<std::size_t>(i)];
+        it.power = g.power;
+        it.identified = true;
+        it.pos = stands[i];
+        lvl.items.push_back(it);
+    }
+
+    lvl.generated = true;
+}
+
 void Game::enter_level(int depth, bool descending) {
     const int previous = depth_;
-    const bool first_level = !levels_[static_cast<std::size_t>(std::clamp(depth, 1, kMaxDepth))].generated;
+    const int clamped = std::clamp(depth, kLobbyDepth, kMaxDepth);
+    const bool first_level = !levels_[static_cast<std::size_t>(clamped)].generated;
 
     ensure_level(depth);
     const bool crossed_belt = zone_for_depth(previous) != zone_for_depth(depth);
-    depth_ = std::clamp(depth, 1, kMaxDepth);
+    depth_ = clamped;
     Level& lvl = mutable_level();
 
     hero_.a.pos = descending ? lvl.entrance : lvl.exit;
     if (!lvl.map.walkable(hero_.a.pos)) hero_.a.pos = random_free_spot(lvl);
     hero_.deepest = std::max(hero_.deepest, depth_);
+
+    // The warding shirt gets its one blow back on every new floor. Tying it to
+    // the floor rather than to a timer means the player can count on it at the
+    // start of a fight, which is the only way a single-use defence is ever
+    // something to plan around.
+    hero_.ward_ready = 1;
 
     // The belts are the shape of the descent, so crossing into one is worth
     // saying out loud — but only the first time, and only going down.
@@ -436,6 +506,9 @@ void Game::tick_hero_upkeep() {
     const int interval = hero_.nutrition > 0 ? 12 : 40;
     if (turn_ % interval == 0 && hero_.a.hp < hero_.a.max_hp) hero_.a.heal(1);
     if (turn_ % 12 == 0 && hero_.mana < hero_.max_mana) ++hero_.mana;
+
+    // Саван mends on its own, three times as fast as flesh does.
+    if (hero_has(GpRegen) && turn_ % 4 == 0 && hero_.a.hp < hero_.a.max_hp) hero_.a.heal(1);
 }
 
 void Game::reap_dead() {
@@ -458,6 +531,49 @@ void Game::recompute_fov() {
 // ---------------------------------------------------------------------------
 // Derived statistics
 // ---------------------------------------------------------------------------
+
+namespace {
+
+/// The gear template behind an equipped slot, or nullptr when it is empty.
+const GearTemplate* worn(const Inventory& inv, int slot) {
+    if (slot < 0 || slot >= static_cast<int>(inv.items.size())) return nullptr;
+    const Item& it = inv.items[static_cast<std::size_t>(slot)];
+    if (!it.is_gear()) return nullptr;
+    const auto& gear = gear_table();
+    const std::size_t i = static_cast<std::size_t>(it.subtype);
+    return i < gear.size() ? &gear[i] : nullptr;
+}
+
+}  // namespace
+
+std::uint32_t Game::hero_powers() const {
+    const Inventory& inv = hero_.inv;
+    std::uint32_t bits = 0;
+    for (int slot : {inv.weapon, inv.armor, inv.amulet})
+        if (const GearTemplate* g = worn(inv, slot)) bits |= g->powers;
+    return bits;
+}
+
+GearSet Game::hero_set() const {
+    const Inventory& inv = hero_.inv;
+    const GearTemplate* w = worn(inv, inv.weapon);
+    const GearTemplate* a = worn(inv, inv.armor);
+    const GearTemplate* m = worn(inv, inv.amulet);
+    if (!w || !a || !m) return GearSet::None;
+    if (w->set == GearSet::None) return GearSet::None;
+    if (w->set != a->set || w->set != m->set) return GearSet::None;
+    return w->set;
+}
+
+const Monster* Game::active_boss() const {
+    const char* key = boss_for_depth(depth_);
+    if (!key) return nullptr;
+    const int idx = species_index(key);
+    if (idx < 0) return nullptr;
+    for (const auto& m : level().monsters)
+        if (m.a.alive && m.species == idx) return &m;
+    return nullptr;
+}
 
 int Game::hero_attack() const {
     int atk = hero_.a.attack;
@@ -496,6 +612,7 @@ int Game::hero_sight() const {
         if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, "ob_zorko") == 0)
             sight += am.total_power();
     }
+    if (hero_has(GpSight)) sight += 3;
     return std::clamp(sight, 1, 20);
 }
 
@@ -507,6 +624,13 @@ int Game::hero_speed() const {
         if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, "ob_skoro") == 0)
             speed += am.total_power();
     }
+    // Both halves of the traveller's kit push, so wearing the pair is worth
+    // more than wearing either — which is what makes gathering it feel like
+    // progress before the third piece turns up.
+    if (const GearTemplate* w = worn(hero_.inv, hero_.inv.weapon))
+        if (w->powers & GpQuick) speed += 15;
+    if (const GearTemplate* a = worn(hero_.inv, hero_.inv.armor))
+        if (a->powers & GpQuick) speed += 15;
     return speed;
 }
 
@@ -659,7 +783,9 @@ RenderCell Game::render_at(Vec2 p) const {
 std::vector<Spell> Game::castable_spells() const {
     std::vector<Spell> out;
     for (const auto& t : spell_table())
-        if (hero_.knows(t.spell) && hero_.mana >= t.cost) out.push_back(t.spell);
+        if (hero_.knows(t.spell) &&
+            hero_.mana >= (hero_has(GpCheapSpell) ? std::max(1, t.cost * 2 / 3) : t.cost))
+            out.push_back(t.spell);
     return out;
 }
 

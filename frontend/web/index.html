@@ -192,6 +192,21 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 .topbar .spacer { flex: 1; }
 .topbar button { padding: 3px 8px; font-size: 12px; font-family: var(--mono); }
 
+.bossbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px;
+  background: #241014;
+  border-bottom: 1px solid #5c2028;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.bossbar .who { color: #e8a0a0; white-space: nowrap; }
+.bossbar .track { flex: 1; height: 7px; background: #12080a; border-radius: 4px; overflow: hidden; }
+.bossbar .fill { display: block; height: 100%; background: linear-gradient(90deg, #7a1c1c, #d24a3c); transition: width .2s; }
+.bossbar .phase { color: var(--gold); white-space: nowrap; }
+
 .stage { flex: 1; display: flex; min-height: 0; }
 
 .map-wrap {
@@ -482,10 +497,17 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     <span class="stat"><span id="lTurn">Ход</span> <b id="tTurn">0</b></span>
     <span class="stat"><span id="lScore">Очки</span> <b id="tScore">0</b></span>
     <span class="spacer"></span>
+    <button id="btnSound" title="Музыка боссов">♪</button>
     <button id="btnGfx" title="Графика / ASCII">ASCII</button>
     <button id="btnSave">Сохранить</button>
     <button id="btnLangGame">EN</button>
     <button id="btnQuit">В начало</button>
+  </div>
+
+  <div class="bossbar hidden" id="bossBar">
+    <span class="who" id="bossName"></span>
+    <span class="track"><span class="fill" id="bossFill"></span></span>
+    <span class="phase" id="bossPhase"></span>
   </div>
 
   <div class="stage">
@@ -555,6 +577,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 <!-- Pixel art, generated from tools/sprites/pixels.py by tools/sprites/build.py.
      tools/build_web.sh inlines it, so dist/ stays two files. -->
 <script src="sprites.js"></script>
+<script src="music.js"></script>
 <script src="nav.js"></script>
 <script>
 (function () {
@@ -738,7 +761,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     function build(name, tint) {
       var s = data.sprites[name];
       if (!s) return null;
-      var n = data.size;
+      var n = s.s || data.size;
       var c = document.createElement('canvas');
       c.width = n; c.height = n;
       var g = c.getContext('2d');
@@ -764,6 +787,12 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     return {
       available: function () { return !!data; },
       has: function (name) { return !!(data && data.sprites[name]); },
+      /// A sprite's own resolution. Guardians are 32 and are drawn hanging
+      /// over the cells around them; everything else is 16 and fits its cell.
+      sizeOf: function (name) {
+        if (!data || !data.sprites[name]) return 0;
+        return data.sprites[name].s || data.size;
+      },
       /// The bitmap for `name`, tinted with `tint` if the sprite allows it.
       get: function (name, tint) {
         if (!data) return null;
@@ -862,6 +891,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     ctx.textAlign = 'center';
 
     var useSprites = spriteMode && Sprites.available() && m.terrain;
+    var big = [];          // guardians, drawn last so nothing paints over them
 
     for (var row = 0; row < cell.h; row++) {
       var y = origin.y + row;
@@ -889,8 +919,16 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
           }
           var ec = m.entities.charCodeAt(idx) - 65;
           if (ec >= 0) {
-            var ebmp = Sprites.get(m.entityKeys[ec], null);
-            if (ebmp) ctx.drawImage(ebmp, px, py, size, lineH);
+            var ekey = m.entityKeys[ec];
+            if (Sprites.sizeOf(ekey) > 16) {
+              // A guardian is twice the size of its cell, so it has to be
+              // drawn after the ordinary pass — otherwise the floor of the
+              // cell above it would be painted over its head.
+              big.push({key: ekey, x: px, y: py, alpha: ctx.globalAlpha});
+            } else {
+              var ebmp = Sprites.get(ekey, null);
+              if (ebmp) ctx.drawImage(ebmp, px, py, size, lineH);
+            }
           }
           continue;
         }
@@ -901,6 +939,16 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
         ctx.fillStyle = color;
         ctx.fillText(glyph, px + size / 2, py + lineH / 2);
       }
+    }
+    // The guardians. Anchored so the creature stands on its own cell and
+    // overhangs the one above and half a cell to either side: the player reads
+    // "this is not an ordinary monster" before the first blow lands, which is
+    // the only warning the rules do not give them.
+    for (var b = 0; b < big.length; b++) {
+      var bmp = Sprites.get(big[b].key, null);
+      if (!bmp) continue;
+      ctx.globalAlpha = big[b].alpha;
+      ctx.drawImage(bmp, big[b].x - size / 2, big[b].y - lineH, size * 2, lineH * 2);
     }
     ctx.globalAlpha = 1;
 
@@ -923,6 +971,49 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 
   function pct(value, max) { return max > 0 ? Math.max(0, Math.min(100, value * 100 / max)) : 0; }
 
+  /// Keeps the music in step with the fight.
+  ///
+  /// Called on every refresh rather than on events: the engine already reports
+  /// which guardian is alive and which phase it is in, so there is nothing to
+  /// keep in sync by hand, and a repeated call with the same arguments is free.
+  function syncMusic() {
+    if (!window.NavMusic || !NavMusic.available()) return;
+    var boss = state && state.boss;
+    if (boss && state.state === 0) NavMusic.play(boss.key, boss.phase);
+    else NavMusic.stop();
+  }
+
+  function updateSoundButton() {
+    var on = window.NavMusic && NavMusic.available() && NavMusic.enabled();
+    $('btnSound').textContent = on ? '♪' : '♪̸';
+    $('btnSound').style.opacity = on ? '1' : '0.45';
+    $('btnSound').classList.toggle('hidden', !(window.NavMusic && NavMusic.available()));
+  }
+
+  function toggleSound() {
+    if (!window.NavMusic || !NavMusic.available()) return;
+    NavMusic.setEnabled(!NavMusic.enabled());
+    try { localStorage.setItem('nav.music', NavMusic.enabled() ? '1' : '0'); } catch (e) {}
+    updateSoundButton();
+    syncMusic();
+  }
+
+  /// The guardian's health and phase, above the map.
+  ///
+  /// A boss whose phase changed without the player noticing has, from their
+  /// side, simply started cheating — the log line is easy to miss mid-fight, so
+  /// the phase is also shown where the eyes already are.
+  function drawBossBar() {
+    var boss = state && state.boss;
+    $('bossBar').classList.toggle('hidden', !boss);
+    if (!boss) return;
+    $('bossName').textContent = boss.name;
+    $('bossFill').style.width = pct(boss.hp, boss.maxHp) + '%';
+    $('bossPhase').textContent = boss.phases > 1
+      ? (LANG === 'ru' ? 'фаза ' : 'phase ') + boss.phase + '/' + boss.phases
+      : '';
+  }
+
   function drawSidebar() {
     var h = state.hero;
     $('tDepth').textContent = state.depth + ' / ' + state.maxDepth;
@@ -938,7 +1029,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('vXp').textContent = h.xp + '/' + h.xpNext;
     $('barXp').style.width = pct(h.xp, h.xpNext) + '%';
 
-    $('tClass').textContent = h.className;
+    $('tClass').textContent = h.setName ? h.className + ' · ' + h.setName : h.className;
+    $('tClass').title = h.setNote || '';
     $('tLevel').textContent = h.level;
     $('tAtk').textContent = h.attack;
     $('tDef').textContent = h.defence;
@@ -1001,6 +1093,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     fitCanvas();
     drawMap();
     drawSidebar();
+    drawBossBar();
+    syncMusic();
     if (state.state !== 0) showEnding();
   }
 
@@ -1199,6 +1293,18 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     '7': [-1, -1], '9': [1, -1], '1': [-1, 1], '3': [1, 1]
   };
 
+  // No browser will make a sound before the player has touched something, so
+  // the audio context is woken on the first input rather than at load.
+  var audioWoken = false;
+  function wakeAudio() {
+    if (audioWoken || !window.NavMusic || !NavMusic.available()) return;
+    audioWoken = true;
+    NavMusic.resume();
+    syncMusic();
+  }
+  document.addEventListener('keydown', wakeAudio, true);
+  document.addEventListener('pointerdown', wakeAudio, true);
+
   document.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT') return;
     if ($('game').classList.contains('hidden')) return;
@@ -1239,6 +1345,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       case '<': act(ACT.Ascend); break;
       case 'p': act(ACT_PRAY); break;
       case 'G': toggleRenderer(); break;
+      case 'M': toggleSound(); break;
       case 'S': doSave(); break;
       case 'L': doLoad(); break;
       case '?': showHelp(); break;
@@ -1302,6 +1409,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('btnQuit').textContent = t('quit');
     $('btnLangGame').textContent = LANG === 'ru' ? 'EN' : 'RU';
     updateGfxButton();
+    updateSoundButton();
 
     $('lHp').textContent = t('hp');
     $('lMana').textContent = t('mana');
@@ -1366,6 +1474,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   }
 
   function toTitle() {
+    if (window.NavMusic && NavMusic.available()) NavMusic.stop();
     $('game').classList.add('hidden');
     $('title').classList.remove('hidden');
     $('btnContinue').classList.toggle('hidden', !loadSave());
@@ -1423,6 +1532,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     LANG = LANG === 'ru' ? 'en' : 'ru';
     applyLanguage();
   });
+  $('btnSound').addEventListener('click', toggleSound);
   $('btnGfx').addEventListener('click', toggleRenderer);
   $('btnSave').addEventListener('click', doSave);
   $('btnQuit').addEventListener('click', toTitle);

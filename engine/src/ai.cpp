@@ -16,12 +16,95 @@ constexpr int kSearchPersistence = 8;
 
 }  // namespace
 
+/// Whether the hero's charms and worn gear keep `e` out entirely.
+///
+/// One place for the question, because there are two ways to be poisoned — bitten
+/// and spat at — and for a while the amulet only stopped the first. A charm that
+/// works against a bite and not against the same venom thrown from across the
+/// room is not a rule, it is a bug wearing one (NAV-010).
+bool Game::hero_resists(Effect e) const {
+    // The old antivenom charm predates the gear-power flags and is still worn.
+    if (e == Effect::Poison && hero_.inv.amulet >= 0) {
+        const Item& am = hero_.inv.items[static_cast<std::size_t>(hero_.inv.amulet)];
+        if (am.is_gear() &&
+            std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, "ob_yada") == 0)
+            return true;
+    }
+    if (e == Effect::Poison && hero_has(GpNoPoison)) return true;
+    if (e == Effect::Burn && hero_has(GpNoBurn)) return true;
+    if ((e == Effect::Confusion || e == Effect::Blind) && hero_set() == GearSet::Oberezhny)
+        return true;
+    return false;
+}
+
 bool Game::huts_standing() const {
     const int hut = species_index("izbushka");
     if (hut < 0) return false;
     for (const auto& m : level().monsters)
         if (m.a.alive && m.species == hut) return true;
     return false;
+}
+
+/// Re-reads a boss's phase from its health and announces any crossing.
+///
+/// Thresholds are even fractions of the health bar rather than hand-picked
+/// numbers, so a boss whose health is later rebalanced does not silently lose a
+/// phase. The phase only ever rises: healing a boss back over a threshold must
+/// not hand the player a pattern they have already beaten.
+void Game::update_boss_phase(Monster& m) {
+    const auto& beasts = bestiary();
+    const std::size_t si = static_cast<std::size_t>(m.species);
+    if (si >= beasts.size()) return;
+    const Species& sp = beasts[si];
+    if (sp.phases <= 1 || m.a.max_hp <= 0) return;
+
+    // With three phases the crossings are at two thirds and one third; with
+    // two, at a half.
+    const int left = m.a.hp * sp.phases;
+    int want = sp.phases - (left - 1) / std::max(1, m.a.max_hp);
+    want = std::clamp(want, 1, sp.phases);
+    if (want <= m.phase) return;
+
+    while (m.phase < want) {
+        ++m.phase;
+        const Text line = boss_phase_line(sp.key, m.phase);
+        if (!line.ru.empty()) message(line, Severity::Critical);
+    }
+
+    // A new pattern starts from a clean slate: a telegraph half-charged under
+    // the old rules would fire under the new ones and read as a cheat.
+    m.charge = 0;
+    m.summon_cooldown = 0;
+
+    // Баба-Яга calls a hut back when she is nearly done. It is the one phase
+    // change in the game that restores a boss's defence, and it is announced a
+    // line earlier, so the player knows to knock it down again rather than
+    // wondering why their damage stopped landing.
+    if (std::strcmp(sp.key, "babayaga") == 0 && m.phase == 3) {
+        const int hut = species_index("izbushka");
+        if (hut >= 0) spawn_species(mutable_level(), hut, m.a.pos, 3);
+    }
+}
+
+/// A jet of fire along the line towards `target`, up to `length` cells.
+///
+/// Everything in the way is burned, the hero included — Змей Горыныч does not
+/// aim around his own kin, which is what makes standing behind his summons a
+/// real tactic rather than a mistake.
+void Game::breathe_fire(Monster& m, Vec2 target, int damage, int length) {
+    const std::vector<Vec2> path = line(m.a.pos, target);
+    int reached = 0;
+    for (const Vec2 p : path) {
+        if (++reached > length) break;
+        if (blocks_sight(map().at(p))) break;
+        if (p == hero_.a.pos) {
+            damage_hero(damage, Text{"пламя Горыныча", "Gorynych's fire"});
+            if (hero_.a.alive && !hero_has(GpNoBurn)) hero_.a.add_effect(Effect::Burn, 4, 3);
+        } else if (Monster* other = monster_at_mut(p)) {
+            if (other != &m) damage_monster(*other, damage / 2, Text{"пламя", "the fire"});
+        }
+    }
+    message(Text{"Горыныч выдыхает пламя.", "Gorynych breathes fire."}, Severity::Critical);
 }
 
 /// A boss's own mechanic, run before the ordinary behaviour.
@@ -40,20 +123,28 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     // the turn he is telegraphed to open — which is why the warning arrives one
     // turn early.
     if (std::strcmp(sp.key, "viy") == 0) {
+        // The eyelid cycle shortens as he tires of waiting: four turns, then
+        // three, then two. The counter-play never changes — get out of sight —
+        // but the room to hit him between gazes keeps shrinking.
+        const int cycle = m.phase >= 3 ? 2 : (m.phase == 2 ? 3 : 4);
+        const int warn = cycle - 1;
         ++m.charge;
-        if (m.charge == 3 && map().visible(m.a.pos))
+        if (m.charge == warn && map().visible(m.a.pos))
             message(Text{"Вий заносит руку к векам. Уйди с глаз!",
                          "Viy raises a hand towards his eyelids. Get out of sight!"},
                     Severity::Critical);
 
-        if (m.charge >= 4) {
+        if (m.charge >= cycle) {
             m.charge = 0;
             if (sees_hero && distance <= sp.sight) {
                 message(Text{"«Поднимите мне веки!» — взгляд Вия находит тебя.",
                              "\"Lift up my eyelids!\" — Viy's gaze finds you."},
                         Severity::Critical);
                 damage_hero(12 + depth_, Text{"взгляд Вия", "Viy's gaze"});
-                if (hero_.a.alive) hero_.a.add_effect(Effect::Blind, 8, 1);
+                // The warding circle is exactly the answer to a gaze: it does
+                // not stop the blow, it stops the blindness that follows.
+                if (hero_.a.alive && hero_set() != GearSet::Oberezhny)
+                    hero_.a.add_effect(Effect::Blind, 8, 1);
             } else {
                 // Deliberately not gated on seeing him: a player who has just
                 // ducked behind a wall has played the fight correctly and
@@ -71,6 +162,10 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     //
     // She keeps her distance and calls for help while her huts stand; the fight
     // is about knocking those down first.
+    // From her second phase she rides the mortar: faster than the hero, and
+    // unwilling to stand still for a trade.
+    if (std::strcmp(sp.key, "babayaga") == 0 && m.phase >= 2) m.a.speed = 145;
+
     if (std::strcmp(sp.key, "babayaga") == 0 && huts_standing()) {
         if (m.summon_cooldown > 0) --m.summon_cooldown;
         else if (sees_hero && rng_.chance(50)) { monster_summon(m); return true; }
@@ -82,6 +177,146 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
                 self, [&](Vec2 p) { return !blocked_for_monster(p, self); }, /*descend=*/false);
             if (away != self) { m.a.pos = away; return true; }
         }
+    }
+
+    // --- Кощей: сначала бьёт, потом тянет, потом зовёт -----------------------
+    if (std::strcmp(sp.key, "koschei") == 0) {
+        // Phase two turns the fight into a race: every blow he lands closes his
+        // own wounds, so out-healing him stops working and out-running his
+        // health bar becomes the only line.
+        if (m.phase == 2 && sees_hero && distance <= 1) {
+            const int drain = 6 + depth_ / 2;
+            damage_hero(drain, Text{"хватка Кощея", "Koschei's grip"});
+            m.a.heal(drain);
+            message(Text{"Кощей тянет из тебя жизнь, и его раны затягиваются.",
+                         "Koschei draws the life out of you, and his wounds close."},
+                    Severity::Bad);
+            return true;
+        }
+        if (m.phase >= 3) {
+            if (m.summon_cooldown > 0) --m.summon_cooldown;
+            else if (sees_hero && rng_.chance(45)) { monster_summon(m); m.summon_cooldown = 4; return true; }
+        }
+    }
+
+    // --- Змей Горыныч: по голове за фазу -------------------------------------
+    //
+    // The phases are literal here — a head falls at each threshold — so the
+    // fight gets faster and hotter exactly as it gets shorter. Fewer heads,
+    // less reason to pace himself.
+    if (std::strcmp(sp.key, "gorynych") == 0) {
+        const int heads = 4 - m.phase;                  // 3, then 2, then 1
+        const int between = m.phase >= 3 ? 1 : (m.phase == 2 ? 2 : 3);
+        ++m.charge;
+        if (sees_hero && m.charge >= between && distance <= sp.sight) {
+            m.charge = 0;
+            breathe_fire(m, hero_.a.pos, 8 + depth_ / 2 + heads * 2, sp.sight);
+            return true;
+        }
+        // On one head he stops circling and simply comes at you.
+        if (m.phase >= 3) m.a.speed = 150;
+        return false;
+    }
+
+    // --- Мара: морок, а на второй фазе ещё и двойники ------------------------
+    if (std::strcmp(sp.key, "mara") == 0) {
+        if (sees_hero && distance <= sp.sight && rng_.chance(m.phase >= 2 ? 55 : 35)) {
+            message(Text{"Мара шепчет, и стены начинают двоиться.",
+                         "Mara whispers, and the walls begin to double."},
+                    Severity::Bad);
+            // The warding circle is what a player wears when they have met her
+            // once and did not enjoy it.
+            if (hero_set() != GearSet::Oberezhny)
+                hero_.a.add_effect(Effect::Confusion, 4 + m.phase, 1);
+            return true;
+        }
+        // She will not be cornered: adjacency puts her somewhere else.
+        if (distance <= 1) {
+            const Vec2 spot = free_spot_near(level(), hero_.a.pos, 6);
+            if (spot.x >= 0) { m.a.pos = spot; return true; }
+        }
+        if (m.phase >= 2 && m.summon_cooldown <= 0 && sees_hero) {
+            m.summon_cooldown = 6;
+            monster_summon(m);
+            return true;
+        }
+        if (m.summon_cooldown > 0) --m.summon_cooldown;
+        return false;
+    }
+
+    // --- Водяной: вода — его дом ---------------------------------------------
+    if (std::strcmp(sp.key, "vodyanoy") == 0) {
+        if (map().at(m.a.pos) == Tile::Water) m.a.heal(m.phase >= 2 ? 5 : 3);
+
+        // Phase two floods the room he is standing in, which turns his healing
+        // from a quirk into the thing the player has to fight.
+        if (m.phase >= 2 && rng_.chance(30)) {
+            Map& map_ref = mutable_level().map;
+            int flooded = 0;
+            for (int dy = -2; dy <= 2 && flooded < 4; ++dy)
+                for (int dx = -2; dx <= 2 && flooded < 4; ++dx) {
+                    const Vec2 p{m.a.pos.x + dx, m.a.pos.y + dy};
+                    if (!map_ref.in_bounds(p) || map_ref.at(p) != Tile::Floor) continue;
+                    if (p == hero_.a.pos) continue;
+                    map_ref.set(p, Tile::Water);
+                    ++flooded;
+                }
+            if (flooded > 0) {
+                message(Text{"Вода прибывает — пол уходит под воду.",
+                             "The water rises; the floor goes under."},
+                        Severity::Bad);
+                return true;
+            }
+        }
+        if (m.summon_cooldown > 0) --m.summon_cooldown;
+        else if (sees_hero && rng_.chance(25)) { m.summon_cooldown = 5; monster_summon(m); return true; }
+        return false;
+    }
+
+    // --- Морозко: «тепло ли тебе?» -------------------------------------------
+    if (std::strcmp(sp.key, "morozko") == 0) {
+        ++m.charge;
+        const int cycle = m.phase >= 2 ? 3 : 4;
+        if (m.charge == cycle - 1 && map().visible(m.a.pos))
+            message(Text{"Морозко набирает воздух: «Тепло ли тебе?»",
+                         "Morozko draws breath: \"Are you warm?\""},
+                    Severity::Critical);
+        if (m.charge >= cycle) {
+            m.charge = 0;
+            if (sees_hero && distance <= sp.sight) {
+                damage_hero(7 + depth_ / 2, Text{"стужа Морозко", "Morozko's cold"});
+                // Standing still is the mistake; the freeze is short enough to
+                // be survivable and long enough to be frightening.
+                if (hero_.a.alive) hero_.a.add_effect(Effect::Freeze, m.phase >= 2 ? 2 : 1, 1);
+                message(Text{"Стужа хватает — ноги не идут.",
+                             "The cold takes hold; your legs will not move."},
+                        Severity::Critical);
+            }
+            return true;
+        }
+        if (m.phase >= 2 && sees_hero && rng_.chance(25))
+            hero_.a.add_effect(Effect::Slow, 3, 1);
+        return false;
+    }
+
+    // --- Огненный Полоз: ходит сквозь камень ---------------------------------
+    if (std::strcmp(sp.key, "polozh") == 0) {
+        if (sees_hero && distance <= 1 && rng_.chance(40) && !hero_has(GpNoBurn))
+            hero_.a.add_effect(Effect::Burn, 4, 3);
+
+        // From phase two he burrows: distance stops being safety, which is the
+        // whole answer to a player who has learned to kite the first half.
+        if (m.phase >= 2 && distance > 2 && rng_.chance(30)) {
+            const Vec2 spot = free_spot_near(level(), hero_.a.pos, 2);
+            if (spot.x >= 0) {
+                m.a.pos = spot;
+                message(Text{"Камень трескается — Полоз выходит рядом с тобой.",
+                             "The stone cracks, and the Poloz comes up beside you."},
+                        Severity::Critical);
+                return true;
+            }
+        }
+        return false;
     }
 
     return false;
@@ -241,18 +476,20 @@ void Game::monster_attacks_hero(Monster& m) {
 
     message(format(Text{"{} бьёт тебя на {}.", "{} hits you for {}."}, name, num(damage)),
             Severity::Bad);
+    const int before = hero_.a.hp;
     damage_hero(damage, name);
     if (!hero_.a.alive) return;
 
+    // Бахтерец returns a third of whatever actually got through — nothing when
+    // the warding shirt ate the blow, which is how the two pieces stay
+    // distinguishable rather than stacking into one blur.
+    const int taken = before - hero_.a.hp;
+    if (taken > 0 && hero_has(GpThorns))
+        damage_monster(m, std::max(1, taken / 3), Text{"шипы бахтерца", "the cuirass's scales"});
+
     // On-hit rider (poison, blindness, and so on).
     if (sp.on_hit_chance > 0 && rng_.chance(sp.on_hit_chance)) {
-        const bool immune_to_poison =
-            sp.on_hit == Effect::Poison && hero_.inv.amulet >= 0 &&
-            std::strcmp(gear_table()[static_cast<std::size_t>(
-                            hero_.inv.items[static_cast<std::size_t>(hero_.inv.amulet)].subtype)]
-                            .key,
-                        "ob_yada") == 0;
-        if (!immune_to_poison) {
+        if (!hero_resists(sp.on_hit)) {
             hero_.a.add_effect(sp.on_hit, sp.on_hit_turns, 2);
             message(Text{"Тебя задело чем-то дурным.", "Something foul takes hold of you."},
                     Severity::Bad);
@@ -277,7 +514,7 @@ void Game::monster_ranged(Monster& m) {
     damage_hero(damage, name);
     if (!hero_.a.alive) return;
 
-    if (sp.on_hit_chance > 0 && rng_.chance(sp.on_hit_chance / 2)) {
+    if (sp.on_hit_chance > 0 && rng_.chance(sp.on_hit_chance / 2) && !hero_resists(sp.on_hit)) {
         hero_.a.add_effect(sp.on_hit, sp.on_hit_turns, 2);
         message(Text{"Тебя задело чем-то дурным.", "Something foul takes hold of you."},
                 Severity::Bad);

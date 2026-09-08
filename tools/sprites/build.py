@@ -37,10 +37,12 @@ GROUPS = [
                'item_scroll', 'item_food', 'item_gold', 'item_needle']),
     ('Heroes', ['hero_vityaz', 'hero_vedun', 'hero_tat', 'hero_znahar',
                 'hero_kuznets', 'hero_bogatyr']),
-    ('Pogost', ['anchutka', 'upyr', 'kikimora', 'bolotnik', 'viy']),
-    ('Chernotop', ['mavka', 'poludnitsa', 'volkolak', 'aspid', 'shishiga',
-                   'babayaga', 'izbushka']),
-    ('Koshchei', ['likho', 'kamennaya', 'nav', 'koldun', 'zmey', 'koschei']),
+    ('Pogost', ['anchutka', 'upyr', 'kikimora', 'bolotnik']),
+    ('Chernotop', ['mavka', 'poludnitsa', 'volkolak', 'aspid', 'shishiga', 'izbushka']),
+    ('Koshchei', ['likho', 'kamennaya', 'nav', 'koldun', 'zmey']),
+    ('Peklo', ['chert', 'chugaister']),
+    ('Guardians 32x32', ['mara', 'viy', 'vodyanoy', 'babayaga',
+                         'morozko', 'koschei', 'polozh', 'gorynych']),
 ]
 
 
@@ -59,6 +61,8 @@ def emit_js(path):
     for name in sorted(SPRITES):
         colours, body = pack(SPRITES[name])
         entry = {'p': colours, 'd': body}
+        if SPRITES[name]['size'] != W:
+            entry['s'] = SPRITES[name]['size']
         if SPRITES[name]['tintable']:
             entry['t'] = 1
         out[name] = entry
@@ -86,6 +90,10 @@ def rgb(hex_colour):
 
 
 def draw_sprite(img, sprite, x0, y0, scale):
+    """Blits a sprite at `scale`. A 32x32 boss is given half the scale so the
+    contact sheet stays a grid of equal cells."""
+    if sprite['size'] != W:
+        scale = max(1, scale * W // sprite['size'])
     px = img.load()
     for y, row in enumerate(sprite['rows']):
         for x, c in enumerate(row):

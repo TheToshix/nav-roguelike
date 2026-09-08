@@ -85,6 +85,7 @@ enum AiFlag : std::uint32_t {
     AiSummoner  = 1u << 4,  ///< Calls reinforcements.
     AiStationary= 1u << 5,  ///< Never leaves its cell.
     AiBoss      = 1u << 6,  ///< Never sleeps, immune to instant effects.
+    AiMiniBoss  = 1u << 7,  ///< A belt's mid-floor guardian: a boss, but not its master.
 };
 
 /// A monster species — one row of the bestiary.
@@ -107,6 +108,13 @@ struct Species {
     int on_hit_chance{0};   ///< Percent chance the melee hit applies `on_hit`.
     int on_hit_turns{0};
     Text description;
+    /// How many phases this creature fights in.
+    ///
+    /// One for everything ordinary. A boss changes behaviour as its health
+    /// falls, so that the second half of the fight is not the first half with a
+    /// smaller number. Kept last in the struct on purpose: every ordinary row
+    /// of the bestiary then leaves it alone and gets the default.
+    int phases{1};
 };
 
 /// A living monster on the current floor.
@@ -120,6 +128,10 @@ struct Monster {
     /// Boss bookkeeping. Ordinary monsters leave both at zero.
     int charge{0};   ///< Вий: how far along his eyelids are.
     int revives{0};  ///< Кощей: how many times he has risen again.
+    /// Which phase of its fight a boss is in, counting from 1. Only ever rises:
+    /// healing a boss past a threshold must not hand the player back the easier
+    /// pattern it has already beaten.
+    int phase{1};
 };
 
 /// One inventory slot's worth of goods, plus what is currently worn.
@@ -198,6 +210,7 @@ struct Hero {
     int nutrition{900};       ///< Counts down each turn; 0 starts starvation.
     int kills{0};
     int deepest{1};
+    int ward_ready{1};   ///< The warding shirt: 1 while its one blow is unspent.
     Inventory inv;
     std::vector<std::uint8_t> spells;  ///< Indexed by Spell; 1 when known.
 

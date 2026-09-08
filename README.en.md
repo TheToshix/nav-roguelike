@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-285-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-321-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -24,23 +24,24 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 
 ## What it is
 
-Twelve floors down into Nav, the underworld of Slavic folk tales. Death is final: a save is a
+Sixteen floors down into Nav, the underworld of Slavic folk tales. Death is final: a save is a
 pause, not a spare life.
 
 Every dungeon is generated from a seed. The same seed always produces the same floor, the same
 creatures and the same loot, so any find — and any bug — can be reproduced from a single string.
 
-### Three belts, three guardians
+### Four belts, eight guardians
 
 The descent is cut into three parts of four floors. Each has its own generator, palette and
 hazards, and its own master at the bottom — so twelve floors read as a journey rather than as
 repetition.
 
-| Belt | Depth | What is there | Guardian |
-|---|---|---|---|
-| **The Boneyard** | 1–4 | Dry crypts and corridors, doors, the odd pool | **Viy** |
-| **The Black Mire** | 5–8 | Caves instead of rooms, water nearly everywhere, no doors at all | **Baba Yaga** |
-| **Koschei's Kingdom** | 9–12 | Cold halls with chasms underfoot | **Koschei the Deathless** |
+| Belt | Depth | What is there | Halfway | At the bottom |
+|---|---|---|---|---|
+| **The Boneyard** | 1–4 | Dry crypts and corridors, doors, the odd pool | Mara | **Viy** |
+| **The Black Mire** | 5–8 | Caves instead of rooms, water nearly everywhere, no doors at all | Vodyanoy | **Baba Yaga** |
+| **Koschei's Kingdom** | 9–12 | Cold halls with chasms underfoot | Morozko | **Koschei the Deathless** |
+| **The Scorch** | 13–16 | Hot stone, burning rivers, chasms | The Fiery Poloz | **Zmey Gorynych** |
 
 <img src="docs/media/screenshot.png" alt="The Boneyard" width="880">
 
@@ -104,7 +105,7 @@ is committed has fallen behind its source.
 **The ground and whoever stands on it are separate layers.** The engine reports `terrain`
 and `entity` as different fields, so an upyr on a staircase no longer erases the staircase.
 
-**One set of stones for three belts.** Terrain is drawn in neutral grey and tinted at
+**One set of stones for four belts.** Terrain is drawn in neutral grey and tinted at
 runtime with the colour of the belt. The alternative is three copies of every tile and
 three chances to forget one of them.
 
@@ -112,6 +113,53 @@ The `Sprites.*` tests walk every tile, species, item kind and hero class and dem
 drawing for each — and, in the other direction, catch a drawing nothing ever asks for.
 They read the generated artwork itself rather than a second list kept beside the engine: a
 list would agree with the engine and disagree with the pictures.
+
+### Four belts, eight guardians, and a room above them
+
+Sixteen floors in four belts. Each belt has its own generator, palette and hazards, a master
+at the bottom and a lesser guardian halfway down.
+
+A run begins on the **crossroads** — depth zero, the one floor nothing generates. No monsters,
+a shrine, a stair down and three pieces of gear on pedestals. Exactly one leaves with the
+hero; the rule lives in one branch of `act_pick_up` rather than in a flag on the item, because
+three things and one pair of hands is the whole idea of the room.
+
+Every guardian fights in **two or three phases**, turning at even fractions of its health. A
+boss whose only change is a smaller number is a wall, not a fight — so what changes is
+behaviour. Viy's eyelid cycle shortens from four turns to three to two. Baba Yaga leaves her
+huts for the mortar and then calls a fresh hut back. Koschei stops striking and starts drawing
+the life out of you. Zmey Gorynych loses a head at each threshold and the survivors stop
+saving their fire. The phase only ever rises: healing a boss must not hand back a pattern the
+player has already beaten.
+
+Guardians are also drawn at double size — a 16x16 sprite rendered across two cells, standing
+on its own and overhanging the ones beside it. It still occupies exactly one cell: a real
+multi-tile creature would touch movement, sight, pathfinding and saves all at once, which is
+the classic source of quiet bugs in this genre. Here the picture carries the warning the rules
+do not, and changes nothing.
+
+### Twelve pieces of gear that do something, in four sets
+
+Numbers alone make gear that is only ever "the bigger one". These twelve carry a mechanic —
+a club that knocks down, a boar spear meant for the big ones, a shirt that turns one blow
+aside per floor, a cuirass that sends part of the blow back, a knife that takes something from
+the slain.
+
+They also form four sets of exactly one weapon, one armour and one amulet. Three pieces and
+three slots is deliberate: completing a set costs the hero everything they have, which makes
+it a decision about the run rather than about a hand. Every piece is worth wearing alone — a
+set that is worthless until finished is a trap, and a test forbids it.
+
+### Music with no audio files in the repository
+
+Each of the eight guardians has a theme, and it changes with the phase. There is not one mp3
+here: `frontend/web/music.js` is a small Web Audio synth that builds a drone, a pulse and a
+motif out of oscillators and filtered noise, in modal minor scales, opening up as the fight
+gets worse.
+
+It is not checked by ear. Each theme is rendered through an `OfflineAudioContext` and measured:
+there is signal, the third phase is measurably louder than the first, and no phase change
+leaves a discontinuity big enough to be heard as a click.
 
 ## What is interesting about it, engineering-wise
 
@@ -197,7 +245,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 285 tests
+ctest --test-dir build --output-on-failure    # 321 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ```
 
@@ -224,6 +272,7 @@ python3 -m http.server -d dist 8080
 | `S` `L` | save / load |
 | `T` | switch language |
 | `G` | sprites / ASCII |
+| `M` | music |
 | `?` | help |
 
 The browser build adds mouse control and an on-screen pad on phones.
@@ -239,7 +288,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **285** across 43 suites |
+| Unit and integration tests | **321** across 45 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, the WebAssembly build |
@@ -268,7 +317,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering and raw keyboard input
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           285 GoogleTest cases
+tests/           321 GoogleTest cases
 docs/            architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

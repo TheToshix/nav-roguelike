@@ -10,6 +10,7 @@
 // Loading is strict: any malformed token aborts the load and leaves the caller
 // with an untouched Game, so a truncated or tampered save can never put the
 // engine into a half-initialised state.
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -24,7 +25,7 @@ constexpr const char* kMagic = "NAV";
 // (Вий's eyelids, Кощей's revivals) and the broken-needle flag. There is no
 // migration: a version 1 save is refused rather than loaded as something it is
 // not — see docs/TEST_CASES.md, "what stayed unchecked".
-constexpr int kFormatVersion = 2;
+constexpr int kFormatVersion = 3;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -207,7 +208,7 @@ std::string Game::save() const {
     write_actor(w, hero_.a);
     w << static_cast<int>(hero_.cls) << hero_.mana << hero_.max_mana << hero_.level
       << hero_.xp << hero_.gold << hero_.sight << hero_.nutrition << hero_.kills
-      << hero_.deepest;
+      << hero_.deepest << hero_.ward_ready;
 
     w << hero_.spells.size();
     for (std::uint8_t s : hero_.spells) w << static_cast<int>(s);
@@ -243,7 +244,7 @@ std::string Game::save() const {
         for (const auto& m : lvl.monsters) {
             write_actor(w, m.a);
             w << m.species << (m.awake ? 1 : 0) << m.last_seen.x << m.last_seen.y
-              << m.search_turns << m.summon_cooldown << m.charge << m.revives;
+              << m.search_turns << m.summon_cooldown << m.charge << m.revives << m.phase;
         }
 
         w << lvl.items.size();
@@ -283,13 +284,14 @@ bool Game::load(const std::string& blob) {
     r >> g.depth_ >> g.turn_ >> run_state >> needle;
     if (!r.ok() || run_state < 0 || run_state > static_cast<int>(RunState::Ascended)) return false;
     g.needle_broken_ = needle != 0;
-    if (g.depth_ < 1 || g.depth_ > kMaxDepth) return false;
+    if (g.depth_ < kLobbyDepth || g.depth_ > kMaxDepth) return false;
     g.state_ = static_cast<RunState>(run_state);
 
     if (!read_actor(r, g.hero_.a)) return false;
     int cls = 0;
     r >> cls >> g.hero_.mana >> g.hero_.max_mana >> g.hero_.level >> g.hero_.xp >>
-        g.hero_.gold >> g.hero_.sight >> g.hero_.nutrition >> g.hero_.kills >> g.hero_.deepest;
+        g.hero_.gold >> g.hero_.sight >> g.hero_.nutrition >> g.hero_.kills >> g.hero_.deepest >>
+        g.hero_.ward_ready;
     if (!r.ok() || cls < 0 || cls >= static_cast<int>(HeroClass::Count)) return false;
     g.hero_.cls = static_cast<HeroClass>(cls);
 
@@ -357,9 +359,13 @@ bool Game::load(const std::string& blob) {
             if (!read_actor(r, m.a)) return false;
             int awake = 0;
             r >> m.species >> awake >> m.last_seen.x >> m.last_seen.y >> m.search_turns >>
-                m.summon_cooldown >> m.charge >> m.revives;
+                m.summon_cooldown >> m.charge >> m.revives >> m.phase;
             if (!r.ok() || m.species < 0 || m.species >= static_cast<int>(bestiary().size()))
                 return false;
+            // A phase outside the species' range would let a doctored save put
+            // a boss into a pattern that has no code behind it.
+            const int phases = bestiary()[static_cast<std::size_t>(m.species)].phases;
+            if (m.phase < 1 || m.phase > std::max(1, phases)) return false;
             m.awake = awake != 0;
         }
 

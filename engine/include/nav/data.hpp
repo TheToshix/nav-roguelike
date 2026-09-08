@@ -9,22 +9,29 @@
 
 namespace nav {
 
-/// Total depth of the dungeon. Кощей waits on the last floor.
-inline constexpr int kMaxDepth = 12;
+/// Total depth of the dungeon. Змей Горыныч waits on the last floor.
+inline constexpr int kMaxDepth = 16;
+
+/// Depth of the crossroads the hero sets out from. Not a dungeon floor: no
+/// monsters, no generator, and the only place a run can be prepared for.
+inline constexpr int kLobbyDepth = 0;
 
 // ---------------------------------------------------------------------------
 // Zones
 // ---------------------------------------------------------------------------
 
-/// The dungeon is three belts of four floors, each ending in a boss.
+/// The dungeon is four belts of four floors, each ending in a guardian and
+/// holding a lesser one halfway down.
 ///
-/// Twelve floors cut by one generator in one palette read as repetition. Giving
-/// each belt its own algorithm, colours and hazards turns the descent into a
-/// journey, and gives each boss a world instead of a bigger room.
+/// Sixteen floors cut by one generator in one palette read as repetition.
+/// Giving each belt its own algorithm, colours and hazards turns the descent
+/// into a journey, and gives each boss a world instead of a bigger room.
 enum class Zone : std::uint8_t {
+    Rasputye, ///< 0: the crossroads above. Not generated; not a fight.
     Pogost,   ///< 1-4: dry crypts and corridors. Вий waits at the bottom.
     Chernotop,///< 5-8: flooded caves. Баба-Яга waits at the bottom.
     Koshchei, ///< 9-12: the frozen bone kingdom. Кощей waits at the bottom.
+    Peklo,    ///< 13-16: burning stone and ash. Змей Горыныч waits at the bottom.
 };
 
 struct ZoneTheme {
@@ -86,6 +93,21 @@ struct BossPlacement {
     int depth;
     const char* species_key;
 };
+
+/// What the log says when a boss crosses into a new phase.
+///
+/// The line is the only warning the player gets that the pattern they have
+/// learned is about to stop working, so every boss has one for every phase it
+/// can reach.
+struct BossPhaseLine {
+    const char* species_key;
+    int phase;             ///< 2 or 3.
+    Text line;
+};
+
+const std::vector<BossPhaseLine>& boss_phase_table();
+/// The line for `key` entering `phase`, or an empty Text when there is none.
+Text boss_phase_line(const char* key, int phase);
 
 const std::vector<ClassTemplate>& class_table();
 const ClassTemplate& class_info(HeroClass c);

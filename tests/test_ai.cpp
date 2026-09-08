@@ -9,6 +9,8 @@
 
 #include "nav/game.hpp"
 
+#include "support.hpp"
+
 using namespace nav;
 
 namespace {
@@ -21,6 +23,7 @@ public:
         cfg.seed = seed;
         cfg.hero_class = HeroClass::Vityaz;
         game.start(cfg);
+        leave_crossroads(game);
 
         Level& lvl = game.mutable_level();
         lvl.monsters.clear();
@@ -286,6 +289,7 @@ TEST(Ai, BossesAreAwakeFromTheStart) {
     cfg.seed = 8081;
     Game g;
     g.start(cfg);
+    leave_crossroads(g);
     for (int depth = 1; depth < 4; ++depth) {
         g.mutable_hero().a.pos = g.level().exit;
         ASSERT_TRUE(g.perform(Action{ActionType::Descend, {}, -1, {}}));

@@ -58,34 +58,80 @@ const std::vector<Species>& bestiary() {
          AiMelee | AiCoward, Effect::Poison, 0, 0,
          Text{"Юркая нежить. Бьёт и отскакивает.", "Nimble undead. It strikes and darts away."}},
 
-        {"kamennaya", Text{"Каменная баба", "Stone Idol"},        'K', "#9a9a9a", 45, 10,  8,  70, 6,  45,  5, 12,  5,
+        {"kamennaya", Text{"Каменная баба", "Stone Idol"},        'K', "#9a9a9a", 45, 10,  8,  70, 6,  45,  5, 16,  5,
          AiMelee, Effect::Poison, 0, 0,
          Text{"Ожившее капище. Медлительна, но почти неуязвима.", "A shrine come alive. Slow, and nearly impervious."}},
 
-        {"nav",       Text{"Навь", "Nav"},                        'n', "#7f8fd0", 26, 11,  4, 120, 10, 34,  6, 12,  7,
+        {"nav",       Text{"Навь", "Nav"},                        'n', "#7f8fd0", 26, 11,  4, 120, 10, 34,  6, 16,  7,
          AiMelee, Effect::Slow, 30, 5,
          Text{"Тень мёртвого мира. Холод идёт впереди неё.", "A shade of the dead world. Cold walks before it."}},
 
-        {"koldun",    Text{"Колдун-отступник", "Renegade Sorcerer"},'C',"#d07acc", 24, 10,  2, 100, 10, 40,  6, 12,  5,
+        {"koldun",    Text{"Колдун-отступник", "Renegade Sorcerer"},'C',"#d07acc", 24, 10,  2, 100, 10, 40,  6, 16,  5,
          AiRanged | AiSummoner, Effect::Confusion, 30, 4,
          Text{"Зовёт помощь и бьёт издали.", "Calls for help and strikes from range."}},
 
-        {"zmey",      Text{"Огненный Змей", "Fire Serpent"},      'Z', "#e07b39", 40, 15,  4, 100, 10, 50,  7, 12,  6,
+        {"zmey",      Text{"Огненный Змей", "Fire Serpent"},      'Z', "#e07b39", 40, 15,  4, 100, 10, 50,  7, 16,  6,
          AiRanged, Effect::Burn, 60, 4,
          Text{"Дышит огнём. Раны от него горят.", "It breathes fire. Its wounds keep burning."}},
 
         // --- Bosses: weight 0, placed by hand on a fixed floor ---------------
         {"viy",       Text{"Вий", "Viy"},                         'Y', "#e0c060", 70, 12,  4, 100, 12, 200, 4,  4,  0,
          AiMelee | AiBoss, Effect::Blind, 60, 8,
-         Text{"Поднимите мне веки. Взгляд его — слепота.", "Lift up my eyelids. His gaze is blindness."}},
+         Text{"Поднимите мне веки. Взгляд его — слепота.", "Lift up my eyelids. His gaze is blindness."}, /*phases=*/3},
 
         {"babayaga",  Text{"Баба-Яга", "Baba Yaga"},              'B', "#c04ac0", 130, 17, 6, 110, 12, 500, 8,  8,  0,
          AiRanged | AiSummoner | AiBoss, Effect::Confusion, 45, 6,
-         Text{"Хозяйка избы на курьих ногах. Морочит и зовёт своих.", "Mistress of the hut on hen's legs. She confuses, and she calls her own."}},
+         Text{"Хозяйка избы на курьих ногах. Морочит и зовёт своих.", "Mistress of the hut on hen's legs. She confuses, and she calls her own."}, /*phases=*/3},
 
         {"koschei",   Text{"Кощей Бессмертный", "Koschei the Deathless"},'!', "#f0f0f0", 240, 24,  9, 110, 14, 1500, 12, 12, 0,
          AiMelee | AiRanged | AiSummoner | AiBoss, Effect::Freeze, 20, 2,
-         Text{"Смерть его на конце иглы. Игла — в этом подземелье.", "His death is on a needle's point. The needle is in this dungeon."}},
+         Text{"Смерть его на конце иглы. Игла — в этом подземелье.", "His death is on a needle's point. The needle is in this dungeon."}, /*phases=*/3},
+
+        // --- Пекло: the fourth belt's own -----------------------------------
+
+        {"chert",     Text{"Чёрт", "Chert"},                      'c', "#c05a2a", 34, 14,  3, 130, 9,  46, 13, 16,  9,
+         AiMelee | AiErratic, Effect::Burn, 45, 4,
+         Text{"Быстр, нахален и горяч на руку.", "Quick, insolent, and hot to the touch."}},
+
+        {"chugaister",Text{"Чугайстер", "Chugaister"},            'g', "#8a6a3a", 60, 16,  6,  90, 8,  70, 13, 16,  6,
+         AiMelee, Effect::Confusion, 40, 5,
+         Text{"Лесной великан. Затанцует до смерти.", "A forest giant. He will dance you to death."}},
+
+        // --- Мини-стражи: один на середину каждого пояса ---------------------
+        //
+        // Weaker than a belt's master and shorter of phase, but built the same
+        // way: a mechanic first, a health bar second.
+
+        {"mara",      Text{"Мара", "Mara"},                       'M', "#9a7ac0", 42, 8,  2, 112, 10, 130, 3,  3,  0,
+         AiRanged | AiBoss | AiMiniBoss, Effect::Confusion, 55, 6,
+         Text{"Дух морока. Шепчет, и мир перестаёт слушаться.",
+              "A spirit of delusion. She whispers, and the world stops obeying."}, /*phases=*/2},
+
+        {"vodyanoy",  Text{"Водяной", "Vodyanoy"},                'W', "#3f9a9a", 90, 14,  5,  95, 9,  260, 7,  7,  0,
+         AiMelee | AiSummoner | AiBoss | AiMiniBoss, Effect::Slow, 50, 5,
+         Text{"Хозяин омута. В воде его не взять.",
+              "Master of the deep pool. In the water he cannot be taken."}, /*phases=*/2},
+
+        {"morozko",   Text{"Морозко", "Morozko"},                 'F', "#a8d8f0", 120, 18,  7, 100, 11, 420, 11, 11, 0,
+         AiRanged | AiBoss | AiMiniBoss, Effect::Freeze, 45, 2,
+         Text{"«Тепло ли тебе?» Отвечать надо быстро.",
+              "\"Are you warm?\" You had better answer quickly."}, /*phases=*/2},
+
+        {"polozh",    Text{"Огненный Полоз", "The Fiery Poloz"},  'P', "#f08030", 150, 21,  8, 110, 11, 600, 15, 15, 0,
+         AiMelee | AiBoss | AiMiniBoss, Effect::Burn, 60, 5,
+         Text{"Змей, что ходит сквозь камень. Там, где прошёл, камень плавится.",
+              "A serpent that walks through stone. Where he passes, the stone melts."}, /*phases=*/2},
+
+        // --- Змей Горыныч: три головы, три фазы ------------------------------
+        //
+        // The one boss whose phases are literal: a head falls at each threshold
+        // and the survivors stop pacing themselves.
+
+        {"gorynych",  Text{"Змей Горыныч", "Zmey Gorynych"},      'G', "#e0621c", 320, 26, 10, 105, 13, 2400, 16, 16, 0,
+         AiMelee | AiRanged | AiBoss, Effect::Burn, 55, 6,
+         Text{"Три головы, и каждая дышит огнём. Отрубишь одну — оставшиеся звереют.",
+              "Three heads, and every one of them breathes fire. Take one and the rest go wild."},
+         /*phases=*/3},
 
         // Баба-Яга's huts. Stationary, placed with her, and she is all but
         // invulnerable while any of them still stands.
@@ -121,12 +167,16 @@ int spawn_weight(const Species& s, int depth) {
 // ---------------------------------------------------------------------------
 
 Zone zone_for_depth(int depth) {
+    if (depth <= 0) return Zone::Rasputye;
     if (depth <= 4) return Zone::Pogost;
     if (depth <= 8) return Zone::Chernotop;
-    return Zone::Koshchei;
+    if (depth <= 12) return Zone::Koshchei;
+    return Zone::Peklo;
 }
 
-bool is_zone_entrance(int depth) { return depth == 1 || depth == 5 || depth == 9; }
+bool is_zone_entrance(int depth) {
+    return depth == 1 || depth == 5 || depth == 9 || depth == 13;
+}
 
 const ZoneTheme& zone_theme(Zone zone) {
     static const ZoneTheme themes[] = {
@@ -153,6 +203,25 @@ const ZoneTheme& zone_theme(Zone zone) {
          "#8e9aa8", "#333b45", "#5f7f9a",
          Text{"полынья", "black ice"},
          /*caves=*/false, /*water=*/15, /*chasm=*/55, /*door=*/40, /*extra=*/1},
+
+        {Zone::Peklo,
+         Text{"Пекло", "The Scorch"},
+         Text{"Камень под ногой горячий. Где-то внизу дышит что-то очень большое.",
+              "The stone underfoot is hot. Somewhere below, something very large is breathing."},
+         "#a8593a", "#4a2c22", "#e0742a",
+         Text{"огненная река", "the burning river"},
+         /*caves=*/false, /*water=*/45, /*chasm=*/45, /*door=*/25, /*extra=*/3},
+
+        // The crossroads is listed last because nothing generates it: its
+        // colours exist only so the renderer has something to tint the
+        // handmade room with.
+        {Zone::Rasputye,
+         Text{"Перекрёсток", "The Crossroads"},
+         Text{"Три дороги, и все вниз. Собирайся — назад отсюда не ходят.",
+              "Three roads, and all of them lead down. Make ready — nobody comes back this way."},
+         "#7a6a4e", "#3c352a", "#4d7fa8",
+         Text{"вода", "water"},
+         /*caves=*/false, /*water=*/0, /*chasm=*/0, /*door=*/0, /*extra=*/0},
     };
     for (const auto& theme : themes)
         if (theme.zone == zone) return theme;
@@ -188,8 +257,82 @@ const std::vector<GearTemplate>& gear_table() {
         {"ob_zorko",  Text{"Оберег зоркости", "Charm of Sight"},ItemKind::Amulet,'"',  3, 2, 5, Text{"+3 к обзору.", "+3 sight radius."}},
         {"ob_yada",   Text{"Оберег от яда", "Charm of Antivenom"},ItemKind::Amulet,'"',1, 3, 5, Text{"Яд не берёт.", "Poison cannot touch you."}},
         {"ob_skoro",  Text{"Оберег скорости", "Charm of Haste"},ItemKind::Amulet,'"', 20, 5, 4, Text{"+20 к скорости.", "+20 speed."}},
+
+        // --- Наборы ----------------------------------------------------------
+        //
+        // Four matched sets, each exactly one weapon, one armour and one amulet.
+        // Three slots and three pieces is not an accident: completing a set
+        // costs the hero every slot they have, so it is a decision about the
+        // whole run rather than about one hand. Each piece is also worth
+        // wearing alone — a set that is worthless until finished is a trap, not
+        // a choice.
+
+        // Обережный круг — против нечисти.
+        {"rogatina",  Text{"Рогатина", "Boar Spear"},        ItemKind::Weapon, ')',  9, 4,  5,
+         Text{"Против крупного бьёт вполтора раза.", "Half again as hard against the great ones."},
+         GpVsBoss, GearSet::Oberezhny},
+        {"sorochka",  Text{"Сорочка-неуязвимка", "Warding Shirt"}, ItemKind::Armor, '[', 4, 4, 5,
+         Text{"Один удар за этаж уходит мимо.", "One blow a floor goes wide."},
+         GpWard, GearSet::Oberezhny},
+        {"nauzy",     Text{"Наузы", "Knot Charm"},           ItemKind::Amulet, '"',  2, 3,  5,
+         Text{"Ни яд, ни огонь не берут.", "Neither venom nor fire takes hold."},
+         GpNoPoison | GpNoBurn, GearSet::Oberezhny},
+
+        // Ратный сбор — прямой бой.
+        {"palitsa",   Text{"Палица", "War Club"},            ItemKind::Weapon, ')', 10, 5,  5,
+         Text{"Иной удар сшибает с ног.", "Now and then a blow knocks them off their feet."},
+         GpStun, GearSet::Ratny},
+        {"bahterets", Text{"Бахтерец", "Scale Cuirass"},     ItemKind::Armor, '[',  7, 6,  5,
+         Text{"Часть удара возвращается бьющему.", "Part of the blow goes back to whoever struck it."},
+         GpThorns, GearSet::Ratny},
+        {"grivna",    Text{"Гривна", "Torc"},                ItemKind::Amulet, '"',  4, 4,  5,
+         Text{"+4 к удару, и золото само липнет к рукам.", "+4 attack, and gold sticks to your hands."},
+         GpRichGold, GearSet::Ratny},
+
+        // Навий сговор — за счёт чужой смерти.
+        {"naviy_nozh",Text{"Навий нож", "Nav Knife"},        ItemKind::Weapon, ')',  7, 5,  5,
+         Text{"Убитый отдаёт часть своего.", "The slain give up a little of what they had."},
+         GpLifesteal, GearSet::Naviy},
+        {"savan",     Text{"Саван", "Shroud"},               ItemKind::Armor, '[',  5, 5,  5,
+         Text{"Раны затягиваются сами.", "Wounds close on their own."},
+         GpRegen, GearSet::Naviy},
+        {"zerkaltse", Text{"Зеркальце", "Little Mirror"},    ItemKind::Amulet, '"',  2, 5,  5,
+         Text{"Заклятья обходятся дешевле.", "Spells come cheaper."},
+         GpCheapSpell, GearSet::Naviy},
+
+        // Ходовой припас — про ноги и глаза.
+        {"klyuka",    Text{"Клюка", "Crook Staff"},          ItemKind::Weapon, ')',  5, 2,  6,
+         Text{"Опора в дороге: +15 к скорости.", "Something to lean on: +15 speed."},
+         GpQuick, GearSet::Hodovoy},
+        {"lapti",     Text{"Лапти-скороходы", "Swift Bast Shoes"}, ItemKind::Armor, '[', 2, 2, 6,
+         Text{"Лёгкие ноги: +15 к скорости.", "Light on your feet: +15 speed."},
+         GpQuick, GearSet::Hodovoy},
+        {"svecha",    Text{"Неугасимая свеча", "Unfailing Candle"}, ItemKind::Amulet, '"', 3, 2, 6,
+         Text{"Светит и там, где света нет: +3 к обзору.", "It burns where there is no light: +3 sight."},
+         GpSight, GearSet::Hodovoy},
     };
     return table;
+}
+
+const std::vector<GearSetInfo>& gear_set_table() {
+    static const std::vector<GearSetInfo> table = {
+        {GearSet::None, Text{"", ""}, Text{"", ""}},
+        {GearSet::Oberezhny, Text{"Обережный круг", "The Warding Circle"},
+         Text{"Ни морок, ни слепота не пристают.", "Neither delusion nor blindness will stick."}},
+        {GearSet::Ratny, Text{"Ратный сбор", "The War Gathering"},
+         Text{"Каждый удар достаёт всех, кто рядом.", "Every blow reaches everyone standing close."}},
+        {GearSet::Naviy, Text{"Навий сговор", "The Pact with the Dead"},
+         Text{"Убитый отдаёт здоровье и силы.", "The slain give up health and power."}},
+        {GearSet::Hodovoy, Text{"Ходовой припас", "The Traveller's Kit"},
+         Text{"Вода и пропасти больше не держат.", "Water and chasms no longer hold you."}},
+    };
+    return table;
+}
+
+const GearSetInfo& gear_set_info(GearSet set) {
+    for (const auto& info : gear_set_table())
+        if (info.set == set) return info;
+    return gear_set_table()[0];
 }
 
 Slot item_slot(const Item& it) {
@@ -478,11 +621,55 @@ const std::vector<std::pair<Spell, int>>& class_spells(HeroClass c) {
 
 const std::vector<BossPlacement>& boss_table() {
     static const std::vector<BossPlacement> table = {
-        {4, "viy"},
-        {8, "babayaga"},
-        {12, "koschei"},
+        // Every belt holds two: a lesser guardian halfway down and its master
+        // at the bottom. Four floors of ordinary monsters and one fight made
+        // each belt read as a corridor with a door at the end of it.
+        {3, "mara"},      {4, "viy"},
+        {7, "vodyanoy"},  {8, "babayaga"},
+        {11, "morozko"},  {12, "koschei"},
+        {15, "polozh"},   {16, "gorynych"},
     };
     return table;
+}
+
+const std::vector<BossPhaseLine>& boss_phase_table() {
+    static const std::vector<BossPhaseLine> table = {
+        {"mara", 2, Text{"Мара расплывается — теперь их несколько, и все шепчут.",
+                         "Mara blurs — there are several of her now, and all of them whisper."}},
+        {"vodyanoy", 2, Text{"Водяной уходит под воду. Пол под ногами становится мокрым.",
+                             "Vodyanoy sinks under. The floor underfoot turns wet."}},
+        {"morozko", 2, Text{"«Тепло ли тебе, девица?» — воздух звенит от холода.",
+                            "\"Are you warm, girl?\" — the air rings with cold."}},
+        {"polozh", 2, Text{"Полоз уходит в камень. Пол дрожит — он идёт под тобой.",
+                           "The Poloz slips into the stone. The floor shakes — he is moving beneath you."}},
+
+        {"viy", 2, Text{"Вий перестаёт ждать. Веки поднимаются чаще.",
+                        "Viy stops waiting. The eyelids come up sooner now."}},
+        {"viy", 3, Text{"Веки больше не опускаются. Вий смотрит не мигая.",
+                        "The eyelids do not come down again. Viy stares without blinking."}},
+
+        {"babayaga", 2, Text{"Баба-Яга садится в ступу. Теперь она быстрее тебя.",
+                             "Baba Yaga climbs into her mortar. She is faster than you now."}},
+        {"babayaga", 3, Text{"«Изба, встань!» — из земли поднимается новая изба.",
+                             "\"Hut, stand up!\" — a fresh hut rises out of the ground."}},
+
+        {"koschei", 2, Text{"Кощей перестаёт бить и начинает тянуть: его раны затягиваются твоими.",
+                            "Koschei stops striking and starts drawing: his wounds close with yours."}},
+        {"koschei", 3, Text{"Кощей зовёт своих. Из стен выходит навь.",
+                            "Koschei calls his own. The dead come out of the walls."}},
+
+        {"gorynych", 2, Text{"Одна голова падает. Две оставшиеся заходятся рёвом.",
+                             "One head falls. The other two go into a rage."}},
+        {"gorynych", 3, Text{"Вторая голова падает. Последняя больше не бережёт огонь.",
+                             "The second head falls. The last one stops saving its fire."}},
+    };
+    return table;
+}
+
+Text boss_phase_line(const char* key, int phase) {
+    for (const auto& line : boss_phase_table())
+        if (std::strcmp(line.species_key, key) == 0 && line.phase == phase) return line.line;
+    return Text{"", ""};
 }
 
 const char* boss_for_depth(int depth) {
