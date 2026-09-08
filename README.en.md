@@ -14,7 +14,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 
 ### ▶ [Play in your browser](https://thetoshix.github.io/nav-roguelike/)
 
-[Русский](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Test plan](docs/TEST_PLAN.md) · [Test cases](docs/TEST_CASES.md) · [Bug reports](docs/BUG_REPORTS.md)
+[Русский](README.md) · [How to run it](docs/RUNNING.md) · [Architecture](docs/ARCHITECTURE.md) · [Test plan](docs/TEST_PLAN.md) · [Test cases](docs/TEST_CASES.md) · [Bug reports](docs/BUG_REPORTS.md)
 
 <img src="docs/media/gameplay.gif" alt="Gameplay" width="800">
 
@@ -225,6 +225,9 @@ variants, so the language can be switched at any moment — including for messag
 
 ## Running it
 
+The short version is below. The long one — installing everything from scratch, and what to
+do when it does not build — is in [docs/RUNNING.md](docs/RUNNING.md) (in Russian).
+
 ### Browser
 
 Nothing to build — [play online](https://thetoshix.github.io/nav-roguelike/).
@@ -318,7 +321,7 @@ frontend/
   terminal/      ANSI rendering and raw keyboard input
   web/           the C binding layer for WebAssembly, the game page and the sprites
 tests/           321 GoogleTest cases
-docs/            architecture, test plan, test cases, bug reports
+docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it
 ```

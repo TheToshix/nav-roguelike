@@ -14,7 +14,7 @@
 
 ### ▶ [Играть в браузере](https://thetoshix.github.io/nav-roguelike/)
 
-[English](README.en.md) · [Архитектура](docs/ARCHITECTURE.md) · [Тест-план](docs/TEST_PLAN.md) · [Тест-кейсы](docs/TEST_CASES.md) · [Багрепорты](docs/BUG_REPORTS.md)
+[English](README.en.md) · [Как запустить](docs/RUNNING.md) · [Архитектура](docs/ARCHITECTURE.md) · [Тест-план](docs/TEST_PLAN.md) · [Тест-кейсы](docs/TEST_CASES.md) · [Багрепорты](docs/BUG_REPORTS.md)
 
 <img src="docs/media/gameplay.gif" alt="Геймплей" width="800">
 
@@ -259,6 +259,9 @@ beast('volkolak', {'1': '#4a3520', '2': '#6f4f2d', '3': '#8f6b40', 'w': '#e8e0d0
 
 ## Как запустить
 
+Коротко — ниже. Подробно, с установкой всего с нуля и разбором типичных ошибок, —
+в [docs/RUNNING.md](docs/RUNNING.md).
+
 ### Браузер
 
 Ничего собирать не нужно — [играть онлайн](https://thetoshix.github.io/nav-roguelike/).
@@ -353,7 +356,7 @@ frontend/
   terminal/      ANSI-рендер и сырой ввод с клавиатуры
   web/           C-обёртка для WebAssembly, страница игры и спрайты
 tests/           321 тест на GoogleTest
-docs/            архитектура, тест-план, тест-кейсы, багрепорты
+docs/            как запустить, архитектура, тест-план, тест-кейсы, багрепорты
 tools/           сборка веб-версии
   sprites/       пиксель-графика как текст и генератор из неё
 ```

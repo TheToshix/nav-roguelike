@@ -1,0 +1,781 @@
+<title>Запуск Нави</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+:root {
+  --ground:      #e6e3d6;
+  --panel:       #f1efe6;
+  --panel-edge:  #cfcab6;
+  --ink:         #241d15;
+  --ink-soft:    #574c3d;
+  --ink-faint:   #8a7c69;
+  --gold:        #8a6620;
+  --gold-bright: #c8a45c;
+  --rule:        #d5d0be;
+  --danger:      #8c3a30;
+
+  /* The terminal keeps one look in both themes: a shell is dark everywhere,
+     and a command block that flips with the page reads as a quotation box. */
+  --term-bg:     #14110f;
+  --term-edge:   #33291d;
+  --term-ink:    #ddd2bd;
+  --term-dim:    #7d7264;
+  --term-gold:   #c8a45c;
+
+  --measure: 66ch;
+  --step: clamp(1rem, 0.6rem + 1.4vw, 1.6rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:     #15120f;
+    --panel:      #1d1915;
+    --panel-edge: #332c23;
+    --ink:        #e7ddcc;
+    --ink-soft:   #b3a893;
+    --ink-faint:  #7d7263;
+    --gold:       #c8a45c;
+    --gold-bright:#e0c07a;
+    --rule:       #2e2820;
+    --danger:     #d1746a;
+    --term-bg:    #0e0c0a;
+    --term-edge:  #2b241a;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:     #15120f;
+  --panel:      #1d1915;
+  --panel-edge: #332c23;
+  --ink:        #e7ddcc;
+  --ink-soft:   #b3a893;
+  --ink-faint:  #7d7263;
+  --gold:       #c8a45c;
+  --gold-bright:#e0c07a;
+  --rule:       #2e2820;
+  --danger:     #d1746a;
+  --term-bg:    #0e0c0a;
+  --term-edge:  #2b241a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, kbd, .mono { font-family: "IBM Plex Mono", ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace; }
+
+a { color: var(--gold); text-underline-offset: 3px; }
+a:hover { color: var(--gold-bright); }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 2px; }
+
+.wrap { max-width: 1140px; margin: 0 auto; padding: 0 var(--step) 96px; }
+
+/* ------------------------------------------------------------------ head -- */
+
+header.top { padding: clamp(40px, 6vw, 76px) 0 26px; border-bottom: 1px solid var(--rule); }
+
+.eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 14px;
+}
+
+h1 {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  font-size: clamp(30px, 4.4vw, 46px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  text-wrap: balance;
+}
+h1 .flame { color: var(--gold); }
+
+.lede { max-width: var(--measure); color: var(--ink-soft); margin: 0 0 26px; font-size: 18px; }
+
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.facts li {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  border: 1px solid var(--panel-edge);
+  background: var(--panel);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-variant-numeric: tabular-nums;
+}
+.facts li b { color: var(--ink); font-weight: 500; }
+
+/* ------------------------------------------------------------------ body -- */
+
+.layout { display: grid; grid-template-columns: 1fr; gap: 40px; padding-top: 34px; }
+@media (min-width: 940px) {
+  .layout { grid-template-columns: 216px minmax(0, 1fr); gap: 56px; }
+  nav.toc { position: sticky; top: 24px; align-self: start; }
+}
+
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; counter-reset: s; }
+nav.toc a {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 8px 5px 4px;
+  border-radius: 3px;
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+nav.toc a:hover { background: var(--panel); color: var(--ink); }
+nav.toc a .n { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+nav.toc a.here { color: var(--ink); background: var(--panel); }
+nav.toc a.here .n { color: var(--gold); }
+
+section { scroll-margin-top: 20px; }
+section + section { margin-top: 52px; }
+
+h2 {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  font-size: 21px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: baseline;
+  text-wrap: balance;
+}
+h2 .n { color: var(--gold); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+h3 {
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 500;
+  font-size: 14px;
+  letter-spacing: .04em;
+  color: var(--ink-soft);
+  margin: 30px 0 10px;
+}
+
+section > p, section > ul, section > ol, .note p { max-width: var(--measure); }
+p { margin: 0 0 14px; }
+ul, ol { margin: 0 0 16px; padding-left: 22px; }
+li { margin-bottom: 6px; }
+
+.sub { color: var(--ink-soft); margin: 0 0 20px; max-width: var(--measure); }
+
+p code, li code, td code {
+  font-size: 13.5px;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+/* ------------------------------------------------------------- terminal -- */
+
+.term {
+  background: var(--term-bg);
+  border: 1px solid var(--term-edge);
+  border-radius: 5px;
+  margin: 0 0 18px;
+  overflow: hidden;
+}
+.term .bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--term-edge);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--term-dim);
+}
+.term .bar .spacer { flex: 1; }
+.term .bar button {
+  font-family: inherit;
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--term-dim);
+  background: transparent;
+  border: 1px solid var(--term-edge);
+  border-radius: 3px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.term .bar button:hover { color: var(--term-gold); border-color: var(--term-gold); }
+.term pre {
+  margin: 0;
+  padding: 13px 14px;
+  overflow-x: auto;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--term-ink);
+}
+.term pre .c { color: var(--term-dim); }
+.term pre .p { color: var(--term-gold); }
+
+/* ------------------------------------------------------------------- os -- */
+
+.osbar { display: flex; gap: 6px; margin: 0 0 14px; flex-wrap: wrap; }
+.osbar button {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 3px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.osbar button:hover { color: var(--ink); }
+.osbar button[aria-pressed="true"] { color: var(--ink); border-color: var(--gold); background: transparent; }
+
+#doc[data-os="win"] [data-os]:not([data-os="win"]),
+#doc[data-os="mac"] [data-os]:not([data-os="mac"]),
+#doc[data-os="nix"] [data-os]:not([data-os="nix"]) { display: none; }
+
+/* ---------------------------------------------------------------- notes -- */
+
+.note {
+  border-left: 2px solid var(--gold);
+  background: var(--panel);
+  padding: 12px 16px;
+  margin: 0 0 18px;
+  border-radius: 0 4px 4px 0;
+  max-width: var(--measure);
+}
+.note p:last-child { margin-bottom: 0; }
+.note strong { font-weight: 600; }
+
+table.keys, table.fix { border-collapse: collapse; width: 100%; margin: 0 0 18px; font-size: 15px; }
+table.keys td, table.fix td, table.fix th {
+  border-bottom: 1px solid var(--rule);
+  padding: 8px 12px 8px 0;
+  vertical-align: top;
+  text-align: left;
+}
+table.keys td:first-child { width: 34%; white-space: nowrap; }
+table.fix th {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 500;
+  border-bottom-color: var(--panel-edge);
+}
+table.fix td:first-child { width: 42%; color: var(--danger); }
+.scroll { overflow-x: auto; }
+
+kbd {
+  font-size: 12.5px;
+  border: 1px solid var(--panel-edge);
+  border-bottom-width: 2px;
+  background: var(--panel);
+  border-radius: 3px;
+  padding: 1px 6px;
+  color: var(--ink);
+}
+
+footer.end {
+  margin-top: 64px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-faint);
+  font-size: 14px;
+  max-width: var(--measure);
+}
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+html { scroll-behavior: smooth; }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">Навь · роглайк на C++ и WebAssembly</p>
+  <h1><span class="flame">▸</span> Запуск Нави</h1>
+  <p class="lede">От «ничего не установлено» до своей сборки и опубликованной страницы на
+  GitHub Pages. Каждая команда здесь выполнена на чистой распаковке архива.</p>
+  <ul class="facts">
+    <li><b>16</b> этажей</li>
+    <li><b>C++17</b></li>
+    <li>CMake <b>3.16+</b></li>
+    <li>сборка <b>~10 с</b></li>
+    <li><b>321</b> тест</li>
+    <li>Windows · macOS · Linux</li>
+  </ul>
+</header>
+
+<div class="layout">
+
+  <nav class="toc" aria-label="Разделы">
+    <ol>
+      <li><a href="#play"><span class="n">0</span><span>Просто поиграть</span></a></li>
+      <li><a href="#tools"><span class="n">1</span><span>Что установить</span></a></li>
+      <li><a href="#get"><span class="n">2</span><span>Скачать</span></a></li>
+      <li><a href="#build"><span class="n">3</span><span>Собрать и запустить</span></a></li>
+      <li><a href="#tests"><span class="n">4</span><span>Прогнать тесты</span></a></li>
+      <li><a href="#web"><span class="n">5</span><span>Версия для браузера</span></a></li>
+      <li><a href="#github"><span class="n">6</span><span>Выложить на GitHub</span></a></li>
+      <li><a href="#trouble"><span class="n">7</span><span>Если не собралось</span></a></li>
+    </ol>
+  </nav>
+
+  <main id="doc" data-os="nix">
+
+    <section id="play">
+      <h2><span class="n">0</span><span>Просто поиграть</span></h2>
+      <p class="sub">Ничего устанавливать не нужно.</p>
+      <p>Игра целиком живёт в двух файлах и открывается любым браузером. Если проект уже
+      выложен — <a href="https://thetoshix.github.io/nav-roguelike/">играть онлайн</a>. Если
+      скачали архив — распакуйте, зайдите в <code>dist/</code> и откройте
+      <code>index.html</code> двойным щелчком. Папки <code>dist/</code> нет? Её создаёт
+      сборка веб-версии, это <a href="#web">раздел 5</a>.</p>
+      <div class="note">
+        <p><strong>Звук.</strong> Музыка вступает только на этажах со стражами — это глубины
+        3, 4, 7, 8, 11, 12, 15 и 16. Ни один браузер не даёт звук до первого нажатия клавиши
+        или щелчка по странице: это не поломка. Выключается кнопкой <b>♪</b> или клавишей
+        <kbd>M</kbd>.</p>
+      </div>
+      <p>Сохранение живёт в самом браузере, поэтому продолжить партию можно только в том же
+      браузере на том же устройстве.</p>
+    </section>
+
+    <section id="tools">
+      <h2><span class="n">1</span><span>Что установить</span></h2>
+      <p class="sub">Нужно только для сборки. Для игры в браузере — не нужно ничего.</p>
+      <p>Минимум: компилятор с поддержкой C++17 и CMake 3.16 или новее. Выберите систему —
+      команды ниже переключатся вместе с ней.</p>
+
+      <div class="osbar" role="group" aria-label="Операционная система">
+        <button type="button" data-set="win" aria-pressed="false">Windows</button>
+        <button type="button" data-set="mac" aria-pressed="false">macOS</button>
+        <button type="button" data-set="nix" aria-pressed="true">Linux</button>
+      </div>
+
+      <div data-os="win">
+        <ol>
+          <li>Скачайте <a href="https://visualstudio.microsoft.com/downloads/">Build Tools for
+          Visual Studio</a> — на странице внизу, в разделе «Tools for Visual Studio». При
+          установке отметьте <b>«Разработка классических приложений на C++»</b>. Всю Visual
+          Studio ставить не обязательно.</li>
+          <li>CMake обычно приезжает вместе с ними. Проверить можно в
+          <b>Developer Command Prompt for VS</b> — он появится в меню «Пуск».</li>
+          <li>Git: <a href="https://git-scm.com/download/win">git-scm.com</a>. Понадобится в
+          <a href="#github">разделе 6</a>.</li>
+        </ol>
+        <div class="note">
+          <p>Все команды выполняйте в <b>Developer Command Prompt</b>, а не в обычном
+          <code>cmd</code>: обычный не знает, где лежит компилятор. Это самая частая причина
+          «ничего не работает» на Windows.</p>
+        </div>
+      </div>
+
+      <div data-os="mac">
+        <div class="term">
+          <div class="bar"><span>macOS</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> xcode-select --install        <span class="c"># компилятор Apple Clang</span>
+<span class="p">$</span> brew install cmake git        <span class="c"># нет Homebrew? brew.sh</span></pre>
+        </div>
+      </div>
+
+      <div data-os="nix">
+        <div class="term">
+          <div class="bar"><span>Debian · Ubuntu · Mint</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> sudo apt update
+<span class="p">$</span> sudo apt install build-essential cmake git</pre>
+        </div>
+        <div class="term">
+          <div class="bar"><span>Fedora</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> sudo dnf install gcc-c++ cmake git</pre>
+        </div>
+      </div>
+
+      <h3>Проверка</h3>
+      <div class="term">
+        <div class="bar"><span>Версии</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> cmake --version    <span class="c"># 3.16 или выше</span>
+<span class="p">$</span> g++ --version      <span class="c"># или clang++, или cl на Windows</span></pre>
+      </div>
+    </section>
+
+    <section id="get">
+      <h2><span class="n">2</span><span>Скачать</span></h2>
+      <p><b>Архивом.</b> Распакуйте <code>nav-roguelike.zip</code> куда угодно. Внутри папка
+      <code>nav-roguelike/</code> — все команды дальше выполняются из неё.</p>
+      <p><b>Через Git</b>, когда проект будет на GitHub:</p>
+      <div class="term">
+        <div class="bar"><span>Клонирование</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> git clone https://github.com/TheToshix/nav-roguelike.git
+<span class="p">$</span> cd nav-roguelike</pre>
+      </div>
+      <h3>Что где лежит</h3>
+      <div class="term">
+        <div class="bar"><span>Дерево проекта</span></div>
+<pre>engine/          ядро: правила игры, без ввода-вывода
+frontend/
+  terminal/      версия для терминала
+  web/           обёртка WebAssembly, страница, спрайты, музыка
+tests/           321 тест на GoogleTest
+docs/            архитектура, тест-план, тест-кейсы, багрепорты
+tools/           сборка веб-версии и генератор спрайтов</pre>
+      </div>
+    </section>
+
+    <section id="build">
+      <h2><span class="n">3</span><span>Собрать и запустить</span></h2>
+      <p class="sub">Две команды: одна настраивает сборку, вторая собирает.</p>
+
+      <div data-os="nix">
+        <div class="term">
+          <div class="bar"><span>Linux</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNAV_BUILD_TESTS=OFF
+<span class="p">$</span> cmake --build build -j
+<span class="p">$</span> ./build/nav</pre>
+        </div>
+      </div>
+      <div data-os="mac">
+        <div class="term">
+          <div class="bar"><span>macOS</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DNAV_BUILD_TESTS=OFF
+<span class="p">$</span> cmake --build build -j
+<span class="p">$</span> ./build/nav</pre>
+        </div>
+      </div>
+      <div data-os="win">
+        <div class="term">
+          <div class="bar"><span>Developer Command Prompt</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">&gt;</span> cmake -S . -B build -DNAV_BUILD_TESTS=OFF
+<span class="p">&gt;</span> cmake --build build --config Release
+<span class="p">&gt;</span> build\Release\nav.exe</pre>
+        </div>
+      </div>
+
+      <p><code>-DNAV_BUILD_TESTS=OFF</code> отключает тесты — иначе CMake полезет в интернет
+      за библиотекой GoogleTest. Если тесты нужны, это <a href="#tests">раздел 4</a>.</p>
+
+      <h3>Управление</h3>
+      <div class="scroll">
+      <table class="keys">
+        <tbody>
+          <tr><td><code>hjkl</code> <code>yubn</code>, стрелки, цифровой блок</td><td>идти; шаг в тварь — удар</td></tr>
+          <tr><td><code>.</code> или <code>5</code></td><td>переждать ход</td></tr>
+          <tr><td><code>g</code></td><td>подобрать</td></tr>
+          <tr><td><code>i</code></td><td>котомка: применить, надеть, снять</td></tr>
+          <tr><td><code>z</code></td><td>колдовать</td></tr>
+          <tr><td><code>&gt;</code> <code>&lt;</code></td><td>спуститься / подняться</td></tr>
+          <tr><td><code>p</code></td><td>принести жертву на капище</td></tr>
+          <tr><td><code>S</code> <code>L</code></td><td>сохранить / загрузить</td></tr>
+          <tr><td><code>T</code> · <code>?</code> · <code>q</code></td><td>язык · справка · выход</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <div class="note">
+        <p>Партия начинается на <strong>перекрёстке</strong> — это глубина 0. Нечисти там нет:
+        капище, лестница вниз и три вещи на постаментах. Взять можно ровно одну.</p>
+      </div>
+
+      <h3>Партии без экрана</h3>
+      <div class="term">
+        <div class="bar"><span>Проверка сборки</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> ./build/nav --demo 20    <span class="c"># двадцать полных партий ботом</span>
+<span class="p">$</span> ./build/nav --version</pre>
+      </div>
+      <p>Строка <code>demo ok</code> в конце значит, что за все партии не сломался ни один
+      инвариант и каждое сохранение прошло круговой обход. Бот сценарный и обычно умирает
+      на третьем-четвёртом этаже: он умеет уходить от взгляда Вия, но не умеет отступать и
+      лечиться вовремя.</p>
+    </section>
+
+    <section id="tests">
+      <h2><span class="n">4</span><span>Прогнать тесты</span></h2>
+      <p>CMake сначала ищет GoogleTest в системе, а если не находит — скачивает сам.
+      Поэтому на первую сборку нужен интернет.</p>
+      <div data-os="win">
+        <div class="term">
+          <div class="bar"><span>Developer Command Prompt</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">&gt;</span> cmake -S . -B build
+<span class="p">&gt;</span> cmake --build build --config Release
+<span class="p">&gt;</span> ctest --test-dir build --build-config Release --output-on-failure</pre>
+        </div>
+      </div>
+      <div data-os="mac">
+        <div class="term">
+          <div class="bar"><span>macOS</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+<span class="p">$</span> cmake --build build -j
+<span class="p">$</span> ctest --test-dir build --output-on-failure</pre>
+        </div>
+      </div>
+      <div data-os="nix">
+        <div class="term">
+          <div class="bar"><span>Linux</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+<span class="p">$</span> cmake --build build -j
+<span class="p">$</span> ctest --test-dir build --output-on-failure</pre>
+        </div>
+      </div>
+      <p>Ожидаемое: <code>100% tests passed, 0 tests failed out of 321</code>, примерно три
+      секунды.</p>
+      <div class="term">
+        <div class="bar"><span>Часть тестов</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> ctest --test-dir build -R Phases --output-on-failure   <span class="c"># фазы боссов</span>
+<span class="p">$</span> ctest --test-dir build -R Lobby  --output-on-failure   <span class="c"># перекрёсток</span>
+<span class="p">$</span> ctest --test-dir build -N                              <span class="c"># список, без запуска</span></pre>
+      </div>
+    </section>
+
+    <section id="web">
+      <h2><span class="n">5</span><span>Версия для браузера</span></h2>
+      <p>Нужен Emscripten — компилятор C++ в WebAssembly.</p>
+      <div class="term">
+        <div class="bar"><span>Emscripten SDK</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> git clone https://github.com/emscripten-core/emsdk.git
+<span class="p">$</span> cd emsdk &amp;&amp; ./emsdk install latest &amp;&amp; ./emsdk activate latest
+<span class="p">$</span> source ./emsdk_env.sh      <span class="c"># Windows: emsdk_env.bat</span>
+<span class="p">$</span> cd ..</pre>
+      </div>
+      <div class="note">
+        <p><code>source ./emsdk_env.sh</code> действует только в текущем окне терминала. В
+        новом окне его нужно повторить — иначе <code>emcmake</code> «не найдётся».</p>
+      </div>
+      <div class="term">
+        <div class="bar"><span>Сборка и запуск</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> ./tools/build_web.sh
+<span class="p">$</span> python3 -m http.server -d dist 8080</pre>
+      </div>
+      <p>Откройте <code>http://localhost:8080</code>. В <code>dist/</code> окажутся ровно два
+      файла: страница вместе с вшитыми спрайтами и музыкой, и движок, скомпилированный в
+      WebAssembly. Их можно положить на любой статический хостинг без единой настройки.</p>
+      <p>Открывать <code>dist/index.html</code> напрямую через <code>file://</code> не
+      получится: браузеры не дают такой странице загружать соседний скрипт. Отсюда и
+      локальный сервер в команде выше.</p>
+
+      <h3>Перерисовать спрайты</h3>
+      <p>Вся графика лежит текстом в <code>tools/sprites/pixels.py</code>: по шестнадцать
+      строк на спрайт, точка — прозрачность.</p>
+      <div class="term">
+        <div class="bar"><span>Генератор</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> python3 tools/sprites/build.py</pre>
+      </div>
+      <p>Пересобирает <code>frontend/web/sprites.js</code> и контактный лист
+      <code>docs/media/sprites.png</code>. Для листа нужна Pillow
+      (<code>pip install pillow</code>); без неё соберётся только первое.</p>
+    </section>
+
+    <section id="github">
+      <h2><span class="n">6</span><span>Выложить на GitHub</span></h2>
+      <p class="sub">Пока репозитория нет, значки в шапке README и кнопка «Играть в браузере»
+      не работают. Вот что нужно, чтобы заработали.</p>
+
+      <h3>Создать репозиторий</h3>
+      <ol>
+        <li>Откройте <a href="https://github.com/new">github.com/new</a>.</li>
+        <li>Имя — <code>nav-roguelike</code>. Именно такое: на него ссылается README.</li>
+        <li>Публичный. <b>Не</b> ставьте галочки «Add a README», «.gitignore» и «license» —
+        всё это в проекте уже есть.</li>
+      </ol>
+
+      <h3>Отправить код</h3>
+      <div class="term">
+        <div class="bar"><span>Первый пуш</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
+<pre><span class="p">$</span> git init                 <span class="c"># если качали архивом</span>
+<span class="p">$</span> git add -A
+<span class="p">$</span> git commit -m "Навь: роглайк на C++ и WebAssembly"
+<span class="p">$</span> git branch -M main
+<span class="p">$</span> git remote add origin https://github.com/TheToshix/nav-roguelike.git
+<span class="p">$</span> git push -u origin main</pre>
+      </div>
+      <div class="note">
+        <p>Ветка обязательно <code>main</code>: сборка страницы и CI запускаются по пушу
+        именно в неё.</p>
+        <p>Если Git попросит пароль — обычный пароль GitHub больше не принимает. Нужен
+        <b>Personal Access Token</b>: Settings → Developer settings → Personal access tokens →
+        Tokens (classic) → Generate new token, права <code>repo</code>. Токен вводится вместо
+        пароля.</p>
+      </div>
+
+      <h3>Включить Pages</h3>
+      <p>В репозитории: <b>Settings → Pages</b>, в поле <b>Source</b> выбрать
+      <b>GitHub Actions</b> — не «Deploy from a branch». Дальше всё само: workflow соберёт
+      WebAssembly и опубликует игру при каждом пуше в <code>main</code>. Первая сборка идёт
+      около пяти минут.</p>
+
+      <h3>Проверить, что зелено</h3>
+      <p>Вкладка <b>Actions</b>. Там пять задач: тесты на четырёх платформах, санитайзеры,
+      покрытие, сборка WebAssembly и проверка, что спрайты не отстали от исходника. Зелёные
+      галочки на главной странице репозитория — половина впечатления от портфолио.</p>
+      <p>Напоследок стоит заполнить описание репозитория (шестерёнка справа от «About»):
+      короткая строка, ссылка на Pages и темы — <code>roguelike</code>, <code>cpp</code>,
+      <code>webassembly</code>, <code>gamedev</code>, <code>pixel-art</code>.</p>
+    </section>
+
+    <section id="trouble">
+      <h2><span class="n">7</span><span>Если не собралось</span></h2>
+      <div class="scroll">
+      <table class="fix">
+        <thead><tr><th>Что видно</th><th>Что делать</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>cmake: команда не найдена</code></td>
+            <td>CMake не установлен или не в PATH. На Windows — откройте Developer Command
+            Prompt for VS, а не обычный <code>cmd</code>.</td>
+          </tr>
+          <tr>
+            <td><code>No CMAKE_CXX_COMPILER could be found</code></td>
+            <td>Нет компилятора. Windows: не отмечен компонент «Разработка классических
+            приложений на C++». macOS: не выполнен <code>xcode-select --install</code>.</td>
+          </tr>
+          <tr>
+            <td><code>CMake 3.16 or higher is required</code></td>
+            <td>Старый CMake. На Ubuntu 20.04 и старше проще поставить с cmake.org, чем через
+            <code>apt</code>.</td>
+          </tr>
+          <tr>
+            <td>Сборка падает на <code>FetchContent</code> или GoogleTest</td>
+            <td>Нет интернета или он через прокси. Добавьте <code>-DNAV_BUILD_TESTS=OFF</code>
+            к первой команде <code>cmake</code>.</td>
+          </tr>
+          <tr>
+            <td>В терминале кракозябры вместо букв</td>
+            <td>Терминал не в UTF-8. Windows: <code>chcp 65001</code> перед запуском. Ещё игра
+            переключается на английский клавишей <kbd>T</kbd>.</td>
+          </tr>
+          <tr>
+            <td>Рамки и символы разъезжаются</td>
+            <td>Нужен моноширинный шрифт с кириллицей: Cascadia Mono в Windows Terminal,
+            Consolas или Lucida Console в старом <code>cmd</code>.</td>
+          </tr>
+          <tr>
+            <td><code>emcmake: команда не найдена</code></td>
+            <td>Не выполнен <code>source ./emsdk_env.sh</code> в этом окне терминала. Он
+            действует только до закрытия окна.</td>
+          </tr>
+          <tr>
+            <td>Страница открылась, но игра не запускается</td>
+            <td>Файл открыт через <code>file://</code>. Поднимите сервер:
+            <code>python3 -m http.server -d dist 8080</code>.</td>
+          </tr>
+          <tr>
+            <td>Нет звука</td>
+            <td>Браузер ждёт первого нажатия клавиши. И музыка играет только на этажах со
+            стражами: 3, 4, 7, 8, 11, 12, 15, 16.</td>
+          </tr>
+          <tr>
+            <td><code>git push</code> не принимает пароль</td>
+            <td>Нужен Personal Access Token — см. раздел 6.</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <footer class="end">
+      <p>Если что-то из написанного не сработало — это ошибка инструкции, а не ваша. Та же
+      инструкция лежит в репозитории как <code>docs/RUNNING.md</code> и правится вместе с
+      кодом.</p>
+    </footer>
+
+  </main>
+</div>
+</div>
+
+<script>
+(function () {
+  var doc = document.getElementById('doc');
+
+  // --- система: запоминаем выбор на этом устройстве ------------------------
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('.osbar button'));
+  function setOs(os) {
+    doc.setAttribute('data-os', os);
+    buttons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-set') === os));
+    });
+    try { localStorage.setItem('nav.doc.os', os); } catch (e) {}
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { setOs(b.getAttribute('data-set')); });
+  });
+
+  var os = null;
+  try { os = localStorage.getItem('nav.doc.os'); } catch (e) {}
+  if (!os) {
+    var ua = navigator.userAgent || '';
+    os = /Windows/i.test(ua) ? 'win' : (/Mac OS X|Macintosh/i.test(ua) ? 'mac' : 'nix');
+  }
+  setOs(os);
+
+  // --- копирование команд --------------------------------------------------
+  // Отдаём только сами команды: приглашение оболочки и комментарии в буфер
+  // попадать не должны, иначе вставленное не выполнится.
+  document.querySelectorAll('button[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.closest('.term').querySelector('pre');
+      var text = Array.prototype.map.call(pre.childNodes, function (n) {
+        if (n.nodeType === 1 && n.classList.contains('c')) return '';
+        if (n.nodeType === 1 && n.classList.contains('p')) return '';
+        return n.textContent;
+      }).join('').split('\n').map(function (l) { return l.replace(/\s+$/, ''); })
+        .filter(function (l) { return l.length; }).join('\n');
+
+      var done = function () {
+        var was = btn.textContent;
+        btn.textContent = 'Скопировано';
+        setTimeout(function () { btn.textContent = was; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { select(pre); });
+      } else {
+        select(pre);
+      }
+    });
+  });
+
+  // Запасной путь: если писать в буфер нельзя, просто выделяем блок, чтобы
+  // осталось нажать привычные клавиши копирования.
+  function select(pre) {
+    var range = document.createRange();
+    range.selectNodeContents(pre);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // --- подсветка текущего раздела -----------------------------------------
+  var links = {};
+  document.querySelectorAll('nav.toc a').forEach(function (a) {
+    links[a.getAttribute('href').slice(1)] = a;
+  });
+  if ('IntersectionObserver' in window) {
+    var seen = {};
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { seen[e.target.id] = e.isIntersecting; });
+      var current = null;
+      Object.keys(links).forEach(function (id) { if (seen[id] && !current) current = id; });
+      Object.keys(links).forEach(function (id) {
+        links[id].classList.toggle('here', id === current);
+      });
+    }, { rootMargin: '-10% 0px -70% 0px' });
+    document.querySelectorAll('main section').forEach(function (s) { io.observe(s); });
+  }
+})();
+</script>
