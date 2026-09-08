@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-365-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-367-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -220,17 +220,32 @@ of them is accepted.
 
 ### Walking one square at a time is dull, and that is fixable
 
-`Shift` and a direction runs down a corridor to the next junction, `o` walks to the nearest
-place the hero has not been, and `m` shows the whole explored floor with the way down marked.
-Sixteen floors crossed one keypress at a time was the most tiring thing about this game, and
-nobody makes a decision walking down an empty corridor.
+A movement key can be **held**: the hero keeps walking until it is released, and `Shift`
+sprints. The game stays turn-based throughout — the page is only asking the engine for the
+same single step again, so monsters move between steps, hunger ticks, and every invariant
+holds; the engine cannot tell a held key from a patient finger. A tap of `Shift` and a
+direction still runs to the next junction in one action, `o` walks to the nearest place the
+hero has not been, and `m` shows the whole explored floor with the way down marked.
 
-Both are ordinary steps the engine takes on the player's behalf rather than a new way to move:
-hunger, poison, monster turns and every invariant apply during a run exactly as they do during
-a walk. The interesting part is not the running but the brakes. A run stops when something
-comes into view, when the hero is hurt, when a new effect lands, when there is an item, a
-staircase or a shrine underfoot, and where the corridor offers a choice. Auto-explore refuses
-to set off at all while anything is in sight.
+The on-screen pad on phones works the same way: hold it. Tapping the same arrow thirty times
+is exactly what makes people put a game down.
+
+The interesting part is not the running but the brakes. Movement stops when something comes
+into view, when the hero is hurt, when a new effect lands, and when there is an item, a
+staircase or a shrine underfoot; a run additionally stops where the corridor offers a choice,
+and auto-explore refuses to set off at all while anything is in sight.
+
+There is one stop rule, not four: `Game::situation()` and `situation_changed()` in the engine.
+The run reads it, auto-explore reads it, a held key in the terminal reads it, and a held key in
+the browser reads it too (the engine ships its own snapshot of the situation with every frame,
+and the page only compares two of them). Four lookalike rules in four places would drift apart,
+and would drift apart quietly — a held key that carries the hero into a monster is the worst
+thing this feature can do.
+
+The terminal reaches the same place from the other side: keypresses that piled up in the
+buffer while the game was thinking are thrown away the moment the situation changes. Otherwise
+the player sees a monster, lets go — and the hero plays half a second of queued keys into its
+face.
 
 ### Combat you can follow
 
@@ -290,7 +305,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 365 tests
+ctest --test-dir build --output-on-failure    # 367 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -310,8 +325,8 @@ run, or the button up top in the browser. The choice is remembered between runs.
 
 | | Classic | WASD |
 |---|---|---|
-| Move | `hjkl` `yubn` | `wasd` `qezc` |
-| Run to the next junction | `Shift` + the same | `Shift` + the same |
+| Walk (hold to keep walking) | `hjkl` `yubn` | `wasd` `qezc` |
+| Sprint (hold) / run to the junction (tap) | `Shift` + the same | `Shift` + the same |
 | Drop an item | `d` | `r` |
 | Cast | `z` | `f` |
 | Quit | `q` | from the menu |
@@ -339,7 +354,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **365** across 49 suites |
+| Unit and integration tests | **367** across 49 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -379,7 +394,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           365 GoogleTest cases
+tests/           367 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

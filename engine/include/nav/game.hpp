@@ -159,6 +159,27 @@ public:
     /// True while Кощей can still rise again — that is, the needle is unbroken.
     bool needle_intact() const { return !needle_broken_; }
 
+    /// True when anything alive is currently in the hero's sight.
+    bool foe_in_view() const;
+
+    /// A snapshot of "the situation", for anything that walks several steps.
+    ///
+    /// Three places need to agree on when a multi-step movement has to stop:
+    /// the engine's own run and auto-explore, a key held down in the terminal,
+    /// and a key held down in the browser. They are the same promise — the
+    /// player asked to keep walking, not to keep walking into whatever turns
+    /// up — so they read one rule rather than three lookalikes.
+    struct Situation {
+        int hp{0};
+        int depth{0};
+        std::uint32_t effects{0};
+        bool foes{false};
+        bool underfoot{false};   ///< An item, stairs or a shrine on this cell.
+    };
+    Situation situation() const;
+    /// Whether anything worth stopping for has happened since `before`.
+    bool situation_changed(const Situation& before) const;
+
     /// The monster standing on `p`, or nullptr.
     const Monster* monster_at(Vec2 p) const;
     /// Index of the topmost floor item at `p`, or -1.
@@ -237,16 +258,6 @@ private:
     void reap_dead();
 
     // --- Travel (travel.cpp) ----------------------------------------------
-    /// State a travel command watches for changes between steps.
-    struct TravelWatch {
-        int hp{0};
-        int depth{0};
-        std::uint32_t effects{0};
-    };
-    TravelWatch travel_watch() const;
-    /// Whether the last step produced something the player should see.
-    bool travel_should_stop(const TravelWatch& before) const;
-    bool foe_in_view() const;
     int open_neighbours(Vec2 p) const;
     std::vector<Vec2> explore_frontier() const;
     bool act_run(Vec2 dir);

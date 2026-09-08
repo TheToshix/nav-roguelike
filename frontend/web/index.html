@@ -1295,7 +1295,10 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     Api.perform(type, dx || 0, dy || 0, index === undefined ? -1 : index,
                 tx === undefined ? -1 : tx, ty === undefined ? -1 : ty);
     refresh();
-    autosave();
+    // While a key is held the save is deferred to the end of the walk: at a
+    // step every 55 ms, serialising the whole dungeon each time is the one
+    // thing in this loop expensive enough to be felt.
+    if (held) savePending = true; else autosave();
   }
 
   function autosave() {
@@ -1308,6 +1311,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 
   // ---------------------------------------------------------------- modals --
   function openModal(html, onMount) {
+    // A modal over a walking hero would keep the hero walking behind it.
+    stopWalking();
     closeModal();
     var overlay = document.createElement('div');
     overlay.className = 'overlay';
@@ -1601,6 +1606,81 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1]
   };
 
+  // ------------------------------------------------------- held movement --
+  //
+  // The game is turn-based, but that is a statement about its rules, not about
+  // the player's hand: nobody wants to tap a key forty times to cross a
+  // corridor. Holding a direction walks, and holding Shift as well walks
+  // faster. Nothing about the rules changes — this is the page asking for the
+  // same single step over and over, so the engine cannot tell a held key from
+  // a patient finger, and a run in progress is still a sequence of ordinary
+  // turns with monsters moving between them.
+  var HOLD_DELAY = 160;    ///< Before the first repeat, so a tap stays a tap.
+  var HOLD_STEP = 105;     ///< Between steps while walking.
+  var SPRINT_STEP = 55;    ///< ... and while Shift is down.
+  var held = null;         ///< {key, dx, dy, timer} while a direction is down.
+  var shiftDown = false;
+  var savePending = false;
+
+  function stopWalking() {
+    if (held && held.timer) clearTimeout(held.timer);
+    held = null;
+    if (savePending) { savePending = false; autosave(); }
+  }
+
+  /// Everything that ends a held walk.
+  ///
+  /// The judgement is the engine's: it sends a snapshot of the situation with
+  /// every frame, and this compares two of them. Holding a key and the engine's
+  /// own run are the same promise — the player asked to keep walking, not to
+  /// keep walking into whatever turns up — so they must not drift apart, and
+  /// the way to guarantee that is to have one rule rather than two lookalikes.
+  function walkShouldStop(before) {
+    var now = state && state.situation;
+    if (!now || !before) return true;
+    if (!now.playing) return true;
+    if (now.depth !== before.depth) return true;
+    if (now.hp < before.hp) return true;
+    if (now.foes) return true;
+    if ((now.effects & ~before.effects) !== 0) return true;
+    if (now.underfoot) return true;
+    return false;
+  }
+
+  function walkTick() {
+    if (!held || !state) { stopWalking(); return; }
+    var before = state.situation;
+    act(ACT.Move, held.dx, held.dy);
+    if (!held) return;                     // a keyup landed inside act()
+    if (walkShouldStop(before)) { stopWalking(); return; }
+    held.timer = setTimeout(walkTick, shiftDown ? SPRINT_STEP : HOLD_STEP);
+  }
+
+  /// Takes one step and, if nothing interesting happened, arms the repeat.
+  function beginWalk(key, dx, dy, alreadyStepped) {
+    stopWalking();
+    if (!state || state.state !== 0) return;
+    var before = state.situation;
+    if (!alreadyStepped) act(ACT.Move, dx, dy);
+    if (walkShouldStop(before)) { if (savePending) stopWalking(); return; }
+    held = {key: String(key).toLowerCase(), dx: dx, dy: dy, timer: null};
+    held.timer = setTimeout(walkTick, HOLD_DELAY);
+  }
+
+  // Holding a key and then losing the window is the classic way to end up with
+  // a hero who keeps walking while nobody is watching.
+  window.addEventListener('blur', stopWalking);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stopWalking();
+  });
+
+  document.addEventListener('keyup', function (e) {
+    if (e.key === 'Shift') { shiftDown = false; return; }
+    // Shift rewrites the character a key produces ('d' becomes 'D'), so the
+    // release is matched case-insensitively or a sprint would never end.
+    if (held && String(e.key).toLowerCase() === held.key) stopWalking();
+  });
+
   // No browser will make a sound before the player has touched something, so
   // the audio context is woken on the first input rather than at load.
   var audioWoken = false;
@@ -1614,8 +1694,14 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   document.addEventListener('pointerdown', wakeAudio, true);
 
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Shift') { shiftDown = true; return; }
     if (e.target.tagName === 'INPUT') return;
-    if ($('game').classList.contains('hidden')) return;
+    if ($('game').classList.contains('hidden')) { stopWalking(); return; }
+
+    // The browser has an auto-repeat of its own, with a long first delay and a
+    // rate the page does not control. Ours is better tuned and can be stopped
+    // the instant something happens, so the browser's is dropped on the floor.
+    if (e.repeat) { e.preventDefault(); return; }
 
     if (aiming) {
       if (e.key === 'Escape') { cancelAiming(); e.preventDefault(); return; }
@@ -1643,7 +1729,11 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 
     var arrow = ARROWS[e.key];
     if (arrow) {
-      act(e.shiftKey ? ACT.Run : ACT.Move, arrow[0], arrow[1]);
+      // A tap with Shift still runs to the next junction, exactly as before;
+      // keeping the key down then carries on at a sprint from wherever the run
+      // stopped. Two ways of covering ground, and the hand chooses.
+      if (e.shiftKey) act(ACT.Run, arrow[0], arrow[1]);
+      beginWalk(e.key, arrow[0], arrow[1], e.shiftKey);
       e.preventDefault();
       return;
     }
@@ -1656,8 +1746,11 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     var bound = keyTable.keys[e.key];
     if (!bound) return;
     switch (bound.cmd) {
-      case CMD.Move:      act(ACT.Move, bound.dx, bound.dy); break;
-      case CMD.Run:       act(ACT.Run, bound.dx, bound.dy); break;
+      case CMD.Move:      beginWalk(e.key, bound.dx, bound.dy, false); break;
+      case CMD.Run:
+        act(ACT.Run, bound.dx, bound.dy);
+        beginWalk(e.key, bound.dx, bound.dy, true);
+        break;
       case CMD.Explore:   act(ACT.Explore); break;
       case CMD.Wait:      act(ACT.Wait); break;
       case CMD.PickUp:    act(ACT.PickUp); break;
@@ -1700,11 +1793,22 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     if (dx || dy) act(ACT.Move, dx, dy); else act(ACT.Wait);
   });
 
+  // The on-screen pad gets the same treatment: a tap is a step, a held finger
+  // keeps walking. On a phone this matters more than on a keyboard, because
+  // tapping the same arrow thirty times is what makes people put the game down.
   document.querySelectorAll('[data-dir]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      var parts = b.getAttribute('data-dir').split(',');
-      var dx = parseInt(parts[0], 10), dy = parseInt(parts[1], 10);
-      if (!dx && !dy) act(ACT.Wait); else act(ACT.Move, dx, dy);
+    var parts = b.getAttribute('data-dir').split(',');
+    var dx = parseInt(parts[0], 10), dy = parseInt(parts[1], 10);
+
+    b.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (!dx && !dy) { act(ACT.Wait); return; }
+      beginWalk('pad', dx, dy, false);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (name) {
+      b.addEventListener(name, function () {
+        if (held && held.key === 'pad') stopWalking();
+      });
     });
   });
 

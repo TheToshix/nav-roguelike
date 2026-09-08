@@ -40,6 +40,11 @@ using namespace nav;
 // Terminal plumbing
 // ---------------------------------------------------------------------------
 
+/// A byte read while peeking and not yet consumed. A raw terminal offers no way
+/// to put a character back, so the one place that peeks keeps it here.
+int pushed_back = -1;
+
+
 #if defined(_WIN32)
 
 struct RawMode {
@@ -80,6 +85,11 @@ struct RawMode {
 };
 
 int read_key() {
+    if (pushed_back >= 0) {
+        const int c = pushed_back;
+        pushed_back = -1;
+        return c;
+    }
     unsigned char c = 0;
     if (::read(STDIN_FILENO, &c, 1) != 1) return -1;
     return c;
@@ -89,6 +99,49 @@ int read_key() {
 
 /// Special keys, above the ASCII range so they never collide with a letter.
 enum : int { kUp = 1000, kDown, kLeft, kRight, kEsc, kNone = -1 };
+
+/// Whether another keypress is already waiting to be read.
+///
+/// Holding a direction down produces keys faster than the game draws, and the
+/// terminal buffers them. Knowing the queue is not empty lets the loop skip a
+/// redraw it is only going to throw away, which is what turns held movement
+/// from a slideshow into walking.
+bool input_pending() {
+#if defined(_WIN32)
+    return _kbhit() != 0;
+#else
+    termios saved{};
+    if (tcgetattr(STDIN_FILENO, &saved) != 0) return false;
+    termios peek = saved;
+    peek.c_cc[VMIN] = 0;
+    peek.c_cc[VTIME] = 0;
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &peek) != 0) return false;
+    unsigned char c = 0;
+    const bool have = ::read(STDIN_FILENO, &c, 1) == 1;
+    tcsetattr(STDIN_FILENO, TCSANOW, &saved);
+    if (have) {
+        // Put it back the only way a raw terminal allows: remember it.
+        pushed_back = c;
+        return true;
+    }
+    return false;
+#endif
+}
+
+/// Throws away everything typed but not yet acted on.
+///
+/// This is the fix for the worst thing a held key can do in a roguelike: the
+/// player sees a monster, lets go — and the hero keeps walking, because half a
+/// second of keypresses is still sitting in the terminal's buffer waiting to be
+/// played into its face.
+void flush_input() {
+#if defined(_WIN32)
+    while (_kbhit()) (void)_getch();
+#else
+    pushed_back = -1;
+    tcflush(STDIN_FILENO, TCIFLUSH);
+#endif
+}
 
 /// Reads one key, decoding the CSI escape sequences the arrow keys produce.
 int read_key_decoded() {
@@ -235,10 +288,10 @@ struct Ui {
         const bool wasd = scheme == KeyScheme::Wasd;
         out += "\x1b[38;5;244m";
         out += lang == Lang::Ru
-                   ? (wasd ? "wasd/стрелки — идти  Shift+wasd — бежать  o — обойти этаж  g — взять"
-                           : "hjkl/стрелки — идти  Shift+hjkl — бежать  o — обойти этаж  g — взять")
-                   : (wasd ? "wasd/arrows move  Shift+wasd run  o explore  g pick up"
-                           : "hjkl/arrows move  Shift+hjkl run  o explore  g pick up");
+                   ? (wasd ? "wasd/стрелки — идти (можно зажать)  Shift — спринт  o — обойти этаж"
+                           : "hjkl/стрелки — идти (можно зажать)  Shift — спринт  o — обойти этаж")
+                   : (wasd ? "wasd/arrows walk (hold them)  Shift sprints  o explores"
+                           : "hjkl/arrows walk (hold them)  Shift sprints  o explores");
         out += "\x1b[0m\x1b[K\n";
         out += "\x1b[38;5;244m";
         out += lang == Lang::Ru
@@ -1027,7 +1080,11 @@ int main(int argc, char** argv) {
         ui.clear();
         bool quit_to_title = false;
         while (!quit_to_title) {
-            ui.draw(game);
+            // With a key held down the terminal delivers presses faster than a
+            // frame can be drawn. Drawing a screen nobody will look at is the
+            // difference between walking and a slideshow, so a redraw is
+            // skipped whenever the next key is already waiting.
+            if (!input_pending() || game.state() != RunState::Playing) ui.draw(game);
 
             if (game.state() != RunState::Playing) {
                 const bool won = game.state() == RunState::Ascended;
@@ -1067,6 +1124,12 @@ int main(int argc, char** argv) {
                 ui.notice(body);
                 break;
             }
+
+            // Remembered before the action so the loop can tell whether the
+            // world changed under the player's hand. The judgement itself is
+            // the engine's, and it is the same one a run uses to decide it has
+            // gone far enough.
+            const Game::Situation before = game.situation();
 
             const int pressed = read_key_decoded();
 
@@ -1154,6 +1217,12 @@ int main(int argc, char** argv) {
                 case Command::Count:
                     break;
             }
+
+            // The queue is thrown away the moment the situation changes. A
+            // player who sees a monster and lets go must not then watch the
+            // hero walk into it on half a second of keypresses that were typed
+            // before there was anything to see.
+            if (game.situation_changed(before)) flush_input();
         }
     }
 

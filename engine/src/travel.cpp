@@ -35,30 +35,31 @@ bool Game::foe_in_view() const {
     return false;
 }
 
-Game::TravelWatch Game::travel_watch() const {
-    TravelWatch w;
+Game::Situation Game::situation() const {
+    Situation w;
     w.hp = hero_.a.hp;
     w.depth = depth_;
     for (int e = 0; e < static_cast<int>(Effect::Count); ++e)
         if (hero_.a.has(static_cast<Effect>(e))) w.effects |= 1u << e;
+    w.foes = foe_in_view();
+    const Tile t = map().at(hero_.a.pos);
+    w.underfoot = t == Tile::StairsDown || t == Tile::StairsUp || t == Tile::Altar ||
+                  item_index_at(hero_.a.pos) >= 0;
     return w;
 }
 
-bool Game::travel_should_stop(const TravelWatch& before) const {
+bool Game::situation_changed(const Situation& before) const {
     if (state_ != RunState::Playing) return true;
     if (depth_ != before.depth) return true;
     if (hero_.a.hp < before.hp) return true;
     if (foe_in_view()) return true;
 
+    const Situation now = situation();
     // A new effect is news whether it is good or bad: something happened, and
     // the player should be the one deciding what to do about it.
-    const TravelWatch now = travel_watch();
     if ((now.effects & ~before.effects) != 0) return true;
-
     // Anything worth stopping for underfoot.
-    const Tile t = map().at(hero_.a.pos);
-    if (t == Tile::StairsDown || t == Tile::StairsUp || t == Tile::Altar) return true;
-    if (item_index_at(hero_.a.pos) >= 0) return true;
+    if (now.underfoot) return true;
     return false;
 }
 
@@ -93,11 +94,11 @@ bool Game::act_run(Vec2 dir) {
         // A closed door ends a run rather than being shouldered open at speed.
         if (map().at(next) == Tile::Door) break;
 
-        const TravelWatch before = travel_watch();
+        const Situation before = situation();
         if (!perform_single(Action{ActionType::Move, dir, -1, {}})) break;
         moved = true;
         ++steps;
-        if (travel_should_stop(before)) break;
+        if (situation_changed(before)) break;
 
         if (in_corridor) {
             // Stop *on* the junction, not one square short of it. The test is
@@ -173,13 +174,13 @@ bool Game::act_explore() {
         const Vec2 step = flow.best_step(hero_.a.pos, passable, true);
         if (step.x == hero_.a.pos.x && step.y == hero_.a.pos.y) break;
 
-        const TravelWatch before = travel_watch();
+        const Situation before = situation();
         if (!perform_single(Action{ActionType::Move,
                                    Vec2{step.x - hero_.a.pos.x, step.y - hero_.a.pos.y}, -1, {}}))
             break;
         moved = true;
         ++steps;
-        if (travel_should_stop(before)) break;
+        if (situation_changed(before)) break;
         if (to_stairs && map().at(hero_.a.pos) == Tile::StairsDown) break;
     }
 

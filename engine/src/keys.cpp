@@ -140,10 +140,12 @@ std::vector<KeyHelpRow> key_help(KeyScheme scheme) {
 
     rows.push_back({Command::Move,
                     Text{wasd ? "w a s d  q e z c" : "h j k l  y u b n"},
-                    Text{"Идти; шаг в чудище — удар", "Walk; a step into a foe is an attack"}});
+                    Text{"Идти; можно зажать. Шаг в чудище — удар",
+                         "Walk; hold to keep walking. A step into a foe attacks"}});
     rows.push_back({Command::Run,
                     Text{wasd ? "Shift + w a s d" : "Shift + h j k l"},
-                    Text{"Бежать, пока что-нибудь не случится", "Run until something happens"}});
+                    Text{"Зажать — спринт; нажать — бег до развилки",
+                         "Hold to sprint; tap to run to the next junction"}});
 
     std::size_t count = 0;
     const ActionKey* table = action_table(count);

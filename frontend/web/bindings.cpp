@@ -353,6 +353,23 @@ std::string build_state_json() {
     }
     out += "]";
 
+    // --- The situation, as the engine judges it ----------------------------
+    //
+    // A key held down in the browser has to stop for the same reasons the
+    // engine's own run does. Rather than let the page grow a second opinion
+    // about what "something happened" means, the engine's snapshot is sent
+    // across and the page only compares two of them.
+    {
+        const Game::Situation sit = g.situation();
+        out += ",\"situation\":{\"hp\":" + std::to_string(sit.hp);
+        out += ",\"depth\":" + std::to_string(sit.depth);
+        out += ",\"effects\":" + std::to_string(static_cast<unsigned long long>(sit.effects));
+        out += ",\"foes\":" + std::string(sit.foes ? "true" : "false");
+        out += ",\"underfoot\":" + std::string(sit.underfoot ? "true" : "false");
+        out += ",\"playing\":" +
+               std::string(g.state() == RunState::Playing ? "true" : "false") + "}";
+    }
+
     // --- What the hero is standing on --------------------------------------
     out += ",\"here\":{";
     const Tile tile = map.at(h.a.pos);

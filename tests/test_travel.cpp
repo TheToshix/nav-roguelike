@@ -262,6 +262,76 @@ TEST(Travel, ExploringStandingOnTheStairsOfASeenFloorDoesNothing) {
     EXPECT_FALSE(c.explore()) << "there was nowhere left to go, and it went anyway";
 }
 
+// ---------------------------------------------------------------------------
+// The stop rule itself
+// ---------------------------------------------------------------------------
+//
+// `situation()` and `situation_changed()` are read by three callers: the
+// engine's own run, a key held down in the terminal, and a key held down in the
+// browser. That makes the rule worth testing directly rather than only through
+// the behaviour of one of its callers.
+
+TEST(Travel, TheSituationNoticesEachThingSeparately) {
+    Carved c;
+    c.row(10, 5, 30);
+    c.put_hero({10, 10});
+    const Game::Situation calm = c.game.situation();
+    EXPECT_FALSE(calm.foes);
+    EXPECT_FALSE(calm.underfoot);
+    EXPECT_FALSE(c.game.situation_changed(calm)) << "nothing happened, and it says otherwise";
+
+    // A wound.
+    {
+        Carved d;
+        d.row(10, 5, 30);
+        d.put_hero({10, 10});
+        const Game::Situation before = d.game.situation();
+        d.game.mutable_hero().a.hp -= 1;
+        EXPECT_TRUE(d.game.situation_changed(before)) << "losing health went unnoticed";
+    }
+    // Someone in view.
+    {
+        Carved d;
+        d.row(10, 5, 30);
+        d.put_hero({10, 10});
+        const Game::Situation before = d.game.situation();
+        d.spawn("anchutka", {14, 10});
+        EXPECT_TRUE(d.game.situation_changed(before)) << "a monster appeared and nobody noticed";
+        EXPECT_TRUE(d.game.situation().foes);
+    }
+    // A new effect.
+    {
+        Carved d;
+        d.row(10, 5, 30);
+        d.put_hero({10, 10});
+        const Game::Situation before = d.game.situation();
+        d.game.mutable_hero().a.effects.push_back(ActiveEffect{Effect::Poison, 10, 2});
+        EXPECT_TRUE(d.game.situation_changed(before)) << "poison took hold quietly";
+    }
+    // Something underfoot.
+    {
+        Carved d;
+        d.row(10, 5, 30);
+        d.put_hero({10, 10});
+        const Game::Situation before = d.game.situation();
+        d.game.mutable_level().map.set({10, 10}, Tile::StairsDown);
+        EXPECT_TRUE(d.game.situation_changed(before)) << "the stairs went unnoticed underfoot";
+    }
+}
+
+TEST(Travel, TheSituationDoesNotFireOnGoodNewsThatChangesNothing) {
+    // Healing is not a reason to stop walking, and neither is an effect wearing
+    // off. Stopping on everything is the same failure as stopping on nothing:
+    // the rule stops meaning anything.
+    Carved c;
+    c.row(10, 5, 30);
+    c.put_hero({10, 10});
+    c.game.mutable_hero().a.hp = 5;
+    const Game::Situation before = c.game.situation();
+    c.game.mutable_hero().a.heal(5);
+    EXPECT_FALSE(c.game.situation_changed(before)) << "getting better stopped the walk";
+}
+
 TEST(Travel, TravelNeverBreaksTheInvariants) {
     // The same per-turn checks the long randomised run makes, applied to a
     // hundred travel commands on real generated floors. A travel command is a
