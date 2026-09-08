@@ -22,10 +22,12 @@ namespace {
 
 constexpr const char* kMagic = "NAV";
 // Version 2 added the zones, the three extra hero classes, the boss state
-// (Вий's eyelids, Кощей's revivals) and the broken-needle flag. There is no
-// migration: a version 1 save is refused rather than loaded as something it is
-// not — see docs/TEST_CASES.md, "what stayed unchecked".
-constexpr int kFormatVersion = 3;
+// (Вий's eyelids, Кощей's revivals) and the broken-needle flag. Version 4 adds
+// the guardians' halls: a floor now remembers where its arena is and whether
+// its doors have closed, and a save without that would reopen a sealed fight.
+// There is no migration: an older save is refused rather than loaded as
+// something it is not — see docs/TEST_CASES.md, "what stayed unchecked".
+constexpr int kFormatVersion = 4;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -234,6 +236,12 @@ std::string Game::save() const {
         w << lvl.map.width() << lvl.map.height() << lvl.entrance.x << lvl.entrance.y
           << lvl.exit.x << lvl.exit.y << (lvl.boss_slain ? 1 : 0);
 
+        const Arena& ar = lvl.arena;
+        w << (ar.exists ? 1 : 0);
+        if (ar.exists)
+            w << ar.min.x << ar.min.y << ar.max.x << ar.max.y << ar.door.x << ar.door.y
+              << (ar.sealed ? 1 : 0) << (ar.warned ? 1 : 0) << (ar.seals ? 1 : 0);
+
         std::vector<std::uint8_t> tiles;
         tiles.reserve(lvl.map.raw_tiles().size());
         for (Tile t : lvl.map.raw_tiles()) tiles.push_back(static_cast<std::uint8_t>(t));
@@ -340,6 +348,30 @@ bool Game::load(const std::string& blob) {
         r >> w >> h >> lvl.entrance.x >> lvl.entrance.y >> lvl.exit.x >> lvl.exit.y >> boss;
         if (!r.ok() || w <= 0 || h <= 0 || w > 512 || h > 512) return false;
         lvl.boss_slain = boss != 0;
+
+        int has_arena = 0;
+        r >> has_arena;
+        if (!r.ok()) return false;
+        if (has_arena) {
+            Arena ar;
+            int sealed = 0, warned = 0, seals = 0;
+            r >> ar.min.x >> ar.min.y >> ar.max.x >> ar.max.y >> ar.door.x >> ar.door.y >> sealed >>
+                warned >> seals;
+            if (!r.ok()) return false;
+            // A hall whose corners are the wrong way round, or that reaches
+            // outside the floor, is a hall that would trap the hero in a
+            // rectangle with no way out. Refuse the save instead.
+            if (ar.min.x < 0 || ar.min.y < 0 || ar.max.x < ar.min.x || ar.max.y < ar.min.y)
+                return false;
+            if (ar.max.x >= w || ar.max.y >= h) return false;
+            if (ar.door.x < 0 || ar.door.y < 0 || ar.door.x >= w || ar.door.y >= h) return false;
+            ar.exists = true;
+            ar.sealed = sealed != 0;
+            ar.warned = warned != 0;
+            ar.seals = seals != 0;
+            lvl.arena = ar;
+        }
+
         lvl.map.resize(w, h);
         const std::size_t cells = static_cast<std::size_t>(w) * static_cast<std::size_t>(h);
 

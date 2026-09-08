@@ -297,6 +297,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   flex-wrap: wrap;
   align-items: center;
 }
+.acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .actionbar button { padding: 6px 11px; font-size: 13px; }
 .actionbar kbd {
   font-family: var(--mono);
@@ -397,6 +398,34 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 .pm-amt { color: var(--bad); text-align: right; font-variant-numeric: tabular-nums; }
 .pm-left { color: var(--ink-faint); text-align: right; font-variant-numeric: tabular-nums; }
 .pm-items { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--ink-dim); padding: 2px 4px; }
+
+.setting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 2px;
+  border-bottom: 1px solid #262019;
+}
+.setting-label { flex: 1; color: var(--ink-dim); font-size: 13px; }
+.setting-choice { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pill {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 3px;
+}
+.pill.on {
+  color: var(--bg);
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.belt-meta {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--gold);
+  letter-spacing: .04em;
+}
 
 .delta {
   font-family: var(--mono);
@@ -507,6 +536,107 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   .dpad { display: block; }
   .actionbar { justify-content: center; }
 }
+
+/* ------------------------------------------------------- phone, portrait -- */
+/*
+ * The old portrait layout let the action buttons wrap around the d-pad, which
+ * put words on top of the controls and left the map pane half empty. Here the
+ * bar is two explicit columns: the pad on the left, the actions in a grid on
+ * the right, each with its own space.
+ */
+@media (max-width: 620px) and (orientation: portrait) {
+  .topbar { font-size: 10.5px; gap: 7px; padding: 5px 8px; }
+  .map-wrap { min-height: 34vh; }
+  .side { max-height: 30vh; }
+  .log { min-height: 64px; max-height: 96px; font-size: 12px; }
+  .actionbar {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  }
+  .dpad { flex: 0 0 auto; }
+  .dpad-grid { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(3, 38px); }
+  /* The actions get a column of their own and wrap inside it. Sharing one
+     flex line with the pad is what used to put "Колдовать" on top of
+     "Жертва". */
+  .acts { flex: 1 1 auto; min-width: 0; align-content: flex-start; }
+  .acts button { font-size: 12px; padding: 6px 9px; }
+}
+
+/* ------------------------------------------------------ phone, landscape -- */
+/*
+ * The layout the game is meant to be played in on a phone. The map takes the
+ * whole height, the panel sits beside it as it does on a desktop, and the two
+ * sets of controls float over the map at the corners the thumbs already rest
+ * on — which is also what stops the stats being sliced in half by the buttons,
+ * the way they were.
+ */
+@media (orientation: landscape) and (max-height: 560px) {
+  .topbar { font-size: 10.5px; gap: 8px; padding: 4px 8px; flex-wrap: nowrap; overflow: hidden; }
+  .topbar .stat.zone { display: none; }
+  .stage { flex-direction: row; }
+  .map-wrap { min-height: 0; }
+  .side {
+    width: 168px;
+    max-height: none;
+    border-top: none;
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  .side .panel { padding: 5px 8px; }
+  .side .panel.foes { display: none; }
+  .kv { grid-template-columns: auto 1fr; gap: 1px 6px; font-size: 10.5px; }
+  .log { min-height: 0; max-height: 92px; font-size: 11px; line-height: 1.35; }
+  .meter { margin-bottom: 4px; font-size: 10.5px; }
+
+  .actionbar {
+    position: fixed;
+    right: 174px;
+    bottom: 6px;
+    left: auto;
+    width: auto;
+    max-width: 46vw;
+    justify-content: flex-end;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: rgba(20, 17, 15, .9);
+    padding: 4px 6px;
+    gap: 4px;
+    z-index: 20;
+  }
+  .actionbar button { padding: 4px 8px; font-size: 11.5px; }
+  .dpad {
+    position: fixed;
+    left: 6px;
+    bottom: 6px;
+    display: block;
+    z-index: 20;
+  }
+  .dpad-grid { grid-template-columns: repeat(3, 38px); grid-template-rows: repeat(3, 32px); gap: 4px; }
+  .dpad-grid button { background: rgba(20, 17, 15, .9); }
+}
+
+/* A quiet nudge, not a wall: the game plays in portrait too. */
+.rotate-hint {
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: 96px;             /* under the top bar, over the empty part of the map */
+  transform: translateX(-50%);
+  z-index: 30;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  background: rgba(20, 17, 15, .94);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+.rotate-hint b { color: var(--gold); cursor: pointer; margin-left: 10px; }
+@media (max-width: 620px) and (orientation: portrait) {
+  .rotate-hint.show { display: block; }
+}
 </style>
 </head>
 <body>
@@ -536,7 +666,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     </div>
 
     <div class="field">
-      <label id="lblBelts">Три пояса, три стража</label>
+      <label id="lblBelts">Четыре пояса, восемь стражей</label>
       <div class="belts" id="beltList"></div>
     </div>
 
@@ -546,6 +676,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       <button id="btnHelpTitle">Как играть</button>
       <button id="btnBoardTitle">Рекорды</button>
       <button id="btnBestiaryTitle">Бестиарий</button>
+      <button id="btnSettingsTitle">Настройки</button>
       <button id="btnLang">English</button>
     </div>
   </div>
@@ -562,7 +693,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     <span class="spacer"></span>
     <button id="btnSound" title="Музыка боссов">♪</button>
     <button id="btnGfx" title="Графика / ASCII">ASCII</button>
-    <button id="btnScheme" title="Схема управления">WASD</button>
+    <button id="btnSettings" title="Настройки">Настройки</button>
     <button id="btnSave">Сохранить</button>
     <button id="btnLangGame">EN</button>
     <button id="btnQuit">В начало</button>
@@ -625,18 +756,21 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
         <button data-dir="-1,1">↙</button><button data-dir="0,1">↓</button><button data-dir="1,1">↘</button>
       </div>
     </div>
-    <button id="btnPick">Взять<kbd>g</kbd></button>
-    <button id="btnInv">Котомка<kbd>i</kbd></button>
-    <button id="btnCast">Колдовать<kbd>z</kbd></button>
-    <button id="btnDown">Вниз<kbd>&gt;</kbd></button>
-    <button id="btnUp">Вверх<kbd>&lt;</kbd></button>
-    <button id="btnPray">Жертва<kbd>p</kbd></button>
-    <button id="btnExplore">Обойти<kbd>o</kbd></button>
-    <button id="btnMap">Карта<kbd>m</kbd></button>
-    <button id="btnHelp">?<kbd></kbd></button>
+    <div class="acts">
+      <button id="btnPick">Взять<kbd>g</kbd></button>
+      <button id="btnInv">Котомка<kbd>i</kbd></button>
+      <button id="btnCast">Колдовать<kbd>z</kbd></button>
+      <button id="btnDown">Вниз<kbd>&gt;</kbd></button>
+      <button id="btnUp">Вверх<kbd>&lt;</kbd></button>
+      <button id="btnPray">Жертва<kbd>p</kbd></button>
+      <button id="btnExplore">Обойти<kbd>o</kbd></button>
+      <button id="btnMap">Карта<kbd>m</kbd></button>
+      <button id="btnHelp">?<kbd></kbd></button>
+    </div>
   </div>
 </section>
 
+<div class="rotate-hint" id="rotateHint"></div>
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
@@ -655,7 +789,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     ru: {
       tagline: 'Спуск в двенадцать кругов подземного мира.',
       built: 'Игровое ядро на C++20, собрано в WebAssembly. Тот же код играется в терминале.',
-      lblClass: 'Кем спускаешься', lblSeed: 'Зерно (необязательно)', lblBelts: 'Три пояса, три стража',
+      lblClass: 'Кем спускаешься', lblSeed: 'Зерно (необязательно)', lblBelts: 'Четыре пояса, восемь стражей',
       seedHint: 'Одно и то же зерно всегда даёт одно и то же подземелье — так воспроизводится любая находка или баг.',
       start: 'Спуститься', cont: 'Продолжить', help: 'Как играть', bestiary: 'Бестиарий',
       otherLang: 'English', brand: 'НАВЬ',
@@ -687,6 +821,12 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       explore: 'Обойти', mapBtn: 'Карта',
       dAtk: 'удар', dDef: 'защита', dHp: 'жизнь', dSpd: 'прыть', dSight: 'взор',
       pmBlows: 'Последние удары', pmUnspent: 'Осталось неиспользованным', pmTurn: 'ход',
+      settings: 'Настройки', settingsSub: 'Всё меняется прямо во время партии.',
+      settingsKeys: 'Полный список клавиш — в справке.',
+      setControls: 'Управление', classicShort: 'как в рогаликах',
+      setView: 'Вид карты', viewWhole: 'Весь этаж', viewClose: 'Крупно',
+      setGfx: 'Графика', gfxSprites: 'Спрайты', setSound: 'Музыка боссов',
+      setLang: 'Язык', on: 'Вкл', off: 'Выкл', rotate: 'Поверни телефон — так удобнее',
       boardTitle: 'Лучшие спуски', boardSub: 'Десять лучших партий в этом браузере.',
       boardEmpty: 'Пока никто не спускался.', boardBtn: 'Рекорды',
       wonTag: 'победа', best: 'Лучший спуск.', placed: 'В таблице: место ',
@@ -712,7 +852,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     en: {
       tagline: 'A descent through twelve circles of the underworld.',
       built: 'The game core is C++20, compiled to WebAssembly. The same code plays in a terminal.',
-      lblClass: 'Who goes down', lblSeed: 'Seed (optional)', lblBelts: 'Three belts, three guardians',
+      lblClass: 'Who goes down', lblSeed: 'Seed (optional)', lblBelts: 'Four belts, eight guardians',
       seedHint: 'The same seed always builds the same dungeon — that is how any find, or any bug, is reproduced.',
       start: 'Descend', cont: 'Continue', help: 'How to play', bestiary: 'Bestiary',
       otherLang: 'Русский', brand: 'NAV',
@@ -744,6 +884,12 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       explore: 'Explore', mapBtn: 'Map',
       dAtk: 'atk', dDef: 'def', dHp: 'hp', dSpd: 'spd', dSight: 'sight',
       pmBlows: 'The last blows', pmUnspent: 'Left unused in the pack', pmTurn: 'turn',
+      settings: 'Settings', settingsSub: 'All of it changes mid-run.',
+      settingsKeys: 'The full list of keys is in the help.',
+      setControls: 'Controls', classicShort: 'roguelike',
+      setView: 'Map view', viewWhole: 'Whole floor', viewClose: 'Close up',
+      setGfx: 'Graphics', gfxSprites: 'Sprites', setSound: 'Boss music',
+      setLang: 'Language', on: 'On', off: 'Off', rotate: 'Turn the phone — it plays better',
       boardTitle: 'Best descents', boardSub: 'The ten best runs in this browser.',
       boardEmpty: 'Nobody has gone down yet.', boardBtn: 'Scores',
       wonTag: 'won', best: 'Your best descent yet.', placed: 'On the board: place ',
@@ -1030,12 +1176,50 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   function aspect() { return spriteMode ? 1 : 1.5; }
 
   // ------------------------------------------------------------ rendering --
+  var VIEW_KEY = 'nav.view.v1';
+  var wholeFloor = true;   ///< Fit the whole floor when it will fit legibly.
+
+  function loadView() {
+    try {
+      var v = localStorage.getItem(VIEW_KEY);
+      if (v === 'close') wholeFloor = false;
+    } catch (e) { /* private mode */ }
+  }
+
+  function setWholeFloor(on) {
+    wholeFloor = !!on;
+    try { localStorage.setItem(VIEW_KEY, wholeFloor ? 'whole' : 'close'); } catch (e) {}
+    if (state) { fitCanvas(); drawMap(); }
+  }
+
   function fitCanvas() {
     if (!state) return;
     var wrap = canvas.parentElement;
     var availW = wrap.clientWidth - 8;
     var availH = wrap.clientHeight - 8;
     if (availW <= 0 || availH <= 0) return;
+
+    // First choice: the whole floor at once. A window that follows the hero
+    // means most of the level is off-screen, and on a desktop that reads — the
+    // player said so — as part of the game being cut off. So the floor is shown
+    // entire whenever a cell still comes out big enough to read; only when it
+    // does not does the view fall back to following the hero.
+    if (wholeFloor) {
+      var whole = Math.floor(Math.min(availW / state.w, availH / state.h / aspect()));
+      var floorSize = spriteMode ? 14 : 9;
+      if (whole >= floorSize) {
+        cell.size = Math.min(whole, spriteMode ? 40 : 28);
+        cell.w = state.w;
+        cell.h = state.h;
+        var dprAll = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(cell.w * cell.size * dprAll);
+        canvas.height = Math.floor(cell.h * cell.size * aspect() * dprAll);
+        canvas.style.width = (cell.w * cell.size) + 'px';
+        canvas.style.height = (cell.h * cell.size * aspect()) + 'px';
+        ctx.setTransform(dprAll, 0, 0, dprAll, 0, 0);
+        return;
+      }
+    }
 
     // Aim for a chunky, readable cell and let the viewport follow the hero,
     // rather than shrinking the whole floor to fit. Showing all 72x34 cells at
@@ -1112,10 +1296,11 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
           if (ec >= 0) {
             var ekey = m.entityKeys[ec];
             if (Sprites.sizeOf(ekey) > 16) {
-              // A guardian is twice the size of its cell, so it has to be
-              // drawn after the ordinary pass — otherwise the floor of the
-              // cell above it would be painted over its head.
-              big.push({key: ekey, x: px, y: py, alpha: ctx.globalAlpha});
+              // A guardian is several cells tall, so it has to be drawn after
+              // the ordinary pass — otherwise the floor of the cell above it
+              // would be painted over its head.
+              big.push({key: ekey, x: px, y: py, alpha: ctx.globalAlpha,
+                        scale: Sprites.sizeOf(ekey) / 16});
             } else {
               var ebmp = Sprites.get(ekey, null);
               if (ebmp) ctx.drawImage(ebmp, px, py, size, lineH);
@@ -1139,7 +1324,12 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       var bmp = Sprites.get(big[b].key, null);
       if (!bmp) continue;
       ctx.globalAlpha = big[b].alpha;
-      ctx.drawImage(bmp, big[b].x - size / 2, big[b].y - lineH, size * 2, lineH * 2);
+      // Centred on its own cell horizontally and standing on it: a guardian
+      // three cells tall has its feet where a monster's feet would be, and
+      // takes the two rows above for everything else.
+      var s = big[b].scale || 2;
+      ctx.drawImage(bmp, big[b].x - size * (s - 1) / 2, big[b].y - lineH * (s - 1),
+                    size * s, lineH * s);
     }
     ctx.globalAlpha = 1;
 
@@ -1179,6 +1369,10 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('btnSound').textContent = on ? '♪' : '♪̸';
     $('btnSound').style.opacity = on ? '1' : '0.45';
     $('btnSound').classList.toggle('hidden', !(window.NavMusic && NavMusic.available()));
+  }
+
+  function soundIsOn() {
+    return !!(window.NavMusic && NavMusic.available() && NavMusic.enabled());
   }
 
   function toggleSound() {
@@ -1436,12 +1630,78 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     applyLanguage();
   }
 
-  function toggleScheme() {
-    scheme = scheme === 1 ? 0 : 1;
+  function setScheme(next) {
+    scheme = next ? 1 : 0;
     saveScheme();
     refreshKeyTable();
     applyLanguage();
-    showHelp();
+  }
+
+  /// Settings, in one place, reachable from the game and from the title.
+  ///
+  /// It exists because the control scheme had a button in the top bar that read
+  /// "HJKL" — the name of the scheme that was on, not of the thing the button
+  /// would do — and a player who wanted WASD had no way to guess that pressing
+  /// it was the answer. A row of labelled choices cannot be misread that way.
+  function showSettings() {
+    var row = function (label, options, current, attr) {
+      return '<div class="setting"><span class="setting-label">' + label + '</span>' +
+        '<span class="setting-choice">' + options.map(function (o, i) {
+          return '<button class="pill' + (i === current ? ' on' : '') + '" ' +
+                 attr + '="' + i + '">' + esc(o) + '</button>';
+        }).join('') + '</span></div>';
+    };
+
+    openModal(
+      '<h2>' + t('settings') + '</h2><p class="sub">' + t('settingsSub') + '</p>' +
+      row(t('setControls'), ['HJKL / ' + t('classicShort'), 'WASD'], scheme, 'data-scheme') +
+      row(t('setView'), [t('viewWhole'), t('viewClose')], wholeFloor ? 0 : 1, 'data-view') +
+      row(t('setGfx'), [t('gfxSprites'), 'ASCII'], spriteMode ? 0 : 1, 'data-gfx') +
+      row(t('setSound'), [t('on'), t('off')], soundIsOn() ? 0 : 1, 'data-sound') +
+      row(t('setLang'), ['Русский', 'English'], LANG === 'ru' ? 0 : 1, 'data-lang') +
+      '<p class="sub" style="margin-top:14px">' + t('settingsKeys') + '</p>' +
+      '<div style="margin-top:6px"><button id="mHelp">' + t('help') + '</button> ' +
+      '<button id="mClose">' + t('close') + '</button></div>',
+      function (overlay) {
+        overlay.querySelector('#mClose').addEventListener('click', closeModal);
+        overlay.querySelector('#mHelp').addEventListener('click', function () {
+          closeModal();
+          showHelp();
+        });
+        var again = function () { closeModal(); showSettings(); };
+        overlay.querySelectorAll('[data-scheme]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            setScheme(parseInt(b.getAttribute('data-scheme'), 10) === 1);
+            again();
+          });
+        });
+        overlay.querySelectorAll('[data-view]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            setWholeFloor(parseInt(b.getAttribute('data-view'), 10) === 0);
+            again();
+          });
+        });
+        overlay.querySelectorAll('[data-gfx]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            if ((parseInt(b.getAttribute('data-gfx'), 10) === 0) !== spriteMode) toggleRenderer();
+            again();
+          });
+        });
+        overlay.querySelectorAll('[data-sound]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            if ((parseInt(b.getAttribute('data-sound'), 10) === 0) !== soundIsOn())
+              toggleSound();
+            again();
+          });
+        });
+        overlay.querySelectorAll('[data-lang]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            var want = parseInt(b.getAttribute('data-lang'), 10) === 0 ? 'ru' : 'en';
+            if (want !== LANG) { LANG = want; applyLanguage(); }
+            again();
+          });
+        });
+      });
   }
 
   /// The whole explored floor at once.
@@ -1696,12 +1956,28 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Shift') { shiftDown = true; return; }
     if (e.target.tagName === 'INPUT') return;
-    if ($('game').classList.contains('hidden')) { stopWalking(); return; }
 
     // The browser has an auto-repeat of its own, with a long first delay and a
     // rate the page does not control. Ours is better tuned and can be stopped
     // the instant something happens, so the browser's is dropped on the floor.
     if (e.repeat) { e.preventDefault(); return; }
+
+    // Modals are handled before anything else, because settings and help open
+    // over the title screen too — and Escape has to shut them there as well.
+    // It did not, which is the sort of thing that makes a menu feel broken.
+    if (modalOpen() && !aiming) {
+      if (e.key === 'Escape') { closeModal(); e.preventDefault(); return; }
+      var sheetEl = $('modalRoot').querySelector('.sheet');
+      var picks = sheetEl ? sheetEl.querySelectorAll('[data-index],[data-spell]') : [];
+      var choice = e.key.charCodeAt(0) - 97;
+      if (e.key.length === 1 && choice >= 0 && choice < picks.length && !picks[choice].disabled) {
+        picks[choice].click();
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if ($('game').classList.contains('hidden')) { stopWalking(); return; }
 
     if (aiming) {
       if (e.key === 'Escape') { cancelAiming(); e.preventDefault(); return; }
@@ -1711,18 +1987,6 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
         showAiming();
         e.preventDefault();
         return;
-      }
-      return;
-    }
-
-    if (modalOpen()) {
-      if (e.key === 'Escape') { closeModal(); e.preventDefault(); }
-      var sheet = $('modalRoot').querySelector('.sheet');
-      var buttons = sheet ? sheet.querySelectorAll('[data-index],[data-spell]') : [];
-      var pick = e.key.charCodeAt(0) - 97;
-      if (e.key.length === 1 && pick >= 0 && pick < buttons.length && !buttons[pick].disabled) {
-        buttons[pick].click();
-        e.preventDefault();
       }
       return;
     }
@@ -1827,6 +2091,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('btnContinue').textContent = t('cont');
     $('btnHelpTitle').textContent = t('help');
     $('btnBestiaryTitle').textContent = t('bestiary');
+    $('btnSettingsTitle').textContent = t('settings');
+    if ($('rotateText')) $('rotateText').textContent = t('rotate');
     $('btnBoardTitle').textContent = t('boardBtn');
     $('btnLang').textContent = t('otherLang');
 
@@ -1862,7 +2128,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('btnPray').innerHTML = t('pray') + '<kbd>p</kbd>';
     $('btnExplore').innerHTML = t('explore') + '<kbd>o</kbd>';
     $('btnMap').innerHTML = t('mapBtn') + '<kbd>m</kbd>';
-    $('btnScheme').textContent = scheme === 1 ? 'WASD' : 'HJKL';
+    $('btnSettings').textContent = t('settings');
 
     if (Api) {
       statics = Api.statics();
@@ -1888,7 +2154,10 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     }).join('');
     if (statics.zones) {
       $('beltList').innerHTML = statics.zones.map(function (z) {
-        return '<div class="belt"><b>' + esc(z.name) + '</b><span>' + esc(z.blurb) + '</span></div>';
+        return '<div class="belt"><b>' + esc(z.name) + '</b>' +
+          '<span class="belt-meta">' + esc(z.depths) +
+          (z.guardian ? ' · ' + esc(z.guardian) : '') + '</span>' +
+          '<span>' + esc(z.blurb) + '</span></div>';
       }).join('');
     }
     $('classList').querySelectorAll('[data-class]').forEach(function (b) {
@@ -1960,6 +2229,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   });
   $('btnHelpTitle').addEventListener('click', showHelp);
   $('btnBestiaryTitle').addEventListener('click', showBestiary);
+  $('btnSettingsTitle').addEventListener('click', showSettings);
   $('btnBoardTitle').addEventListener('click', showBoard);
   $('btnLang').addEventListener('click', function () {
     LANG = LANG === 'ru' ? 'en' : 'ru';
@@ -1979,7 +2249,22 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   $('btnExplore').addEventListener('click', function () { act(ACT.Explore); });
   $('btnMap').addEventListener('click', showFloorMap);
   $('btnHelp').addEventListener('click', showHelp);
-  $('btnScheme').addEventListener('click', toggleScheme);
+  $('btnSettings').addEventListener('click', showSettings);
+
+  // Shown once per browser, and dismissible: the landscape layout is better,
+  // but a player holding the phone one-handed has their own reasons.
+  (function () {
+    var hint = $('rotateHint');
+    var seen = false;
+    try { seen = localStorage.getItem('nav.rotate') === '1'; } catch (e) {}
+    if (seen) return;
+    hint.innerHTML = '<span id="rotateText"></span><b id="rotateGo">\u00d7</b>';
+    hint.classList.add('show');
+    $('rotateGo').addEventListener('click', function () {
+      hint.classList.remove('show');
+      try { localStorage.setItem('nav.rotate', '1'); } catch (e) {}
+    });
+  })();
 
   window.addEventListener('resize', function () {
     if (!state) return;
@@ -1991,6 +2276,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     Api = makeApi(m);
     Api.setLanguage(LANG);
     loadScheme();
+    loadView();
     refreshKeyTable();
     statics = Api.statics();
     renderClasses();

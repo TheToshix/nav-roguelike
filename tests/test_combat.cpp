@@ -16,9 +16,11 @@ using namespace nav;
 namespace {
 
 /// A game on a blank, monster-free floor with the hero in a known spot.
-class Arena {
+/// A cleared floor with a durable hero. Named TestFloor rather than Arena
+/// because the engine now has an Arena of its own — the guardian's hall.
+class TestFloor {
 public:
-    explicit Arena(HeroClass cls = HeroClass::Vityaz, std::uint64_t seed = 2026) {
+    explicit TestFloor(HeroClass cls = HeroClass::Vityaz, std::uint64_t seed = 2026) {
         GameConfig cfg;
         cfg.seed = seed;
         cfg.hero_class = cls;
@@ -97,7 +99,7 @@ public:
 // --- Movement --------------------------------------------------------------
 
 TEST(Movement, WalkingIntoOpenFloorMovesTheHero) {
-    Arena a;
+    TestFloor a;
     const Vec2 before = a.game.hero().a.pos;
     EXPECT_TRUE(a.move({1, 0}));
     EXPECT_EQ(a.game.hero().a.pos, (before + Vec2{1, 0}));
@@ -106,7 +108,7 @@ TEST(Movement, WalkingIntoOpenFloorMovesTheHero) {
 TEST(Movement, BumpingAWallCostsNoTurn) {
     // Free movement into walls would let a player scout the layout for nothing;
     // worse, it made hunger and poison advance while standing still.
-    Arena a;
+    TestFloor a;
     a.game.mutable_level().map.set({11, 10}, Tile::Wall);
     const int turn_before = a.game.turn();
     const Vec2 pos_before = a.game.hero().a.pos;
@@ -117,7 +119,7 @@ TEST(Movement, BumpingAWallCostsNoTurn) {
 }
 
 TEST(Movement, WalkingIntoAClosedDoorOpensIt) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_level().map.set({11, 10}, Tile::Door);
     const Vec2 pos_before = a.game.hero().a.pos;
 
@@ -130,19 +132,19 @@ TEST(Movement, WalkingIntoAClosedDoorOpensIt) {
 }
 
 TEST(Movement, ChasmsCannotBeEntered) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_level().map.set({11, 10}, Tile::Chasm);
     EXPECT_FALSE(a.move({1, 0}));
     EXPECT_EQ(a.game.hero().a.pos, (Vec2{10, 10}));
 }
 
 TEST(Movement, WadingThroughWaterCostsMoreThanWalking) {
-    Arena dry;
+    TestFloor dry;
     const int dry_turns_before = dry.game.turn();
     dry.move({1, 0});
     const int dry_cost = dry.game.turn() - dry_turns_before;
 
-    Arena wet;
+    TestFloor wet;
     wet.game.mutable_level().map.set({11, 10}, Tile::Water);
     const int wet_turns_before = wet.game.turn();
     wet.move({1, 0});
@@ -152,14 +154,14 @@ TEST(Movement, WadingThroughWaterCostsMoreThanWalking) {
 }
 
 TEST(Movement, AZeroDirectionIsRejected) {
-    Arena a;
+    TestFloor a;
     EXPECT_FALSE(a.move({0, 0}));
 }
 
 // --- Melee -----------------------------------------------------------------
 
 TEST(Combat, SteppingIntoAMonsterAttacksInsteadOfMoving) {
-    Arena a;
+    TestFloor a;
     a.spawn("upyr", {11, 10}, 200);  // tough enough to survive the swing
     const Vec2 pos_before = a.game.hero().a.pos;
     const int hp_before = a.game.monsters()[0].a.hp;
@@ -173,7 +175,7 @@ TEST(Combat, SteppingIntoAMonsterAttacksInsteadOfMoving) {
 TEST(Combat, ArmourReducesDamageButNeverToZero) {
     // The stone idol has defence 8, far above a starting hero's attack. Even
     // then every hit must land for at least one point.
-    Arena a;
+    TestFloor a;
     a.spawn("kamennaya", {11, 10}, 500);
     a.game.mutable_hero().a.max_hp = 100000;  // survive long enough to finish the sample
     a.game.mutable_hero().a.hp = 100000;
@@ -189,7 +191,7 @@ TEST(Combat, ArmourReducesDamageButNeverToZero) {
 }
 
 TEST(Combat, KillingAMonsterRemovesItAndAwardsExperience) {
-    Arena a;
+    TestFloor a;
     a.spawn("anchutka", {11, 10}, 1);  // one hit is enough
     const int xp_before = a.game.hero().xp;
     const int kills_before = a.game.hero().kills;
@@ -202,7 +204,7 @@ TEST(Combat, KillingAMonsterRemovesItAndAwardsExperience) {
 }
 
 TEST(Combat, EnoughExperienceLevelsTheHeroUp) {
-    Arena a;
+    TestFloor a;
     ASSERT_EQ(a.game.hero().level, 1);
     const int hp_before = a.game.hero().a.max_hp;
 
@@ -219,7 +221,7 @@ TEST(Combat, EnoughExperienceLevelsTheHeroUp) {
 }
 
 TEST(Combat, TheHeroCanBeKilledAndTheRunEnds) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_hero().a.hp = 1;
     a.spawn("zmey", {11, 10}, 500);  // hits far harder than one point
 
@@ -231,7 +233,7 @@ TEST(Combat, TheHeroCanBeKilledAndTheRunEnds) {
 }
 
 TEST(Combat, NoActionIsAcceptedOnceTheRunIsOver) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_hero().a.hp = 1;
     a.spawn("zmey", {11, 10}, 500);
     for (int i = 0; i < 40 && a.game.state() == RunState::Playing; ++i) a.wait_turn();
@@ -246,7 +248,7 @@ TEST(Combat, NoActionIsAcceptedOnceTheRunIsOver) {
 TEST(Combat, KoscheiRisesAgainWhileTheNeedleIsWhole) {
     // His death is not in his body. Killing him without breaking the needle
     // first is supposed to fail — that is the whole fight.
-    Arena a;
+    TestFloor a;
     a.spawn("koschei", {11, 10}, 1);
     a.place_beside_hero();
     a.move({1, 0});
@@ -259,7 +261,7 @@ TEST(Combat, KoscheiRisesAgainWhileTheNeedleIsWhole) {
 }
 
 TEST(Combat, BreakingTheNeedleMakesKoscheiMortal) {
-    Arena a;
+    TestFloor a;
     Item needle{};
     needle.kind = ItemKind::Needle;
     needle.identified = true;
@@ -281,7 +283,7 @@ TEST(Combat, BreakingTheNeedleMakesKoscheiMortal) {
 // --- Derived statistics ----------------------------------------------------
 
 TEST(Stats, EquippingAWeaponRaisesTheAttackRating) {
-    Arena a;
+    TestFloor a;
     const int before = a.game.hero_attack();
 
     Item axe = a.make_gear("sekira");
@@ -293,7 +295,7 @@ TEST(Stats, EquippingAWeaponRaisesTheAttackRating) {
 }
 
 TEST(Stats, EquippingArmourRaisesTheDefenceRating) {
-    Arena a;
+    TestFloor a;
     const int before = a.game.hero_defence();
     Item plate = a.make_gear("zertsalo");
     a.game.mutable_hero().inv.add(plate);
@@ -303,7 +305,7 @@ TEST(Stats, EquippingArmourRaisesTheDefenceRating) {
 }
 
 TEST(Stats, TheLifeCharmRaisesTheMaximumHealth) {
-    Arena a;
+    TestFloor a;
     const int before = a.game.hero().a.max_hp;
     Item charm = a.make_gear("ob_zhizni");
     a.game.mutable_hero().inv.add(charm);
@@ -315,7 +317,7 @@ TEST(Stats, TheLifeCharmRaisesTheMaximumHealth) {
 }
 
 TEST(Stats, RemovingTheLifeCharmDoesNotLeaveHealthAboveTheMaximum) {
-    Arena a;
+    TestFloor a;
     Item charm = a.make_gear("ob_zhizni");
     a.game.mutable_hero().inv.add(charm);
     const int index = static_cast<int>(a.game.mutable_hero().inv.items.size()) - 1;
@@ -327,7 +329,7 @@ TEST(Stats, RemovingTheLifeCharmDoesNotLeaveHealthAboveTheMaximum) {
 }
 
 TEST(Stats, TheSightCharmWidensTheFieldOfView) {
-    Arena a;
+    TestFloor a;
     const int before = a.game.hero_sight();
     Item charm = a.make_gear("ob_zorko");
     a.game.mutable_hero().inv.add(charm);
@@ -337,13 +339,13 @@ TEST(Stats, TheSightCharmWidensTheFieldOfView) {
 }
 
 TEST(Stats, BlindnessCollapsesTheFieldOfViewToOneCell) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_hero().a.add_effect(Effect::Blind, 5, 1);
     EXPECT_EQ(a.game.hero_sight(), 1);
 }
 
 TEST(Stats, MightRaisesTheAttackRatingWhileItLasts) {
-    Arena a;
+    TestFloor a;
     const int before = a.game.hero_attack();
     a.game.mutable_hero().a.add_effect(Effect::Might, 5, 4);
     EXPECT_EQ(a.game.hero_attack(), before + 4);
@@ -352,7 +354,7 @@ TEST(Stats, MightRaisesTheAttackRatingWhileItLasts) {
 // --- Items in play ---------------------------------------------------------
 
 TEST(Items, GoldGoesStraightIntoThePurse) {
-    Arena a;
+    TestFloor a;
     Item gold{};
     gold.kind = ItemKind::Gold;
     gold.count = 75;
@@ -366,12 +368,12 @@ TEST(Items, GoldGoesStraightIntoThePurse) {
 }
 
 TEST(Items, PickingUpWithNothingUnderfootIsRefused) {
-    Arena a;
+    TestFloor a;
     EXPECT_FALSE(a.game.perform(Action{ActionType::PickUp, {}, -1, {}}));
 }
 
 TEST(Items, DroppingPutsTheItemBackOnTheFloor) {
-    Arena a;
+    TestFloor a;
     const int index = 0;
     ASSERT_FALSE(a.game.hero().inv.items.empty());
     const std::size_t pack_before = a.game.hero().inv.items.size();
@@ -383,7 +385,7 @@ TEST(Items, DroppingPutsTheItemBackOnTheFloor) {
 }
 
 TEST(Items, ADroppedItemCanBePickedUpAgain) {
-    Arena a;
+    TestFloor a;
     const std::size_t pack_before = a.game.hero().inv.items.size();
     a.game.perform(Action{ActionType::DropItem, {}, 0, {}});
     a.game.perform(Action{ActionType::PickUp, {}, -1, {}});
@@ -391,7 +393,7 @@ TEST(Items, ADroppedItemCanBePickedUpAgain) {
 }
 
 TEST(Items, AHealingPotionRestoresHealthAndIsConsumed) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_hero().a.hp = 5;
 
     int potion_index = -1;
@@ -410,7 +412,7 @@ TEST(Items, AHealingPotionRestoresHealthAndIsConsumed) {
 }
 
 TEST(Items, DrinkingAPotionIdentifiesThatKind) {
-    Arena a;
+    TestFloor a;
     int potion_index = -1;
     for (std::size_t i = 0; i < a.game.hero().inv.items.size(); ++i)
         if (a.game.hero().inv.items[i].kind == ItemKind::Potion) potion_index = static_cast<int>(i);
@@ -423,7 +425,7 @@ TEST(Items, DrinkingAPotionIdentifiesThatKind) {
 }
 
 TEST(Items, TheMagicMapScrollRevealsTheWholeFloor) {
-    Arena a;
+    TestFloor a;
     Item scroll{};
     scroll.kind = ItemKind::Scroll;
     scroll.subtype = static_cast<int>(ScrollKind::MagicMap);
@@ -437,7 +439,7 @@ TEST(Items, TheMagicMapScrollRevealsTheWholeFloor) {
 }
 
 TEST(Items, TheIdentifyScrollNamesEverythingInThePack) {
-    Arena a;
+    TestFloor a;
     Item mystery{};
     mystery.kind = ItemKind::Potion;
     mystery.subtype = static_cast<int>(PotionKind::Regen);
@@ -455,7 +457,7 @@ TEST(Items, TheIdentifyScrollNamesEverythingInThePack) {
 }
 
 TEST(Items, UsingAnInvalidInventoryIndexIsRefused) {
-    Arena a;
+    TestFloor a;
     EXPECT_FALSE(a.game.perform(Action{ActionType::UseItem, {}, -1, {}}));
     EXPECT_FALSE(a.game.perform(Action{ActionType::UseItem, {}, 999, {}}));
 }
@@ -463,13 +465,13 @@ TEST(Items, UsingAnInvalidInventoryIndexIsRefused) {
 // --- Stairs ----------------------------------------------------------------
 
 TEST(Stairs, DescendingRequiresStandingOnTheStaircase) {
-    Arena a;
+    TestFloor a;
     EXPECT_FALSE(a.game.perform(Action{ActionType::Descend, {}, -1, {}}));
     EXPECT_EQ(a.game.depth(), 1);
 }
 
 TEST(Stairs, DescendingMovesToTheNextFloor) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_level().map.set(a.game.hero().a.pos, Tile::StairsDown);
     EXPECT_TRUE(a.game.perform(Action{ActionType::Descend, {}, -1, {}}));
     EXPECT_EQ(a.game.depth(), 2);
@@ -479,7 +481,7 @@ TEST(Stairs, DescendingMovesToTheNextFloor) {
 TEST(Stairs, TheFirstFloorLeadsBackToTheCrossroadsAndNoFurther) {
     // Climbing out of the first floor returns the hero to the crossroads,
     // which is a room and not an exit: from there the stairs only go down.
-    Arena a;
+    TestFloor a;
     a.game.mutable_level().map.set(a.game.hero().a.pos, Tile::StairsUp);
     ASSERT_TRUE(a.game.perform(Action{ActionType::Ascend, {}, -1, {}}));
     EXPECT_EQ(a.game.depth(), kLobbyDepth);
@@ -493,7 +495,7 @@ TEST(Stairs, TheFirstFloorLeadsBackToTheCrossroadsAndNoFurther) {
 TEST(Stairs, AFloorIsRememberedWhenTheHeroComesBack) {
     // Levels are cached, so loot left behind and monsters killed must still be
     // that way on the way back up.
-    Arena a;
+    TestFloor a;
     a.game.mutable_level().map.set(a.game.hero().a.pos, Tile::StairsDown);
     ASSERT_TRUE(a.game.perform(Action{ActionType::Descend, {}, -1, {}}));
     ASSERT_EQ(a.game.depth(), 2);
@@ -522,24 +524,24 @@ TEST(Stairs, AFloorIsRememberedWhenTheHeroComesBack) {
 // --- Spells ----------------------------------------------------------------
 
 TEST(Spells, TheSorcererStartsKnowingFireArrow) {
-    Arena a(HeroClass::Vedun);
+    TestFloor a(HeroClass::Vedun);
     EXPECT_TRUE(a.game.hero().knows(Spell::FireArrow));
     EXPECT_GT(a.game.hero().max_mana, 0);
 }
 
 TEST(Spells, TheWarriorKnowsNoSpellsAtFirst) {
-    Arena a(HeroClass::Vityaz);
+    TestFloor a(HeroClass::Vityaz);
     EXPECT_TRUE(a.game.castable_spells().empty());
 }
 
 TEST(Spells, CastingAnUnknownSpellIsRefused) {
-    Arena a(HeroClass::Vityaz);
+    TestFloor a(HeroClass::Vityaz);
     EXPECT_FALSE(a.game.perform(
         Action{ActionType::CastSpell, {}, static_cast<int>(Spell::Lightning), {11, 10}}));
 }
 
 TEST(Spells, FireArrowDamagesItsTargetAndSpendsPower) {
-    Arena a(HeroClass::Vedun);
+    TestFloor a(HeroClass::Vedun);
     a.spawn("upyr", {13, 10}, 60);
     const int hp_before = a.game.monsters()[0].a.hp;
     const int mana_before = a.game.hero().mana;
@@ -553,7 +555,7 @@ TEST(Spells, FireArrowDamagesItsTargetAndSpendsPower) {
 }
 
 TEST(Spells, CastingIsRefusedWithoutEnoughPower) {
-    Arena a(HeroClass::Vedun);
+    TestFloor a(HeroClass::Vedun);
     a.spawn("upyr", {13, 10}, 60);
     a.game.mutable_hero().mana = 0;
     EXPECT_FALSE(a.game.perform(
@@ -561,7 +563,7 @@ TEST(Spells, CastingIsRefusedWithoutEnoughPower) {
 }
 
 TEST(Spells, TargetsOutOfRangeAreRefused) {
-    Arena a(HeroClass::Vedun);
+    TestFloor a(HeroClass::Vedun);
     const int range = spell_info(Spell::FireArrow).range;
     const Vec2 far_away{10 + range + 3, 10};
     a.spawn("upyr", far_away, 60);
@@ -570,7 +572,7 @@ TEST(Spells, TargetsOutOfRangeAreRefused) {
 }
 
 TEST(Spells, TargetListingOnlyOffersVisibleCreaturesInRange) {
-    Arena a(HeroClass::Vedun);
+    TestFloor a(HeroClass::Vedun);
     a.spawn("upyr", {13, 10}, 60);
     a.game.perform(Action{ActionType::Wait, {}, -1, {}});  // refresh the field of view
 
@@ -583,7 +585,7 @@ TEST(Spells, TargetListingOnlyOffersVisibleCreaturesInRange) {
 }
 
 TEST(Spells, HealingRestoresHealthWithoutATarget) {
-    Arena a(HeroClass::Vedun);
+    TestFloor a(HeroClass::Vedun);
     a.game.mutable_hero().learn(Spell::Heal);
     a.game.mutable_hero().mana = a.game.hero().max_mana;
     a.game.mutable_hero().a.hp = 3;
@@ -594,7 +596,7 @@ TEST(Spells, HealingRestoresHealthWithoutATarget) {
 }
 
 TEST(Spells, ConfusionMakesACastFizzleButStillCostPower) {
-    Arena a(HeroClass::Vedun);
+    TestFloor a(HeroClass::Vedun);
     a.spawn("upyr", {13, 10}, 60);
     a.game.mutable_hero().a.add_effect(Effect::Confusion, 5, 1);
     const int mana_before = a.game.hero().mana;
@@ -608,7 +610,7 @@ TEST(Spells, ConfusionMakesACastFizzleButStillCostPower) {
 }
 
 TEST(Spells, BossesShrugOffLongFreezes) {
-    Arena a(HeroClass::Vedun);
+    TestFloor a(HeroClass::Vedun);
     a.game.mutable_hero().learn(Spell::IceBind);
     a.game.mutable_hero().mana = 99;
     a.spawn("koschei", {13, 10}, 500);
@@ -625,12 +627,12 @@ TEST(Spells, BossesShrugOffLongFreezes) {
 // --- The shrine ------------------------------------------------------------
 
 TEST(Shrine, PrayingElsewhereIsRefused) {
-    Arena a;
+    TestFloor a;
     EXPECT_FALSE(a.game.perform(Action{ActionType::Pray, {}, -1, {}}));
 }
 
 TEST(Shrine, AnOfferingCostsGoldAndEnchantsWornGear) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_level().map.set(a.game.hero().a.pos, Tile::Altar);
     a.game.mutable_hero().gold = 5000;
     const int gold_before = a.game.hero().gold;
@@ -646,7 +648,7 @@ TEST(Shrine, AnOfferingCostsGoldAndEnchantsWornGear) {
 }
 
 TEST(Shrine, AnOfferingWithoutEnoughGoldIsRefused) {
-    Arena a;
+    TestFloor a;
     a.game.mutable_level().map.set(a.game.hero().a.pos, Tile::Altar);
     a.game.mutable_hero().gold = 0;
     EXPECT_FALSE(a.game.perform(Action{ActionType::Pray, {}, -1, {}}));

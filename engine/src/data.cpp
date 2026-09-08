@@ -178,6 +178,19 @@ bool is_zone_entrance(int depth) {
     return depth == 1 || depth == 5 || depth == 9 || depth == 13;
 }
 
+const std::vector<Zone>& descending_belts() {
+    static const std::vector<Zone> belts = {Zone::Pogost, Zone::Chernotop, Zone::Koshchei,
+                                            Zone::Peklo};
+    return belts;
+}
+
+int belt_last_depth(Zone zone) {
+    int last = 0;
+    for (int d = 1; d <= kMaxDepth; ++d)
+        if (zone_for_depth(d) == zone) last = d;
+    return last;
+}
+
 const ZoneTheme& zone_theme(Zone zone) {
     static const ZoneTheme themes[] = {
         {Zone::Pogost,

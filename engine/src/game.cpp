@@ -133,7 +133,225 @@ void Game::ensure_level(int depth) {
     // The bottom floor has no way further down.
     if (depth == kMaxDepth) lvl.map.set(lvl.exit, Tile::Floor);
 
+    // The hall is walled before anything is placed, so the guardian is put
+    // inside it and everything else is put around it.
+    build_arena(lvl, depth);
     populate(lvl, depth);
+
+    // Ordinary monsters have no business in the guardian's hall: the seal would
+    // trap the player with whatever happened to spawn there, which is not the
+    // fight the arena exists to stage.
+    if (lvl.arena.exists) {
+        const char* master = boss_for_depth(depth);
+        const int master_index = master ? species_index(master) : -1;
+        for (Monster& m : lvl.monsters) {
+            if (m.species == master_index) continue;
+            if (!lvl.arena.contains(m.a.pos)) continue;
+            // Somewhere outside the hall and not on top of the arriving hero:
+            // being moved out of the boss room is no excuse to appear in
+            // someone's face on the stairs.
+            for (int attempt = 0; attempt < 24; ++attempt) {
+                const Vec2 out = random_free_spot(lvl, lvl.entrance, 6);
+                if (out.x < 0 || lvl.arena.contains(out)) continue;
+                m.a.pos = out;
+                break;
+            }
+        }
+    }
+}
+
+/// Walls a hall around the floor's guardian.
+///
+/// Deliberately built out of the level that already exists rather than reserved
+/// during generation: the generator's job is a floor that hangs together, and
+/// asking it to also reserve a rectangle would put a boss-shaped exception into
+/// code that is otherwise about nothing but connectivity. Instead the walls go
+/// in afterwards, and the carve is rolled back whole if it cut the floor in two.
+void Game::build_arena(Level& lvl, int depth) {
+    const char* key = boss_for_depth(depth);
+    if (key == nullptr) return;
+    const int index = species_index(key);
+    if (index < 0) return;
+    // Only the masters of the belts get a hall. A lesser guardian standing in
+    // the middle of a floor is a fight the player may walk away from, and that
+    // difference is most of what makes it lesser.
+    if (bestiary()[static_cast<std::size_t>(index)].ai & AiMiniBoss) return;
+
+    Map& map = lvl.map;
+    const std::vector<Tile> before = map.raw_tiles();
+    const bool has_doors = zone_theme_for_depth(depth).door_chance > 0;
+
+    // One attempt at one rectangle. Returns false — and leaves the map exactly
+    // as it found it — when the walls would cut the floor in two or when there
+    // is nowhere sensible to put the door.
+    const auto attempt = [&](Vec2 centre, int half_w, int half_h) -> bool {
+        Arena a;
+        a.min = {std::max(2, centre.x - half_w), std::max(2, centre.y - half_h)};
+        a.max = {std::min(map.width() - 3, centre.x + half_w),
+                 std::min(map.height() - 3, centre.y + half_h)};
+        if (a.max.x - a.min.x < 5 || a.max.y - a.min.y < 3) return false;
+
+        // The interior is cleared to a hall. Chasms go too: a boss mechanic
+        // that needs room to happen should not be fought around a hole.
+        for (int y = a.min.y; y <= a.max.y; ++y)
+            for (int x = a.min.x; x <= a.max.x; ++x) {
+                const Tile t = map.at({x, y});
+                if (t == Tile::Wall || t == Tile::Chasm || t == Tile::Door || t == Tile::OpenDoor)
+                    map.set({x, y}, Tile::Floor);
+            }
+
+        // The ring around it becomes wall, and one cell of that ring becomes
+        // the door.
+        std::vector<Vec2> ring;
+        for (int x = a.min.x - 1; x <= a.max.x + 1; ++x) {
+            ring.push_back({x, a.min.y - 1});
+            ring.push_back({x, a.max.y + 1});
+        }
+        for (int y = a.min.y; y <= a.max.y; ++y) {
+            ring.push_back({a.min.x - 1, y});
+            ring.push_back({a.max.x + 1, y});
+        }
+        for (Vec2 p : ring) map.set(p, Tile::Wall);
+
+        // A doorway is only a doorway if there is something on the other side,
+        // so candidates are ring cells with walkable ground just outside. Each
+        // is tried in turn, nearest the way in first: the first one that leaves
+        // the floor whole is the door.
+        std::vector<std::pair<int, Vec2>> doors;
+        for (Vec2 p : ring) {
+            Vec2 outward{0, 0};
+            if (p.x == a.min.x - 1) outward = {-1, 0};
+            else if (p.x == a.max.x + 1) outward = {1, 0};
+            else if (p.y == a.min.y - 1) outward = {0, -1};
+            else if (p.y == a.max.y + 1) outward = {0, 1};
+            else continue;
+            const Vec2 out{p.x + outward.x, p.y + outward.y};
+            const Vec2 in{p.x - outward.x, p.y - outward.y};
+            if (!map.in_bounds(out) || !map.walkable(out)) continue;
+            if (!map.in_bounds(in) || !map.walkable(in)) continue;
+            doors.push_back({std::abs(p.x - lvl.entrance.x) + std::abs(p.y - lvl.entrance.y), p});
+        }
+        std::sort(doors.begin(), doors.end(),
+                  [](const std::pair<int, Vec2>& l, const std::pair<int, Vec2>& r) {
+                      return l.first < r.first;
+                  });
+
+        for (const auto& candidate : doors) {
+            const Vec2 door = candidate.second;
+            // A door where the belt has doors — it reads as a threshold and
+            // blocks sight, so the guardian is met rather than spotted from
+            // down a corridor. In the cave belt there is nothing to hang a door
+            // on, so the threshold is a gap in the rock instead; a swamp with a
+            // carpenter in it would be a worse lie than a visible boss.
+            map.set(door, has_doors ? Tile::Door : Tile::Floor);
+
+            // Did the carve cut the floor in two? Everything walkable must
+            // still be reachable from the way in.
+            DijkstraMap flow;
+            flow.build(map, {lvl.entrance});
+            bool ok = flow.at(centre) < DijkstraMap::kUnreachable;
+            for (int y = 0; y < map.height() && ok; ++y)
+                for (int x = 0; x < map.width(); ++x) {
+                    const Vec2 p{x, y};
+                    if (!map.walkable(p)) continue;
+                    if (flow.at(p) >= DijkstraMap::kUnreachable) { ok = false; break; }
+                }
+            if (ok) {
+                a.door = door;
+                a.exists = true;
+                // Кощей keeps his hall open. His death is on a needle somewhere
+                // else on the floor, so a sealed room would be a room the
+                // player cannot win in.
+                a.seals = std::strcmp(key, "koschei") != 0;
+                lvl.arena = a;
+                return true;
+            }
+            map.set(door, Tile::Wall);
+        }
+
+        map.raw_tiles() = before;
+        return false;
+    };
+
+    // Where to put it. The way down comes first, because a hall around the
+    // stairs is a hall the player has to walk through — but the stairs land
+    // wherever the generator felt like putting them, and a ring of walls there
+    // often cuts a corridor that half the floor depends on. So other places are
+    // tried too, and when one of them works the staircase moves to meet it: the
+    // stairs are ours to place, and a guardian standing beside them is the
+    // whole point of the arrangement.
+    std::vector<Vec2> centres = {lvl.exit};
+    const std::vector<Vec2> open = map.walkable_cells();
+    for (int i = 0; i < 40 && !open.empty(); ++i) {
+        const Vec2 p = open[static_cast<std::size_t>(rng_.below(static_cast<int>(open.size())))];
+        // Not on top of the way in: a hall the hero starts inside would seal
+        // before they had a chance to decide anything.
+        if (std::abs(p.x - lvl.entrance.x) + std::abs(p.y - lvl.entrance.y) < 14) continue;
+        centres.push_back(p);
+    }
+
+    const std::pair<int, int> sizes[] = {{6, 4}, {5, 4}, {5, 3}, {4, 3}};
+    for (Vec2 centre : centres)
+        for (const auto& size : sizes)
+            if (attempt(centre, size.first, size.second)) {
+                if (!(centre == lvl.exit)) {
+                    // Move the way down into the hall that worked.
+                    if (map.at(lvl.exit) == Tile::StairsDown) map.set(lvl.exit, Tile::Floor);
+                    if (depth != kMaxDepth) map.set(centre, Tile::StairsDown);
+                    lvl.exit = centre;
+                }
+                return;
+            }
+}
+
+bool Game::arena_allows(Vec2 from, Vec2 to) const {
+    const Arena& a = level().arena;
+    if (!a.exists || !a.sealed) return true;
+    // Sealed means sealed in both directions, and the doorway is on the wall
+    // rather than in the room: crossing it either way is leaving or entering.
+    const bool from_in = a.contains(from);
+    const bool to_in = a.contains(to);
+    if (from_in == to_in) return true;
+    return false;
+}
+
+void Game::update_arena() {
+    Arena& a = mutable_level().arena;
+    if (!a.exists) return;
+
+    const Monster* boss = active_boss();
+    if (boss == nullptr) {
+        // The guardian is down; the hall opens.
+        if (a.sealed) {
+            a.sealed = false;
+            message(Text{"Двери отворяются. Зал больше никого не держит.",
+                         "The doors swing open. The hall holds no one now."},
+                    Severity::Good);
+        }
+        return;
+    }
+
+    if (!a.seals) return;
+
+    if (!a.sealed && a.contains(hero_.a.pos)) {
+        a.sealed = true;
+        message(Text{"Двери за спиной затворяются. Отсюда — только через стража.",
+                     "The doors close behind you. The only way out is through the guardian."},
+                Severity::Critical);
+        return;
+    }
+
+    // Said once, on the threshold, while there is still a choice to make.
+    if (!a.sealed && !a.warned) {
+        const Vec2 p = hero_.a.pos;
+        const int d = std::max(std::abs(p.x - a.door.x), std::abs(p.y - a.door.y));
+        if (d <= 1) {
+            a.warned = true;
+            message(Text{"За этим порогом ждёт страж. Войдёшь — двери закроются.",
+                         "A guardian waits beyond this threshold. Step in and the doors close."},
+                    Severity::System);
+        }
+    }
 }
 
 /// The crossroads: the one room in the game nothing generates.
@@ -459,6 +677,7 @@ bool Game::perform_single(const Action& action) {
     advance_until_hero_turn();
     reap_dead();
     recompute_fov();
+    update_arena();
     return true;
 }
 
@@ -770,6 +989,11 @@ int Game::item_index_at(Vec2 p) const {
 bool Game::blocked_for_monster(Vec2 p, Vec2 self) const {
     if (!level().map.walkable(p)) return true;
     if (p == hero_.a.pos) return true;
+    // The seal holds the guardian in exactly as it holds the hero in. Every
+    // monster movement in the game runs through this one function, which is why
+    // the rule can be stated once and be true of all of them — including the
+    // ones a boss summons mid-fight.
+    if (!arena_allows(self, p)) return true;
     for (const auto& m : level().monsters)
         if (m.a.alive && m.a.pos == p && m.a.pos != self) return true;
     return false;

@@ -19,7 +19,7 @@ sheet for looking at.
 # that is the same size as an anchutka reads as a large anchutka, and the fight
 # has to be started before the player can tell the difference.
 W = H = 16
-BOSS = 32
+BOSS = 48
 
 # Shared tone ramps. Terrain uses the neutral one so it can be tinted.
 STONE = {'o': '#20201e', '1': '#3a3a36', '2': '#55554f', '3': '#6f6f67', '4': '#8b8b81', '5': '#a5a59a'}
@@ -523,27 +523,34 @@ def beast(name, palette, rows):
     S(name, palette, rows)
 
 
+BOSS_SCALE = 3
+
+
 def boss(name, palette, rows):
-    """A guardian: drawn 16x16 like everything else, stored at 32x32.
+    """A guardian: drawn 16x16 like everything else, stored at 48x48.
 
     The art is authored at the same resolution as the rest of the bestiary and
-    doubled here, so a guardian ends up twice the size of the hero with pixels
-    twice as large. That is how a 16-bit game says "this one is bigger than
-    you", and it means a boss's silhouette is designed under exactly the same
-    constraints as an anchutka's — which is what keeps them looking like they
-    belong in the same world.
+    enlarged here, so a guardian ends up three times the size of the hero with
+    pixels three times as large. That is how a 16-bit game says "this one is
+    bigger than you", and it means a boss's silhouette is designed under exactly
+    the same constraints as an anchutka's — which is what keeps them looking
+    like they belong in the same world.
+
+    Enlarging whole pixels rather than authoring at 48x48 is deliberate: a
+    guardian drawn at the finer resolution would have finer detail than
+    everything around it and would stop looking like the same game.
     """
     palette = dict(palette)
     palette.setdefault('o', '#0f0d0a')
     palette.setdefault('e', '#f4e08a')
     assert len(rows) == H, f'{name}: bosses are authored at {H}x{H}'
-    doubled = []
+    grown = []
     for r in rows:
         assert len(r) == W, f'{name}: row is {len(r)} wide'
-        wide = ''.join(c * 2 for c in r)
-        doubled.append(wide)
-        doubled.append(wide)
-    S(name, palette, doubled)
+        wide = ''.join(c * BOSS_SCALE for c in r)
+        for _ in range(BOSS_SCALE):
+            grown.append(wide)
+    S(name, palette, grown)
 
 
 beast('anchutka', {'1': '#4d5a2e', '2': '#6f8040', '3': '#8fa356', '4': '#b3c777', 'r': '#a8433c'}, [

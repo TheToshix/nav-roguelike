@@ -41,6 +41,7 @@ add_executable(nav_tests
   test_keys.cpp
   test_travel.cpp
   test_clarity.cpp
+  test_arena.cpp
   test_integration.cpp
 )
 

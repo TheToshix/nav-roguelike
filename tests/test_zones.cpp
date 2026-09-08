@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 //
-// The dungeon is three belts of four floors. These tests pin down where the
+// The dungeon is four belts of four floors. These tests pin down where the
 // boundaries are, that each belt really is generated differently, and that the
-// second belt's cave generator keeps the same connectivity guarantee the room
+// cave belt's generator keeps the same connectivity guarantee the room
 // generator makes.
 #include <gtest/gtest.h>
+
+#include <algorithm>
 
 #include <cstring>
 #include <set>
@@ -51,6 +53,7 @@ TEST(Zones, TheBeltBoundariesLineUpWithTheBosses) {
     for (int depth = 1; depth <= 4; ++depth) EXPECT_EQ(zone_for_depth(depth), Zone::Pogost);
     for (int depth = 5; depth <= 8; ++depth) EXPECT_EQ(zone_for_depth(depth), Zone::Chernotop);
     for (int depth = 9; depth <= 12; ++depth) EXPECT_EQ(zone_for_depth(depth), Zone::Koshchei);
+    for (int depth = 13; depth <= 16; ++depth) EXPECT_EQ(zone_for_depth(depth), Zone::Peklo);
 
     // Each belt ends on a boss floor, which is what makes the boundary mean
     // something rather than being an arbitrary number.
@@ -211,6 +214,32 @@ TEST(Caves, AreDeterministic) {
     Rng a(99), b(99);
     EXPECT_EQ(generate_level(a, cfg, 6).map.raw_tiles(),
               generate_level(b, cfg, 6).map.raw_tiles());
+}
+
+TEST(Zones, EveryGeneratedBeltIsInTheListOfBelts) {
+    // The list exists so that nothing has to write the belts out by hand — and
+    // this test exists because something did, and the fourth belt spent a whole
+    // release present in the dungeon and absent from the title screen. The
+    // property is stated from the other end: every depth in the game belongs to
+    // a belt that the list names.
+    const std::vector<Zone>& belts = descending_belts();
+    for (int depth = 1; depth <= kMaxDepth; ++depth) {
+        const Zone z = zone_for_depth(depth);
+        EXPECT_NE(std::find(belts.begin(), belts.end(), z), belts.end())
+            << "floor " << depth << " is in a belt nothing lists";
+    }
+    EXPECT_EQ(std::find(belts.begin(), belts.end(), Zone::Rasputye), belts.end())
+        << "the crossroads is not a belt of the descent";
+
+    for (Zone z : belts) {
+        const int last = belt_last_depth(z);
+        EXPECT_GE(last, 1) << "a belt with no floors";
+        EXPECT_LE(last, kMaxDepth);
+        EXPECT_NE(boss_for_depth(last), nullptr)
+            << "the deepest floor of a belt has no guardian";
+        EXPECT_FALSE(zone_theme(z).name.ru.empty());
+        EXPECT_FALSE(zone_theme(z).name.en.empty());
+    }
 }
 
 TEST(Zones, TheMiddleBeltIsCarvedAsCavesAndTheOthersAreNot) {

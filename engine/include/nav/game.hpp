@@ -61,6 +61,32 @@ struct GameConfig {
     int map_height{34};
 };
 
+/// The guardian's hall: a walled room with one doorway.
+///
+/// A boss that can be pulled into a corridor and fought one square at a time is
+/// not a boss, it is a monster with a large health bar — every mechanic that
+/// makes a guardian interesting (the huts, the flooded floor, the fire that
+/// walks a line) needs room to happen. So the fight gets a room, and while it
+/// lasts neither side leaves it.
+struct Arena {
+    bool exists{false};
+    Vec2 min{0, 0};        ///< Inclusive corner of the interior.
+    Vec2 max{-1, -1};      ///< Inclusive far corner of the interior.
+    Vec2 door{-1, -1};     ///< The one way in, on the wall.
+    bool sealed{false};    ///< True once the hero has stepped inside.
+    bool warned{false};    ///< The threshold is announced once, not every turn.
+    /// Кощей's hall is never sealed: his death lies on a needle elsewhere on
+    /// the floor, so locking the player in with him would be locking them in
+    /// with something they cannot kill.
+    bool seals{true};
+
+    bool contains(Vec2 p) const {
+        return exists && p.x >= min.x && p.x <= max.x && p.y >= min.y && p.y <= max.y;
+    }
+    /// The doorway counts as neither in nor out: it is the decision point.
+    bool is_door(Vec2 p) const { return exists && p.x == door.x && p.y == door.y; }
+};
+
 /// One dungeon floor, kept in memory so ascending returns to the level as it
 /// was left — corpses, dropped loot and explored tiles included.
 struct Level {
@@ -71,6 +97,7 @@ struct Level {
     Vec2 exit{-1, -1};
     bool generated{false};
     bool boss_slain{false};
+    Arena arena;
 };
 
 /// Everything the frontends need to draw one cell.
@@ -162,6 +189,16 @@ public:
     /// True when anything alive is currently in the hero's sight.
     bool foe_in_view() const;
 
+    /// The guardian's hall on this floor, if it has one.
+    const Arena& arena() const { return level().arena; }
+    /// Whether `who` may step from `from` to `to` given the seal.
+    ///
+    /// One function for both sides of the fight: the hero cannot walk out and
+    /// the guardian cannot walk out, and neither can anything else that is in
+    /// there with them. Two rules would eventually disagree, and the way a
+    /// player would find out is by watching a boss stroll through the wall.
+    bool arena_allows(Vec2 from, Vec2 to) const;
+
     /// A snapshot of "the situation", for anything that walks several steps.
     ///
     /// Three places need to agree on when a multi-step movement has to stop:
@@ -241,6 +278,14 @@ private:
     /// Lays out the crossroads by hand. Nothing here is random except which
     /// three pieces of gear are on offer.
     void build_lobby(Level& lvl);
+    /// Walls off a hall around the floor's guardian, or leaves the floor alone.
+    ///
+    /// Carving walls into a finished level can cut it in two, so the carve is
+    /// checked afterwards and rolled back if it did: a floor with no arena is a
+    /// small loss, a floor with an unreachable half is a broken game.
+    void build_arena(Level& lvl, int depth);
+    /// Closes the doors behind the hero, or announces the threshold.
+    void update_arena();
     void enter_level(int depth, bool descending);
     void populate(Level& lvl, int depth);
     Vec2 free_spot_near(const Level& lvl, Vec2 origin, int radius) const;

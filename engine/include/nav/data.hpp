@@ -50,6 +50,18 @@ struct ZoneTheme {
 };
 
 Zone zone_for_depth(int depth);
+
+/// The belts of the descent, in the order they are met.
+///
+/// The crossroads is deliberately not one of them: nothing generates it and
+/// nothing guards it. Anything that wants to list the belts — a title screen, a
+/// manual, a test — asks here rather than writing the list out again, because a
+/// hand-written copy is how the fourth belt spent a whole release invisible to
+/// players (see docs/BUG_REPORTS.md, NAV-015).
+const std::vector<Zone>& descending_belts();
+
+/// The deepest floor of a belt — the one its guardian stands on.
+int belt_last_depth(Zone zone);
 const ZoneTheme& zone_theme(Zone zone);
 inline const ZoneTheme& zone_theme_for_depth(int depth) { return zone_theme(zone_for_depth(depth)); }
 /// True when `depth` is the first floor of its belt (where the flavour lands).

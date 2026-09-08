@@ -486,7 +486,10 @@ EMSCRIPTEN_KEEPALIVE char* nav_static_json() {
     }
     out += "],\"zones\":[";
     bool zone_first = true;
-    for (nav::Zone z : {nav::Zone::Pogost, nav::Zone::Chernotop, nav::Zone::Koshchei}) {
+    // Straight from the engine's own list. This used to be a hand-written
+    // {Pogost, Chernotop, Koshchei} — which is why the fourth belt existed in
+    // the game for a whole release and nowhere on the title screen.
+    for (nav::Zone z : nav::descending_belts()) {
         const auto& theme = nav::zone_theme(z);
         if (!zone_first) out += ',';
         zone_first = false;
@@ -494,6 +497,18 @@ EMSCRIPTEN_KEEPALIVE char* nav_static_json() {
         append_json_string(out, theme.name.get(g_lang));
         out += ",\"blurb\":";
         append_json_string(out, theme.arrival.get(g_lang));
+        const int last = nav::belt_last_depth(z);
+        out += ",\"depths\":";
+        append_json_string(out, std::to_string(last - 3) + "\u2013" + std::to_string(last));
+        out += ",\"guardian\":";
+        if (const char* key = nav::boss_for_depth(last)) {
+            const int index = nav::species_index(key);
+            append_json_string(out, index >= 0
+                ? nav::bestiary()[static_cast<std::size_t>(index)].name.get(g_lang)
+                : std::string());
+        } else {
+            append_json_string(out, std::string());
+        }
         out += "}";
     }
     out += "],\"bestiary\":[";

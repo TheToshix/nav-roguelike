@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-367-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-381-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -55,6 +55,29 @@ repetition.
 <td align="center"><sub><b>Koschei's Kingdom</b> — halls and chasms</sub></td>
 </tr>
 </table>
+
+### A guardian has a hall, and the doors close behind you
+
+A boss that can be pulled into a corridor and fought one square at a time is not a boss but a
+monster with a large health bar: everything that makes a guardian interesting — Baba Yaga's
+huts, Vodyanoy's flooded floor, fire that walks a line — needs room to happen. So each master
+of a belt (Viy, Baba Yaga, Koschei, Gorynych) has a hall, and the way down is inside it.
+
+The threshold is labelled in advance: standing at the door you are told that a guardian waits
+and that stepping in closes it behind you. The decision stays with the player, which is the
+only thing separating difficulty from a dirty trick. The doors close when you step in yourself,
+and open when the guardian falls. They hold both sides — the hero cannot leave and neither can
+the guardian — because it is one rule for both. Two rules would drift apart, and the way you'd
+find out is a boss strolling through a wall.
+
+Koschei is the exception, and for a reason: his death is on a needle lying somewhere else on
+the floor. A sealed hall would be a room you cannot win in.
+
+The hall is carved into a floor that is already finished — a ring of walls and one door — and
+then the floor is checked for having been cut in two. If it was, the carve is rolled back whole
+and another spot is tried; when the spot that works is not where the stairs were, the stairs
+move to meet it. A floor without a hall is a small loss; a floor with an unreachable half is a
+broken game.
 
 ### The bosses fight by their own rules
 
@@ -305,7 +328,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 367 tests
+ctest --test-dir build --output-on-failure    # 381 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -317,6 +340,27 @@ source /path/to/emsdk/emsdk_env.sh
 ./tools/build_web.sh          # writes index.html and nav.js into dist/
 python3 -m http.server -d dist 8080
 ```
+
+## Settings, and the phone
+
+Everything switchable switches in play: control scheme, map view, sprites or ASCII, boss music,
+language. The settings screen opens from the title and from inside a run, and each setting is a
+labelled row of choices with the current one lit.
+
+This did not come from a love of settings. The control scheme used to live on a button labelled
+`HJKL` — a button labelled with its current state rather than with what it does. A player who
+wanted WASD read it as a heading and drew the only available conclusion: WASD is broken (see
+[NAV-016](docs/BUG_REPORTS.md)).
+
+The map now shows **the whole floor** by default whenever a cell still comes out big enough to
+read, and only falls back to a window following the hero on a small screen. The window used to
+be all there was, which on a large monitor reads as part of the game being off-screen.
+
+On a phone the game is meant to be played in landscape: the map takes the full height, the
+panel sits beside it as on a desktop, and the pad and the actions float at the corners the
+thumbs already rest on. Portrait works too and has been rewritten as well. None of this is
+checked by eye: the page is opened at three phone sizes and the rectangles of every button,
+meter and table are compared pairwise — any overlap larger than two pixels fails the check.
 
 ## Controls
 
@@ -349,12 +393,12 @@ The browser build adds mouse control and an on-screen pad on phones.
 
 The project was written with tests from the first day rather than "covered" afterwards. The details
 are in the [test plan](docs/TEST_PLAN.md), the [test cases](docs/TEST_CASES.md) and the
-[bug reports](docs/BUG_REPORTS.md), which record fourteen defects found during development along with
+[bug reports](docs/BUG_REPORTS.md), which record seventeen defects found during development along with
 reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **367** across 49 suites |
+| Unit and integration tests | **381** across 50 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -394,7 +438,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           367 GoogleTest cases
+tests/           381 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

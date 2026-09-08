@@ -32,7 +32,9 @@ constexpr int kFleeBelowPercent    = 40;   ///< Break off and back away.
 constexpr int kBreakOffBossPercent = 55;   ///< Leave a guardian alone below this.
 constexpr int kRestUntilPercent    = 90;   ///< Sit still until this healthy again.
 constexpr int kEngageBossPercent   = 80;   ///< Do not start a guardian below this.
-constexpr int kFloorTurnBudget     = 900;  ///< Give up on clearing and move on.
+constexpr int kFloorTurnBudget     = 900;
+constexpr int kDodgesBeforeCommitting = 3;   ///< Then stop dodging and fight.
+constexpr int kCommitTurns            = 8;  ///< Give up on clearing and move on.
 constexpr int kRestTurnBudget      = 260;  ///< Never rest longer than this on one floor.
 constexpr int kRestFoodFloor       = 450;  ///< Resting burns food; stop well before empty.
 
@@ -242,6 +244,16 @@ private:
 
     /// Вий's counter-play: get out of the line of the gaze before it opens.
     bool dodge_gaze() {
+        // Dodging and chasing are opposite instincts, and left alone they take
+        // turns forever: step out of the line, step back towards him, step out
+        // again. In a hall with no third option that is a livelock, and the
+        // sweeper sat in one for sixty thousand turns. So the dodge is
+        // rationed: break the line a few times, then commit to the fight. A
+        // human does the same thing — you cannot win by dodging alone.
+        if (dodges_ >= kDodgesBeforeCommitting) {
+            if (--commit_turns_ > 0) return false;
+            dodges_ = 0;
+        }
         const Vec2 me = game_.hero().a.pos;
         for (const auto& m : game_.monsters()) {
             const Species& sp = species_of(m);
@@ -258,13 +270,18 @@ private:
                 const Vec2 step = me + d;
                 if (!game_.map().walkable(step) || game_.monster_at(step)) continue;
                 if (has_line_of_sight(game_.map(), step, m.a.pos, sp.sight)) continue;
-                if (act(Action{ActionType::Move, d, -1, {}})) return true;
+                if (act(Action{ActionType::Move, d, -1, {}})) {
+                    if (++dodges_ >= kDodgesBeforeCommitting) commit_turns_ = kCommitTurns;
+                    return true;
+                }
             }
             // Nothing nearby breaks the line. Out-running the gaze is the other
             // half of the counter-play and the one a cornered player reaches
             // for: get beyond what he can see.
             if (chebyshev(me, m.a.pos) >= sp.sight - 1) return false;
-            return back_away();
+            if (!back_away()) return false;
+            if (++dodges_ >= kDodgesBeforeCommitting) commit_turns_ = kCommitTurns;
+            return true;
         }
         return false;
     }
@@ -363,12 +380,28 @@ private:
         return act(Action{ActionType::Wait, {}, -1, {}});
     }
 
+    /// True while the hero is shut inside a guardian's hall.
+    bool cornered() const {
+        return game_.arena().sealed && game_.arena().contains(game_.hero().a.pos);
+    }
+
+    /// Whether a goal is worth walking to from where the hero is standing.
+    ///
+    /// Sealed inside a hall, everything outside it is unreachable however good
+    /// the map says the path looks — and a bot that keeps setting off towards
+    /// it walks into the door until the run times out. That is not a
+    /// hypothetical: it is what the first sweep after the halls landed did.
+    bool reachable(Vec2 goal) const {
+        return !cornered() || game_.arena().contains(goal);
+    }
+
     /// The nearest item worth walking to. Loot is how a run survives the fourth
     /// belt, and the old bot only ever picked up what it happened to stand on.
     const Item* worth_fetching() const {
         const Item* best = nullptr;
         int best_d = 25;
         for (const Item& it : game_.floor_items()) {
+            if (!reachable(it.pos)) continue;
             const int d = chebyshev(game_.hero().a.pos, it.pos);
             if (d < best_d) { best_d = d; best = &it; }
         }
@@ -432,20 +465,28 @@ private:
         const Vec2 me = game_.hero().a.pos;
         const int hp = hp_percent();
 
+        // Inside a sealed hall there is no backing away: the doors are shut and
+        // the only exit is through the guardian. Every retreat policy below has
+        // to know that, or the bot spends the rest of the run walking into a
+        // wall and waiting to feel better. The sweeper found exactly that on
+        // the first run after the halls landed.
+        const bool shut_in = cornered();
+
         // 1. Stay alive. A potion first, then distance, then — if nothing is
         //    chasing — sit still and let the slow regeneration work. Resting is
         //    what makes the difference between dying on the fourth floor and
         //    seeing the sixteenth, and it costs food, which is the real limit.
         if (hp <= kDrinkBelowPercent && drink_healing()) return true;
         if (hp <= kDrinkBelowPercent && cast_heal()) return true;
-        if (hp <= kFleeBelowPercent && nearest_monster(2) && back_away()) return true;
+        if (!shut_in && hp <= kFleeBelowPercent && nearest_monster(2) && back_away()) return true;
 
         // Confused, the hero walks where the confusion says rather than where
         // the bot does, so swinging is a coin flip and stepping away is at
         // least an attempt. Blind is the same problem with the sight radius.
         const bool addled = game_.hero().a.has(Effect::Confusion) ||
                             game_.hero().a.has(Effect::Blind);
-        if (addled && hp < kEngageBossPercent && nearest_monster(3) && back_away()) return true;
+        if (!shut_in && addled && hp < kEngageBossPercent && nearest_monster(3) && back_away())
+            return true;
 
         const bool calm = threats_near(8) == 0;
         if (calm && hp < kRestUntilPercent && game_.hero().nutrition > kRestFoodFloor &&
@@ -477,7 +518,7 @@ private:
         if (boss_close && hp < kBreakOffBossPercent) {
             if (drink_healing()) return true;
             if (cast_heal()) return true;
-            if (back_away()) return true;
+            if (!shut_in && back_away()) return true;
         }
         if (boss_close && hp >= kEngageBossPercent && cast_ward()) return true;
 
@@ -499,7 +540,9 @@ private:
         // stop weighing health and food and simply leave. Without this, a run
         // could spend twenty thousand turns on the second floor and report
         // itself as "alive", which is a stall wearing a success's clothes.
-        const bool bail_out = floor_turns_ > kFloorTurnBudget * 2;
+        // Bailing out of a sealed hall is not on offer: the stairs are inside
+        // it and so is the only thing standing between the hero and them.
+        const bool bail_out = !shut_in && floor_turns_ > kFloorTurnBudget * 2;
         if (bail_out) {
             if (game_.map().at(me) == Tile::StairsDown &&
                 act(Action{ActionType::Descend, {}, -1, {}}))
@@ -507,7 +550,8 @@ private:
             return walk_towards(game_.level().exit);
         }
 
-        const bool floor_done = nearest_monster() == nullptr || floor_turns_ > kFloorTurnBudget;
+        const bool floor_done =
+            !shut_in && (nearest_monster() == nullptr || floor_turns_ > kFloorTurnBudget);
         if (floor_done) {
             if (const Item* loot = worth_fetching()) return walk_towards(loot->pos);
             if (game_.map().at(me) == Tile::StairsDown) {
@@ -527,7 +571,10 @@ private:
         int best = 1 << 30;
         for (const auto& m : game_.monsters()) {
             if (!m.a.alive) continue;
-            if (boss && &m == boss && hp < kEngageBossPercent) continue;
+            if (!reachable(m.a.pos)) continue;
+            // Shut in with the guardian, "wait until healthier before starting
+            // it" is not a plan, it is the whole rest of the run.
+            if (boss && &m == boss && hp < kEngageBossPercent && !shut_in) continue;
             const int d = dist_sq(me, m.a.pos);
             if (d < best) { best = d; target = &m; }
         }
@@ -594,6 +641,10 @@ private:
     Rng policy_;
     BotResult result_;
     int floor_turns_{0};
+    /// How many turns in a row have gone on breaking Вий's line of sight, and
+    /// how long the bot has sworn off dodging afterwards.
+    int dodges_{0};
+    int commit_turns_{0};
     int rested_{0};
     int stuck_{0};
 };

@@ -231,6 +231,16 @@ bool Game::act_move(Vec2 dir) {
         return true;
     }
 
+    // The guardian's hall holds both sides of the fight. Refused before the
+    // door is touched, so the hero cannot open their way out and then be told
+    // no — a refusal that costs a turn is worse than a wall.
+    if (!arena_allows(hero_.a.pos, target)) {
+        message(Text{"Двери не поддаются. Пока страж жив — отсюда не выйти.",
+                     "The doors will not give. While the guardian lives, there is no way out."},
+                Severity::Bad);
+        return false;
+    }
+
     if (map().at(target) == Tile::Door) {
         mutable_level().map.set(target, Tile::OpenDoor);
         message(Text{"Дверь со скрипом открывается.", "The door creaks open."});
