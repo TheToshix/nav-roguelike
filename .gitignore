@@ -19,6 +19,10 @@ coverage-html/
 emsdk/
 emsdk-cache/
 
+# Node, if anyone runs the linter locally instead of through npx
+node_modules/
+package-lock.json
+
 # Editors and tooling
 .vscode/
 .idea/

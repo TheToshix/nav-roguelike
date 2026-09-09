@@ -147,6 +147,27 @@ jobs:
             || { echo "::error::run tools/sprites/build.py and commit the result"; exit 1; }
 
   # ---------------------------------------------------------------------------
+  # The engine is compiled with -Wall -Wextra -Wpedantic -Wshadow -Werror on four
+  # toolchains. The browser frontend is seventeen hundred lines that nothing
+  # checked at all, where a misspelt identifier reaches players as a blank
+  # screen. This is that check.
+  #
+  # eslint is pulled on demand and pinned, so the repository carries no
+  # package.json and no node_modules: a C++ project should not have to maintain
+  # a JavaScript toolchain to get its JavaScript looked at.
+  # ---------------------------------------------------------------------------
+  lint-js:
+    name: Browser frontend lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: ESLint
+        run: npx --yes eslint@9.39.5 .
+
+  # ---------------------------------------------------------------------------
   # The browser build. This job only proves the WebAssembly target compiles and
   # loads; publishing lives in pages.yml.
   # ---------------------------------------------------------------------------
@@ -201,7 +222,7 @@ jobs:
           touch dist/.nojekyll
       - name: The published page carries its own art
         run: |
-          for name in sprites.js music.js; do
+          for name in app.js sprites.js music.js; do
             if grep -q "script src=\"$name\"" dist/index.html; then
               echo "::error::$name was not inlined into dist/index.html"; exit 1
             fi
@@ -209,6 +230,10 @@ jobs:
               echo "::error::dist/$name should not be published separately"; exit 1
             fi
           done
+          if grep -q 'stylesheet" href="app.css"' dist/index.html; then
+            echo "::error::app.css was not inlined into dist/index.html"; exit 1
+          fi
+          [ -f dist/app.css ] && { echo "::error::dist/app.css should not be published"; exit 1; }
           echo "ok: dist/index.html is self-contained"
       - uses: actions/upload-artifact@v4
         with:

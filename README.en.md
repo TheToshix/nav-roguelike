@@ -9,7 +9,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
 [![Tests](https://img.shields.io/badge/tests-457-4c9a5a)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
+[![Coverage](https://img.shields.io/badge/coverage-measured%20in%20CI-4c9a5a)](.github/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ### ▶ [Play in your browser](https://thetoshix.github.io/nav-roguelike/)
@@ -32,9 +32,9 @@ creatures and the same loot, so any find — and any bug — can be reproduced f
 
 ### Four belts, eight guardians
 
-The descent is cut into three parts of four floors. Each has its own generator, palette and
-hazards, and its own master at the bottom — so twelve floors read as a journey rather than as
-repetition.
+The descent is cut into four parts of four floors. Each has its own generator, palette and
+hazards, a master at the bottom and a lesser guardian halfway down — so sixteen floors read as
+a journey rather than as repetition.
 
 | Belt | Depth | What is there | Halfway | At the bottom |
 |---|---|---|---|---|
@@ -423,9 +423,10 @@ reproduction steps and fixes.
 | | |
 |---|---|
 | Unit and integration tests | **457** across 59 suites |
-| Engine line coverage | **94%** |
+| Engine line coverage | measured by the `coverage` CI job, printed into the run summary |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
-| Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
+| Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build, ESLint over the page code |
+| Seed portability | fingerprints of all 16 floors are checked in, so the platforms are compared against each other rather than each against itself |
 
 Two approaches paid off more than anything else:
 
@@ -462,6 +463,8 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
+                 index.html is markup only; app.css, app.js, music.js and
+                 sprites.js are folded into it when publishing
 tests/           457 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script

@@ -9,7 +9,7 @@
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
 [![Tests](https://img.shields.io/badge/tests-457-4c9a5a)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
+[![Coverage](https://img.shields.io/badge/coverage-measured%20in%20CI-4c9a5a)](.github/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ### ▶ [Играть в браузере](https://thetoshix.github.io/nav-roguelike/)
@@ -454,9 +454,10 @@ WASD не работает (см. [NAV-016](docs/BUG_REPORTS.md)).
 | | |
 |---|---|
 | Юнит- и интеграционных тестов | **457** в 59 наборах |
-| Покрытие движка по строкам | **94%** |
+| Покрытие движка по строкам | считается джобой `coverage` в CI и печатается в сводку прогона |
 | Платформы в CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
-| Дополнительно в CI | ASan + UBSan, `-Werror`, отчёт покрытия, 20 полных партий без экрана, обходчик до 16 этажа, сборка WebAssembly |
+| Дополнительно в CI | ASan + UBSan, `-Werror`, отчёт покрытия, 20 полных партий без экрана, обходчик до 16 этажа, сборка WebAssembly, ESLint по коду страницы |
+| Переносимость зерна | отпечатки всех 16 этажей записаны в репозиторий: платформы сравниваются между собой, а не каждая с собой |
 
 Отдельно стоит отметить два подхода, которые дали больше всего:
 
@@ -495,6 +496,8 @@ engine/          ядро: правила игры, без ввода-вывод
 frontend/
   terminal/      ANSI-рендер, сырой ввод с клавиатуры и бот для прогонов
   web/           C-обёртка для WebAssembly, страница игры и спрайты
+                 index.html — только разметка; app.css, app.js, music.js,
+                 sprites.js складываются в неё при публикации
 tests/           457 тестов на GoogleTest
 docs/            как запустить, архитектура, тест-план, тест-кейсы, багрепорты
 tools/           сборка веб-версии
