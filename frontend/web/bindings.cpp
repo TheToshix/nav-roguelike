@@ -215,6 +215,11 @@ std::string build_state_json() {
     // The belt the hero is in — the frontends show its name beside the depth.
     append_field(out, "zone", zone_theme_for_depth(g.depth()).name.get(g_lang), first);
     append_field(out, "needleIntact", g.needle_intact() ? 1 : 0, first);
+    // The floor's belt event, if one is running: name and note for the banner.
+    if (g.level_event() != EventKind::None) {
+        append_field(out, "eventName", event_name(g.level_event()).get(g_lang), first);
+        append_field(out, "eventNote", event_note(g.level_event()).get(g_lang), first);
+    }
     // The codex: one character per bestiary row, '1' once the hero has laid
     // eyes on that species. Same order as nav_static_json's "bestiary".
     {

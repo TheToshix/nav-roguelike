@@ -67,6 +67,14 @@ inline const ZoneTheme& zone_theme_for_depth(int depth) { return zone_theme(zone
 /// True when `depth` is the first floor of its belt (where the flavour lands).
 bool is_zone_entrance(int depth);
 
+/// The floor event a belt can raise, or EventKind::None for belts that have
+/// none (Погост, the crossroads). One place to ask, for the same reason as
+/// descending_belts().
+EventKind belt_event(Zone zone);
+/// Short name and one-line note for a floor event, both languages.
+Text event_name(EventKind kind);
+Text event_note(EventKind kind);
+
 /// Starting loadout and growth curve for one hero class.
 struct ClassTemplate {
     HeroClass cls;

@@ -116,6 +116,22 @@ enum class ScrollKind : std::uint8_t {
 };
 
 // ---------------------------------------------------------------------------
+// Floor events
+// ---------------------------------------------------------------------------
+
+/// A temporary, floor-wide hazard: one belt below Погост has its own, decided
+/// when the floor is first generated and running only while the hero is on that
+/// floor. Whether a floor gets one is rolled from an isolated RNG stream, so an
+/// event never shifts generation; once running, it advances on the hero's turn
+/// with no RNG at all. Appended, never reordered — the value goes into saves.
+enum class EventKind : std::uint8_t {
+    None,
+    Flood,      ///< Чернотопь: the water rises, one ring of floor at a time.
+    Blizzard,   ///< Кощеево царство: the snow closes in and sight shrinks.
+    Firestorm,  ///< Пекло: fire spreads outward from where it caught.
+};
+
+// ---------------------------------------------------------------------------
 // Spells
 // ---------------------------------------------------------------------------
 

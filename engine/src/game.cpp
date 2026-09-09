@@ -169,6 +169,7 @@ void Game::ensure_level(int depth) {
     build_secret_room(lvl, depth);
     place_wanderers(lvl, depth);
     curse_some_gear(lvl, depth);
+    roll_level_event(lvl, depth);
 }
 
 void Game::place_wanderers(Level& lvl, int depth) {
@@ -284,6 +285,96 @@ void Game::curse_some_gear(Level& lvl, int depth) {
             return;
         }
     }
+}
+
+void Game::roll_level_event(Level& lvl, int depth) {
+    lvl.event = EventKind::None;
+    lvl.event_age = 0;
+
+    const Zone z = zone_for_depth(depth);
+    const EventKind kind = belt_event(z);
+    if (kind == EventKind::None) return;
+    // Not on the belt's threshold (its arrival line should land clean) and not
+    // on the guardian's floor (that fight is the event). Leaves the two middle
+    // floors of each belt eligible.
+    if (is_zone_entrance(depth) || depth == belt_last_depth(z)) return;
+
+    // Private stream, keyed on the depth: whether the event fires and — for the
+    // firestorm — where it starts are decided here without touching rng_, so a
+    // floor generates identically whether or not it ends up with an event.
+    Rng r(cfg_.seed ^ (0xA24BAED4963EE407ULL * static_cast<std::uint64_t>(depth + 1)) ^ 0x6C8E9CF5);
+    if (!r.chance(40)) return;
+
+    lvl.event = kind;
+
+    if (kind == EventKind::Firestorm) {
+        // Three seats of fire, away from the stairs the hero arrives on, so the
+        // spread is something to outrun rather than something already on top of
+        // them.
+        const auto cells = lvl.map.walkable_cells();
+        int lit = 0;
+        for (int attempt = 0; attempt < 200 && lit < 3 && !cells.empty(); ++attempt) {
+            const Vec2 p = cells[static_cast<std::size_t>(r.below(static_cast<int>(cells.size())))];
+            if (lvl.map.at(p) != Tile::Floor) continue;
+            if (chebyshev(p, lvl.entrance) < 7) continue;
+            if (lvl.arena.exists && lvl.arena.contains(p)) continue;
+            bool already = false;
+            for (const Ember& e : lvl.embers) if (e.pos == p) already = true;
+            if (already) continue;
+            lvl.embers.push_back(Ember{p, kEmberTurns});
+            ++lit;
+        }
+        if (lit == 0) lvl.event = EventKind::None;   // nowhere to start: no event
+    }
+}
+
+void Game::tick_level_event() {
+    Level& lvl = mutable_level();
+    if (lvl.event == EventKind::None) return;
+    ++lvl.event_age;
+    const int age = lvl.event_age;
+
+    if (lvl.event == EventKind::Flood) {
+        // The tide comes in one ring every third turn, and stops rising once it
+        // has taken most of the low ground — the floor stays crossable (water
+        // is passable, only slower), it just costs more with every step.
+        if (age > 45 || age % 3 != 0) return;
+        const int w = lvl.map.width(), h = lvl.map.height();
+        std::vector<Vec2> rising;
+        for (int y = 1; y < h - 1; ++y)
+            for (int x = 1; x < w - 1; ++x) {
+                const Vec2 p{x, y};
+                if (lvl.map.at(p) != Tile::Floor) continue;
+                if (lvl.arena.exists && lvl.arena.contains(p)) continue;
+                for (const Vec2 d : {Vec2{1, 0}, Vec2{-1, 0}, Vec2{0, 1}, Vec2{0, -1}})
+                    if (lvl.map.at(p + d) == Tile::Water) { rising.push_back(p); break; }
+            }
+        for (const Vec2 p : rising) lvl.map.set(p, Tile::Water);
+        if (!rising.empty() && lvl.map.visible(hero_.a.pos))
+            message(Text{"Вода поднимается.", "The water climbs higher."}, Severity::Bad);
+        return;
+    }
+
+    if (lvl.event == EventKind::Firestorm) {
+        // The fire jumps to neighbouring floor every other turn for the first
+        // forty, then it has spread as far as it will and the embers burn down.
+        if (age > 40 || age % 2 != 0) return;
+        std::vector<Vec2> fronts;
+        for (const Ember& e : lvl.embers)
+            if (e.turns >= 2) fronts.push_back(e.pos);
+        for (const Vec2 p : fronts)
+            for (const Vec2 d : {Vec2{1, 0}, Vec2{-1, 0}, Vec2{0, 1}, Vec2{0, -1}})
+                ignite(p + d, kEmberTurns);
+        return;
+    }
+
+    // Blizzard needs no per-turn work: blizzard_sight_cap() reads event_age.
+}
+
+int Game::blizzard_sight_cap() const {
+    if (level().event != EventKind::Blizzard) return 20;
+    // Full sight closes to two cells over the first twelve turns, then holds.
+    return std::max(2, 6 - level().event_age / 3);
 }
 
 void Game::build_secret_room(Level& lvl, int depth) {
@@ -689,6 +780,15 @@ void Game::enter_level(int depth, bool descending) {
         message(theme.arrival, Severity::Critical);
     }
 
+    // The floor's event, if it rolled one, is announced the moment the hero
+    // steps in — like the belt line, it is what the choice to press on turns
+    // on. A flood the hero leaves and comes back to is still rising, so this
+    // repeats on re-entry.
+    if (lvl.event != EventKind::None) {
+        message(format(Text{"— {} —", "— {} —"}, event_name(lvl.event)), Severity::System);
+        message(event_note(lvl.event), Severity::Critical);
+    }
+
     // A handful of lines the first time the dungeon proper is entered. Someone
     // opening this for the first time knows none of the conventions a roguelike
     // treats as obvious, and the cheapest place to say so is the log they are
@@ -983,6 +1083,7 @@ void Game::advance_until_hero_turn() {
             if (state_ != RunState::Playing) break;
         }
 
+        tick_level_event();
         tick_embers();
         for (auto& m : mutable_level().monsters)
             if (m.a.alive) tick_effects(m.a, false);
@@ -1222,6 +1323,8 @@ int Game::hero_sight() const {
             sight += am.total_power();
     }
     if (hero_has(GpSight)) sight += 3;
+    // A blizzard closes the world down to a few cells, whatever the gear says.
+    sight = std::min(sight, blizzard_sight_cap());
     return std::clamp(sight, 1, 20);
 }
 

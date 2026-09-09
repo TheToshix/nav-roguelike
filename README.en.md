@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-426-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-437-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -249,6 +249,7 @@ of them is accepted.
 | **Codex** | A bestiary screen (`v`, or the menu): a row unlocks the first time you see the creature, and the progress lives in the save |
 | **Achievements** | A set of feats (no damage to floor 8, a win without running, by a given class, a speedrun); progress persists between runs in `~/.nav_achievements` |
 | **Daily seed** | A button, or `D`: one dungeon for everyone that day (by the UTC calendar); the result lands on the same score board with its own column and filter |
+| **Floor events** | Three belts have one of their own: a flood in the Black Mire (the water rises), a blizzard in Koschei's Kingdom (sight closes in), a firestorm in the Scorch (the fire spreads). Not every floor rolls one, and the roll runs off a private RNG stream so generation never shifts |
 | **Also** | Hunger, water and chasms, doors, shrines that bless your gear, a speed-based turn scheduler, saved games |
 
 ### Six heroes
@@ -349,7 +350,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 426 tests
+ctest --test-dir build --output-on-failure    # 437 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -419,7 +420,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **426** across 51 suites |
+| Unit and integration tests | **437** across 52 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -459,7 +460,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           426 GoogleTest cases
+tests/           437 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

@@ -207,6 +207,19 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 .bossbar .fill { display: block; height: 100%; background: linear-gradient(90deg, #7a1c1c, #d24a3c); transition: width .2s; }
 .bossbar .phase { color: var(--gold); white-space: nowrap; }
 
+.eventbar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 14px;
+  background: #14202a;
+  border-bottom: 1px solid #2f5064;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.eventbar .what { color: #9ad2e8; white-space: nowrap; font-weight: bold; letter-spacing: .04em; }
+.eventbar .note { color: #b7c6cf; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .stage { flex: 1; display: flex; min-height: 0; }
 
 .map-wrap {
@@ -705,6 +718,11 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     <span class="who" id="bossName"></span>
     <span class="track"><span class="fill" id="bossFill"></span></span>
     <span class="phase" id="bossPhase"></span>
+  </div>
+
+  <div class="eventbar hidden" id="eventBar">
+    <span class="what" id="eventName"></span>
+    <span class="note" id="eventNote"></span>
   </div>
 
   <div class="stage">
@@ -1451,6 +1469,15 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       : '';
   }
 
+  /// The belt's floor event, when one is running on this floor.
+  function drawEventBar() {
+    var name = state && state.eventName;
+    $('eventBar').classList.toggle('hidden', !name);
+    if (!name) return;
+    $('eventName').textContent = name;
+    $('eventNote').textContent = state.eventNote || '';
+  }
+
   function drawSidebar() {
     var h = state.hero;
     $('tDepth').textContent = state.depth + ' / ' + state.maxDepth;
@@ -1533,6 +1560,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     drawMap();
     drawSidebar();
     drawBossBar();
+    drawEventBar();
     syncMusic();
     if (state.state !== 0) showEnding();
   }

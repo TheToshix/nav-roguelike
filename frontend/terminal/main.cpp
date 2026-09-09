@@ -321,6 +321,8 @@ struct Ui {
         add((lang == Lang::Ru ? "Глубина: " : "Depth:  ") + std::to_string(g.depth()) + " / " +
             std::to_string(kMaxDepth));
         add("\x1b[38;5;180m" + t(zone_theme_for_depth(g.depth()).name) + "\x1b[0m");
+        if (g.level_event() != EventKind::None)
+            add("\x1b[38;5;74m" + t(event_name(g.level_event())) + "\x1b[0m");
         add((lang == Lang::Ru ? "Удар:    " : "Attack: ") + std::to_string(g.hero_attack()));
         add((lang == Lang::Ru ? "Защита:  " : "Armour: ") + std::to_string(g.hero_defence()));
         add((lang == Lang::Ru ? "Золото:  " : "Gold:   ") + std::to_string(h.gold));

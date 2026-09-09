@@ -105,7 +105,7 @@ engine/          ядро: правила игры, без ввода-вывод
 frontend/
   terminal/      версия для терминала
   web/           обёртка для WebAssembly, страница игры, спрайты и музыка
-tests/           426 тест на GoogleTest
+tests/           437 тест на GoogleTest
 docs/            архитектура, тест-план, тест-кейсы, багрепорты
 tools/           сборка веб-версии и генератор спрайтов
 ```
@@ -209,7 +209,7 @@ cmake --build build --config Release
 ctest --test-dir build --build-config Release --output-on-failure
 ```
 
-Ожидаемый результат — `100% tests passed, 0 tests failed out of 426`, около трёх секунд.
+Ожидаемый результат — `100% tests passed, 0 tests failed out of 437`, около трёх секунд.
 
 Чтобы не качать GoogleTest, можно поставить его системно:
 

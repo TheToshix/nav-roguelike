@@ -32,10 +32,11 @@ constexpr const char* kMagic = "NAV";
 // watchers — whether the run has used run or auto-explore, whether it has taken
 // damage, and how deep it got before it did — so a resumed run keeps its shot
 // at "no damage" and "on foot". Version 8 adds the cursed flag on every item
-// and a ninth scroll (Remove Curse).
+// and a ninth scroll (Remove Curse). Version 9 adds each floor's belt event and
+// how long it has been running, so a flood resumes at the water line it reached.
 // There is no migration: an older save is refused rather than loaded as
 // something it is not — see docs/TEST_CASES.md, "what stayed unchecked".
-constexpr int kFormatVersion = 8;
+constexpr int kFormatVersion = 9;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -275,6 +276,8 @@ std::string Game::save() const {
 
         w << lvl.embers.size();
         for (const auto& e : lvl.embers) w << e.pos.x << e.pos.y << e.turns;
+
+        w << static_cast<int>(lvl.event) << lvl.event_age;
     }
 
     return w.take();
@@ -441,6 +444,12 @@ bool Game::load(const std::string& blob) {
             if (!r.ok() || e.turns <= 0) return false;
             if (e.pos.x < 0 || e.pos.y < 0 || e.pos.x >= w || e.pos.y >= h) return false;
         }
+
+        int event = 0;
+        r >> event >> lvl.event_age;
+        if (!r.ok() || event < 0 || event > static_cast<int>(EventKind::Firestorm)) return false;
+        if (lvl.event_age < 0) return false;
+        lvl.event = static_cast<EventKind>(event);
     }
     if (!r.ok()) return false;
     if (g.levels_.size() <= static_cast<std::size_t>(g.depth_)) return false;

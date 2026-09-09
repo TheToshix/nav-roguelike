@@ -113,6 +113,11 @@ struct Level {
     bool generated{false};
     bool boss_slain{false};
     Arena arena;
+    /// The belt's floor event, if this floor rolled one. Set once at
+    /// generation from an isolated RNG; `event_age` counts the hero turns it
+    /// has been running so it can ramp up and, eventually, burn out.
+    EventKind event{EventKind::None};
+    int event_age{0};
 };
 
 /// Everything the frontends need to draw one cell.
@@ -206,6 +211,12 @@ public:
     Zone zone() const { return zone_for_depth(depth_); }
     /// True while the hero stands on the crossroads rather than in the dungeon.
     bool in_lobby() const { return depth_ <= kLobbyDepth; }
+
+    /// The floor event running on the hero's current floor, or EventKind::None.
+    /// The frontends name it from data.hpp's event_name / event_note.
+    EventKind level_event() const { return level().event; }
+    /// How many hero turns the current floor's event has been running.
+    int level_event_age() const { return level().event_age; }
 
     /// Every GearPower flag carried by what the hero is wearing right now.
     std::uint32_t hero_powers() const;
@@ -342,6 +353,13 @@ private:
     void place_wanderers(Level& lvl, int depth);
     /// Marks a fraction of a floor's gear cursed, off a private stream.
     void curse_some_gear(Level& lvl, int depth);
+    /// Decides whether this floor rolls its belt's event, off a private stream
+    /// so generation is byte-for-byte the same with events on or off. For a
+    /// Firestorm it also seeds the first few burning cells.
+    void roll_level_event(Level& lvl, int depth);
+    /// Advances the current floor's event by one hero turn: the flood rises a
+    /// ring, the firestorm spreads, the blizzard deepens. No RNG.
+    void tick_level_event();
     /// Closes the doors behind the hero, or announces the threshold.
     void update_arena();
     void enter_level(int depth, bool descending);
@@ -359,6 +377,10 @@ private:
     void tick_hero_upkeep();
     /// Burns whatever stands on a lit cell, then counts every ember down.
     void tick_embers();
+    /// Sight radius in a blizzard: full sight closes to two cells over the
+    /// first dozen turns of the event, then holds. Returns 20 (no cap) when no
+    /// blizzard is running.
+    int blizzard_sight_cap() const;
     void recompute_fov();
     void reap_dead();
 

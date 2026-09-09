@@ -242,6 +242,42 @@ int belt_last_depth(Zone zone) {
     return last;
 }
 
+EventKind belt_event(Zone zone) {
+    switch (zone) {
+        case Zone::Chernotop: return EventKind::Flood;
+        case Zone::Koshchei:  return EventKind::Blizzard;
+        case Zone::Peklo:     return EventKind::Firestorm;
+        default:              return EventKind::None;
+    }
+}
+
+Text event_name(EventKind kind) {
+    switch (kind) {
+        case EventKind::Flood:     return Text{"Половодье", "The Flood"};
+        case EventKind::Blizzard:  return Text{"Метель", "The Blizzard"};
+        case EventKind::Firestorm: return Text{"Пожар", "The Firestorm"};
+        case EventKind::None:      break;
+    }
+    return Text{"", ""};
+}
+
+Text event_note(EventKind kind) {
+    switch (kind) {
+        case EventKind::Flood:
+            return Text{"Вода прибывает. Не задерживайся на низком месте.",
+                        "The water is rising. Do not linger on low ground."};
+        case EventKind::Blizzard:
+            return Text{"Снег слепит — дальше вытянутой руки не видно.",
+                        "The snow blinds you — nothing is clear past arm's reach."};
+        case EventKind::Firestorm:
+            return Text{"Огонь расходится. Он не станет ждать, пока ты решишься.",
+                        "The fire is spreading. It will not wait for you to decide."};
+        case EventKind::None:
+            break;
+    }
+    return Text{"", ""};
+}
+
 const ZoneTheme& zone_theme(Zone zone) {
     static const ZoneTheme themes[] = {
         {Zone::Pogost,
