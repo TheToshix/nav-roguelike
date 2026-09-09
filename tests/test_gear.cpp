@@ -312,3 +312,32 @@ TEST(Gear, TheLittleMirrorMakesSpellsCheaper) {
     EXPECT_GT(mirrored.game.hero().mana, plain.game.hero().mana)
         << "the mirror charged full price";
 }
+
+TEST(Gear, DroppingAWornCharmOfLifeFoldsItsBonusBackOut) {
+    // NAV-019. Putting the Charm of Life on recomputes the derived maxima, and
+    // so does taking it off from the pack — but dropping it on the floor used
+    // to skip that step, leaving the hero carrying twelve phantom points of
+    // maximum health (and a staff or robe, phantom mana) for the rest of the run.
+    Wardrobe w;
+    const int base_max_hp = w.game.hero().a.max_hp;
+
+    const int ci = gear_index("ob_zhizni");
+    ASSERT_GE(ci, 0);
+    const GearTemplate& g = gear_table()[static_cast<std::size_t>(ci)];
+    Item charm{};
+    charm.kind = g.kind;
+    charm.subtype = ci;
+    charm.power = g.power;
+    charm.identified = true;
+    ASSERT_TRUE(w.game.mutable_hero().inv.add(charm));
+    const int idx = static_cast<int>(w.game.hero().inv.items.size()) - 1;
+
+    ASSERT_TRUE(w.game.perform(Action{ActionType::EquipItem, {}, idx, {}}));
+    EXPECT_EQ(w.game.hero().a.max_hp, base_max_hp + 12) << "the charm did not raise max health";
+
+    ASSERT_TRUE(w.game.perform(Action{ActionType::DropItem, {}, idx, {}}));
+    EXPECT_EQ(w.game.hero().inv.amulet, -1) << "the slot should be empty after the drop";
+    EXPECT_EQ(w.game.hero().a.max_hp, base_max_hp) << "max health kept the dropped charm's bonus";
+    EXPECT_LE(w.game.hero().a.hp, w.game.hero().a.max_hp)
+        << "current health left standing above the new maximum";
+}

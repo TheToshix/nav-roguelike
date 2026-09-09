@@ -171,10 +171,16 @@ TEST(Travel, RunningIntoAFoeIsJustAnAttack) {
     c.row(10, 5, 25);
     c.put_hero({5, 10});
     Monster& m = c.spawn("anchutka", {6, 10});
+    // The point of the test is that the bump *is* an attack, so the foe has to
+    // outlast one blow — an anchutka's six health does not, and a corpse is
+    // reaped before the assertion below can read it, leaving `monsters()[0]` a
+    // read past the end of the vector (see docs/BUG_REPORTS.md, NAV-018).
+    m.a.hp = m.a.max_hp = 60;
     const int hp = m.a.hp;
 
     EXPECT_TRUE(c.run({1, 0}));
     EXPECT_EQ(c.where().x, 5) << "the hero walked through the monster instead of hitting it";
+    ASSERT_EQ(c.game.monsters().size(), 1u) << "the foe should have survived a single blow";
     EXPECT_LT(c.game.monsters()[0].a.hp, hp) << "the bump did no damage";
 }
 

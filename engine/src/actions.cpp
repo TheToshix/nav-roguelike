@@ -415,6 +415,18 @@ bool Game::act_drop(int index) {
     Item dropped = hero_.inv.take(index, hero_.inv.items[static_cast<std::size_t>(index)].count);
     dropped.pos = hero_.a.pos;
     mutable_level().items.push_back(dropped);
+
+    // `take` clears the slot when the dropped item was worn, but the derived
+    // maxima — max HP from the Charm of Life, max mana from a staff or robe —
+    // are stored on the hero and only recomputed where a piece goes on or off.
+    // Dropping is the third way a worn piece leaves, and it has to fold the
+    // bonus back out too, or the stat stays inflated for the rest of the run
+    // (see docs/BUG_REPORTS.md, NAV-019).
+    hero_.a.max_hp = derived_max_hp();
+    hero_.a.hp = std::min(hero_.a.hp, hero_.a.max_hp);
+    hero_.max_mana = derived_max_mana();
+    hero_.mana = std::min(hero_.mana, hero_.max_mana);
+
     message(format(Text{"Ты бросил: {}.", "You drop: {}."}, item_name(dropped, ident_)));
     hero_.a.energy -= kEnergyPerTurn;
     return true;
