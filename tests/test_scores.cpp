@@ -138,3 +138,55 @@ TEST(Scores, ARunTurnsIntoARecord) {
     EXPECT_EQ(e.score, g.score());
     EXPECT_FALSE(e.won);
 }
+
+// ---------------------------------------------------------------------------
+// The daily run — same table, its own column.
+// ---------------------------------------------------------------------------
+
+TEST(Scores, ADailySeedIsRecognisedByItsPrefix) {
+    EXPECT_TRUE(is_daily_seed(daily_seed_text(20345)));
+    EXPECT_TRUE(is_daily_seed("daily:0"));
+    EXPECT_FALSE(is_daily_seed("daily:"));          // prefix alone is not a day
+    EXPECT_FALSE(is_daily_seed("кощей"));
+    EXPECT_FALSE(is_daily_seed(""));
+    EXPECT_EQ(daily_seed_text(7), "daily:7");
+}
+
+TEST(Scores, ARunOnTheDailySeedIsFlagged) {
+    GameConfig cfg;
+    cfg.seed_text = daily_seed_text(19000);
+    cfg.seed = Rng::hash_seed(cfg.seed_text);
+    Game g;
+    g.start(cfg);
+    leave_crossroads(g);
+
+    const ScoreEntry e = entry_from(g);
+    EXPECT_TRUE(e.daily) << "a run on the daily seed was not marked daily";
+
+    // And an ordinary run is not.
+    GameConfig other;
+    other.seed_text = "просто зерно";
+    other.seed = Rng::hash_seed(other.seed_text);
+    Game h;
+    h.start(other);
+    leave_crossroads(h);
+    EXPECT_FALSE(entry_from(h).daily);
+}
+
+TEST(Scores, TheDailyFlagSurvivesTheTextRoundTrip) {
+    std::vector<ScoreEntry> table;
+    ScoreEntry a = make(1200);
+    a.daily = true;
+    a.seed_text = daily_seed_text(19001);
+    ScoreEntry b = make(900);
+    b.seed_text = "обычное";
+    insert_score(table, a);
+    insert_score(table, b);
+
+    std::vector<ScoreEntry> back;
+    ASSERT_TRUE(parse_scores(serialize_scores(table), back));
+    ASSERT_EQ(back.size(), 2u);
+    EXPECT_TRUE(back[0].daily);
+    EXPECT_EQ(back[0].seed_text, daily_seed_text(19001));
+    EXPECT_FALSE(back[1].daily);
+}

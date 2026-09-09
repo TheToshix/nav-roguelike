@@ -28,7 +28,23 @@ struct ScoreEntry {
     int kills{0};
     int gold{0};
     bool won{false};
+    /// True for a run on the shared daily seed. Same table, its own column — so
+    /// a daily result can be picked out and compared without a second store.
+    bool daily{false};
 };
+
+/// The seed text a daily run carries: this prefix plus the day index the
+/// frontend computes from the calendar. `entry_from` recognises it, and the
+/// same string always builds the same dungeon.
+inline constexpr const char* kDailySeedPrefix = "daily:";
+
+/// Whether a seed text is a daily one.
+bool is_daily_seed(const std::string& seed_text);
+
+/// The seed text for the daily run of day `day_index` (the frontend computes the
+/// index from the calendar; the engine has no clock). Deterministic, so every
+/// player on the same day gets the same string and the same dungeon.
+std::string daily_seed_text(long long day_index);
 
 /// How many runs the table keeps.
 inline constexpr std::size_t kScoreTableSize = 10;

@@ -672,6 +672,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 
     <div class="title-actions">
       <button class="primary" id="btnStart">Спуститься</button>
+      <button id="btnDaily">Ежедневный</button>
       <button id="btnContinue" class="hidden">Продолжить</button>
       <button id="btnHelpTitle">Как играть</button>
       <button id="btnBoardTitle">Рекорды</button>
@@ -792,7 +793,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       built: 'Игровое ядро на C++20, собрано в WebAssembly. Тот же код играется в терминале.',
       lblClass: 'Кем спускаешься', lblSeed: 'Зерно (необязательно)', lblBelts: 'Четыре пояса, восемь стражей',
       seedHint: 'Одно и то же зерно всегда даёт одно и то же подземелье — так воспроизводится любая находка или баг.',
-      start: 'Спуститься', cont: 'Продолжить', help: 'Как играть', bestiary: 'Бестиарий',
+      start: 'Спуститься', daily: 'Ежедневный', dailyHint: 'Общий для всех сид дня', cont: 'Продолжить', help: 'Как играть', bestiary: 'Бестиарий',
       otherLang: 'English', brand: 'НАВЬ',
       depth: 'Глубина', turn: 'Ход', score: 'Очки', save: 'Сохранить', quit: 'В начало',
       hp: 'Жизнь', mana: 'Силы', xp: 'Опыт', who: 'Кто', level: 'Уровень',
@@ -831,7 +832,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       setLang: 'Язык', on: 'Вкл', off: 'Выкл', rotate: 'Поверни телефон — так удобнее',
       boardTitle: 'Лучшие спуски', boardSub: 'Десять лучших партий в этом браузере.',
       boardEmpty: 'Пока никто не спускался.', boardBtn: 'Рекорды',
-      wonTag: 'победа', best: 'Лучший спуск.', placed: 'В таблице: место ',
+      wonTag: 'победа', dailyTag: 'ежедн.', boardAll: 'Все', best: 'Лучший спуск.', placed: 'В таблице: место ',
       keys: [
         ['hjkl yubn / стрелки / цифры', 'идти; шаг в тварь — удар'],
         ['. или 5', 'переждать ход'],
@@ -856,7 +857,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       built: 'The game core is C++20, compiled to WebAssembly. The same code plays in a terminal.',
       lblClass: 'Who goes down', lblSeed: 'Seed (optional)', lblBelts: 'Four belts, eight guardians',
       seedHint: 'The same seed always builds the same dungeon — that is how any find, or any bug, is reproduced.',
-      start: 'Descend', cont: 'Continue', help: 'How to play', bestiary: 'Bestiary',
+      start: 'Descend', daily: 'Daily', dailyHint: "Everyone's shared seed for today", cont: 'Continue', help: 'How to play', bestiary: 'Bestiary',
       otherLang: 'Русский', brand: 'NAV',
       depth: 'Depth', turn: 'Turn', score: 'Score', save: 'Save', quit: 'Title',
       hp: 'Life', mana: 'Power', xp: 'XP', who: 'Class', level: 'Level',
@@ -895,7 +896,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       setLang: 'Language', on: 'On', off: 'Off', rotate: 'Turn the phone — it plays better',
       boardTitle: 'Best descents', boardSub: 'The ten best runs in this browser.',
       boardEmpty: 'Nobody has gone down yet.', boardBtn: 'Scores',
-      wonTag: 'won', best: 'Your best descent yet.', placed: 'On the board: place ',
+      wonTag: 'won', dailyTag: 'daily', boardAll: 'All', best: 'Your best descent yet.', placed: 'On the board: place ',
       keys: [
         ['hjkl yubn / arrows / numpad', 'move; step into a creature to attack'],
         ['. or 5', 'wait a turn'],
@@ -1001,18 +1002,22 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   }
 
   /// The board, as rows. `highlight` marks the run just finished, or -1.
-  function scoreTableHtml(rows, highlight) {
-    if (!rows.length)
+  function scoreTableHtml(rows, highlight, dailyOnly) {
+    var shown = rows.map(function (r, i) { return {r: r, i: i}; });
+    if (dailyOnly) shown = shown.filter(function (x) { return x.r.daily; });
+    if (!shown.length)
       return '<p class="sub">' + t('boardEmpty') + '</p>';
     var out = '<div class="board">';
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      out += '<div class="row' + (i === highlight ? ' mine' : '') + '">' +
-             '<span class="pos">' + (i + 1) + '</span>' +
+    for (var k = 0; k < shown.length; k++) {
+      var r = shown[k].r;
+      out += '<div class="row' + (shown[k].i === highlight ? ' mine' : '') + '">' +
+             '<span class="pos">' + (k + 1) + '</span>' +
              '<span class="sc">' + r.score + '</span>' +
              '<span class="dp">' + t('depthTag') + ' ' + r.deepest + '</span>' +
              '<span class="cl">' + esc(r.className) + '</span>' +
-             '<span class="sd">' + (r.won ? '<b>' + t('wonTag') + '</b> ' : '') +
+             '<span class="sd">' +
+             (r.daily ? '<b style="color:var(--gold)">' + t('dailyTag') + '</b> ' : '') +
+             (r.won ? '<b>' + t('wonTag') + '</b> ' : '') +
              (r.seedText ? esc(r.seedText) : '') + '</span>' +
              '</div>';
     }
@@ -1061,6 +1066,9 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       achievementsTable: function (blob) {
         return JSON.parse(readString(
           m.ccall('nav_achievements_table', 'number', ['string'], [blob || ''])));
+      },
+      dailySeed: function (dayIndex) {
+        return readString(m.ccall('nav_daily_seed', 'number', ['number'], [dayIndex]));
       },
       // The keymap comes from the engine as well. The browser resolves keys
       // itself for speed, but out of the same table the terminal reads, so the
@@ -1827,13 +1835,29 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       function (overlay) { overlay.querySelector('#mClose').addEventListener('click', closeModal); });
   }
 
+  var boardDailyOnly = false;
   function showBoard() {
     var rows = Api ? Api.scoreTable(loadScoreBlob()) : [];
+    var anyDaily = rows.some(function (r) { return r.daily; });
+    var toggle = anyDaily
+      ? '<div class="setting-choice" style="margin:4px 0 10px">' +
+        '<button class="pill' + (boardDailyOnly ? '' : ' on') + '" data-df="0">' + t('boardAll') + '</button>' +
+        '<button class="pill' + (boardDailyOnly ? ' on' : '') + '" data-df="1">' + t('dailyTag') + '</button></div>'
+      : '';
     openModal(
-      '<h2>' + t('boardTitle') + '</h2><p class="sub">' + t('boardSub') + '</p>' +
-      scoreTableHtml(rows, -1) +
+      '<h2>' + t('boardTitle') + '</h2><p class="sub">' + t('boardSub') + '</p>' + toggle +
+      scoreTableHtml(rows, -1, boardDailyOnly) +
       '<div style="margin-top:14px"><button id="mClose">' + t('close') + '</button></div>',
-      function (overlay) { overlay.querySelector('#mClose').addEventListener('click', closeModal); });
+      function (overlay) {
+        overlay.querySelector('#mClose').addEventListener('click', closeModal);
+        overlay.querySelectorAll('[data-df]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            boardDailyOnly = b.getAttribute('data-df') === '1';
+            closeModal();
+            showBoard();
+          });
+        });
+      });
   }
 
   function showBestiary() {
@@ -2163,6 +2187,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('lblSeed').textContent = t('lblSeed');
     $('seedHint').textContent = t('seedHint');
     $('btnStart').textContent = t('start');
+    $('btnDaily').textContent = t('daily');
+    $('btnDaily').title = t('dailyHint');
     $('btnContinue').textContent = t('cont');
     $('btnHelpTitle').textContent = t('help');
     $('btnBestiaryTitle').textContent = t('bestiary');
@@ -2254,6 +2280,14 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     requestAnimationFrame(function () { refresh(); autosave(); });
   }
 
+  /// The daily run: one dungeon for everyone, keyed off the UTC calendar day.
+  /// The seed text is built in the engine so the terminal and the browser
+  /// agree, and it lands on the score board with its own "daily" column.
+  function startDaily() {
+    var day = Math.floor(Date.now() / 86400000);
+    startRun(Api ? Api.dailySeed(day) : ('daily:' + day));
+  }
+
   function toTitle() {
     if (window.NavMusic && NavMusic.available()) NavMusic.stop();
     $('game').classList.add('hidden');
@@ -2295,6 +2329,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 
   // ------------------------------------------------------------------ boot --
   $('btnStart').addEventListener('click', function () { startRun($('seed').value.trim()); });
+  $('btnDaily').addEventListener('click', startDaily);
   $('btnContinue').addEventListener('click', function () {
     var blob = loadSave();
     if (!blob || !Api.load(blob)) { toast(t('loadFail')); return; }

@@ -601,6 +601,7 @@ EMSCRIPTEN_KEEPALIVE char* nav_record_score(const char* blob) {
         out += ",\"won\":" + std::string(e.won ? "true" : "false");
         out += ",\"className\":";
         append_json_string(out, class_info(e.cls).name.get(g_lang));
+        out += ",\"daily\":" + std::string(e.daily ? "true" : "false");
         out += ",\"seedText\":";
         append_json_string(out, e.seed_text);
         out += "}";
@@ -650,6 +651,7 @@ EMSCRIPTEN_KEEPALIVE char* nav_score_table(const char* blob) {
         out += ",\"won\":" + std::string(e.won ? "true" : "false");
         out += ",\"className\":";
         append_json_string(out, class_info(e.cls).name.get(g_lang));
+        out += ",\"daily\":" + std::string(e.daily ? "true" : "false");
         out += ",\"seedText\":";
         append_json_string(out, e.seed_text);
         out += "}";
@@ -726,6 +728,12 @@ EMSCRIPTEN_KEEPALIVE char* nav_postmortem_json() {
 EMSCRIPTEN_KEEPALIVE void nav_free_cstr(char* p) { std::free(p); }
 
 EMSCRIPTEN_KEEPALIVE const char* nav_version() { return "1.0.0"; }
+
+/// The daily-run seed text for day `day_index` (JS computes the index from the
+/// clock). Returned so both frontends build the string one way.
+EMSCRIPTEN_KEEPALIVE char* nav_daily_seed(double day_index) {
+    return to_c_string(nav::daily_seed_text(static_cast<long long>(day_index)));
+}
 
 }  // extern "C"
 

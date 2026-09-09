@@ -17,9 +17,18 @@ namespace nav {
 namespace {
 
 constexpr const char* kMagic = "NAVSCORES";
-constexpr int kVersion = 1;
+constexpr int kVersion = 2;   // v2 adds the daily flag per row
 
 }  // namespace
+
+bool is_daily_seed(const std::string& seed_text) {
+    const std::string prefix = kDailySeedPrefix;
+    return seed_text.size() > prefix.size() && seed_text.compare(0, prefix.size(), prefix) == 0;
+}
+
+std::string daily_seed_text(long long day_index) {
+    return std::string(kDailySeedPrefix) + std::to_string(day_index);
+}
 
 ScoreEntry entry_from(const Game& g) {
     ScoreEntry e;
@@ -32,6 +41,7 @@ ScoreEntry entry_from(const Game& g) {
     e.kills = g.hero().kills;
     e.gold = g.hero().gold;
     e.won = g.state() == RunState::Ascended;
+    e.daily = is_daily_seed(e.seed_text);
     return e;
 }
 
@@ -60,7 +70,8 @@ std::string serialize_scores(const std::vector<ScoreEntry>& table) {
     for (const ScoreEntry& e : table) {
         out << e.score << ' ' << e.deepest << ' ' << e.turns << ' ' << e.level << ' '
             << e.kills << ' ' << e.gold << ' ' << static_cast<int>(e.cls) << ' '
-            << (e.won ? 1 : 0) << ' ' << e.seed_text.size() << ' ' << e.seed_text << '\n';
+            << (e.won ? 1 : 0) << ' ' << (e.daily ? 1 : 0) << ' '
+            << e.seed_text.size() << ' ' << e.seed_text << '\n';
     }
     return out.str();
 }
@@ -79,10 +90,10 @@ bool parse_scores(const std::string& blob, std::vector<ScoreEntry>& out) {
 
     for (std::size_t i = 0; i < count; ++i) {
         ScoreEntry e;
-        int cls = 0, won = 0;
+        int cls = 0, won = 0, daily = 0;
         std::size_t length = 0;
         if (!(in >> e.score >> e.deepest >> e.turns >> e.level >> e.kills >> e.gold >> cls >>
-              won >> length))
+              won >> daily >> length))
             return false;
         if (cls < 0 || cls >= static_cast<int>(HeroClass::Count)) return false;
         if (length > 64) return false;
@@ -95,6 +106,7 @@ bool parse_scores(const std::string& blob, std::vector<ScoreEntry>& out) {
 
         e.cls = static_cast<HeroClass>(cls);
         e.won = won != 0;
+        e.daily = daily != 0;
         e.seed_text = seed;
         if (e.deepest < 0 || e.deepest > kMaxDepth) return false;
         if (e.level < 1 || e.turns < 0 || e.kills < 0 || e.gold < 0) return false;

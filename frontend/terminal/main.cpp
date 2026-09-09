@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <ctime>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -914,6 +915,8 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
                                    : "  \x1b[38;5;180mT\x1b[0m) language: English\n";
         out += ui.lang == Lang::Ru ? "  \x1b[38;5;180mL\x1b[0m) загрузить сохранение\n"
                                    : "  \x1b[38;5;180mL\x1b[0m) load a save\n";
+        out += ui.lang == Lang::Ru ? "  \x1b[38;5;180mD\x1b[0m) ежедневный сид (общий для всех)\n"
+                                   : "  \x1b[38;5;180mD\x1b[0m) the daily seed (shared by everyone)\n";
         // Offered here as well as in the in-game menu: the scheme is the first
         // thing a player wants to change and the last thing they should have to
         // start a run to find.
@@ -942,6 +945,10 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
         if (key == '?') { ui.notice(help_text(ui.lang, ui.scheme)); continue; }
         if (key == 'a') { ui.notice(feats_text(load_feats(), {}, ui.lang)); continue; }
         if (key == 'L') { cfg.seed_text = "\x01load"; return true; }
+        if (key == 'D') {
+            cfg.seed_text = daily_seed_text(static_cast<long long>(std::time(nullptr)) / 86400);
+            return true;
+        }
         if (key == 's') {
             ui.clear();
             std::fputs(ui.lang == Lang::Ru ? "Зерно (Enter — случайное): " : "Seed (Enter for random): ",
@@ -999,6 +1006,8 @@ std::string score_table_text(const std::vector<ScoreEntry>& table, Lang lang, in
         // Depth is the number a player actually compares runs by.
         out << (lang == Lang::Ru ? "гл." : "d.") << std::setw(3) << e.deepest << "  ";
         out << std::setw(10) << std::left << class_info(e.cls).name.get(lang) << std::right;
+        if (e.daily) out << (lang == Lang::Ru ? "  \x1b[38;5;179mежедн.\x1b[0m" : "  \x1b[38;5;179mdaily\x1b[0m")
+                         << (mine ? "\x1b[38;5;179m" : "\x1b[38;5;245m");
         if (e.won) out << (lang == Lang::Ru ? "  победа" : "  won");
         if (!e.seed_text.empty()) out << "  [" << e.seed_text << "]";
         out << "\x1b[0m\n";
