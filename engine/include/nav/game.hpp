@@ -311,6 +311,10 @@ private:
     /// checked afterwards and rolled back if it did: a floor with no arena is a
     /// small loss, a floor with an unreachable half is a broken game.
     void build_arena(Level& lvl, int depth);
+    /// Carves a small hidden room into the rock on a couple of mid-belt floors,
+    /// with Кот Баюн and his charm inside, reached by one closed door. Only ever
+    /// carves into solid wall, so it can strand nothing that already existed.
+    void build_secret_room(Level& lvl, int depth);
     /// Closes the doors behind the hero, or announces the threshold.
     void update_arena();
     void enter_level(int depth, bool descending);

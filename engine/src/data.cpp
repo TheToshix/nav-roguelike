@@ -154,6 +154,16 @@ const std::vector<Species>& bestiary() {
          AiNeutral, Effect::Poison, 0, 0,
          Text{"Хозяин дома. Не тронешь — не тронет, а за уважение и отблагодарит.",
               "The keeper of the house. Leave it be and it leaves you be — and a little courtesy it repays."}},
+
+        // --- Необязательный мини-босс ------------------------------------
+        //
+        // Weight 0: never rolled, placed by hand in a hidden room off a
+        // mid-belt floor, guarding a charm. His song is the one attack in the
+        // game that takes the player's turn away outright.
+        {"kot_bayun", Text{"Кот Баюн", "Bayun the Cat"},          'f', "#9a8fb0", 120, 13,  5, 100, 11, 220,  6, 12,  0,
+         AiRanged | AiBoss | AiMiniBoss, Effect::Sleep, 20, 2,
+         Text{"Говорящий кот на железном столбе. Заводит песню — и слушающий засыпает.",
+              "A speaking cat on an iron post. It begins a song, and the one who hears it sleeps."}, /*phases=*/2},
     };
     return table;
 }
@@ -291,6 +301,12 @@ const std::vector<GearTemplate>& gear_table() {
         {"ob_zorko",  Text{"Оберег зоркости", "Charm of Sight"},ItemKind::Amulet,'"',  3, 2, 5, Text{"+3 к обзору.", "+3 sight radius."}},
         {"ob_yada",   Text{"Оберег от яда", "Charm of Antivenom"},ItemKind::Amulet,'"',1, 3, 5, Text{"Яд не берёт.", "Poison cannot touch you."}},
         {"ob_skoro",  Text{"Оберег скорости", "Charm of Haste"},ItemKind::Amulet,'"', 20, 5, 4, Text{"+20 к скорости.", "+20 speed."}},
+
+        // Кот Баюн's collar, taken from around his neck. Weight 0: it is never
+        // generated, only left behind by the cat in his hidden room.
+        {"koshkin_glaz", Text{"Кошачий глаз", "The Cat's Eye"}, ItemKind::Amulet, '"', 4, 6, 0,
+         Text{"Сон больше не берёт, и видно дальше.", "Sleep can no longer take you, and you see further."},
+         GpNoSleep | GpSight},
 
         // --- Наборы ----------------------------------------------------------
         //
@@ -494,6 +510,7 @@ Text effect_name(Effect e) {
         case Effect::Might:     return Text{"ярость", "might"};
         case Effect::Shield:    return Text{"оберег", "warding"};
         case Effect::Invisible: return Text{"тень", "unseen"};
+        case Effect::Sleep:     return Text{"сон", "sleep"};
         case Effect::Count:     break;
     }
     return Text{"?", "?"};
@@ -694,6 +711,9 @@ const std::vector<BossPhaseLine>& boss_phase_table() {
                             "\"Are you warm, girl?\" — the air rings with cold."}},
         {"polozh", 2, Text{"Полоз уходит в камень. Пол дрожит — он идёт под тобой.",
                            "The Poloz slips into the stone. The floor shakes — he is moving beneath you."}},
+
+        {"kot_bayun", 2, Text{"Кот Баюн мурлычет глубже. Теперь и подойти не даёт — усыпляет вплотную.",
+                              "Bayun's purr drops lower. He will not even let you close now — the song reaches at arm's length."}},
 
         {"viy", 2, Text{"Вий перестаёт ждать. Веки поднимаются чаще.",
                         "Viy stops waiting. The eyelids come up sooner now."}},

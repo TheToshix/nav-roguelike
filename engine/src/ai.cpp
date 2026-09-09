@@ -32,7 +32,11 @@ bool Game::hero_resists(Effect e) const {
     }
     if (e == Effect::Poison && hero_has(GpNoPoison)) return true;
     if (e == Effect::Burn && hero_has(GpNoBurn)) return true;
-    if ((e == Effect::Confusion || e == Effect::Blind) && hero_set() == GearSet::Oberezhny)
+    if (e == Effect::Sleep && hero_has(GpNoSleep)) return true;
+    // Sleep is a working of the mind, like a delusion or a blinding, so the
+    // warding circle turns it aside the same way.
+    if ((e == Effect::Confusion || e == Effect::Blind || e == Effect::Sleep) &&
+        hero_set() == GearSet::Oberezhny)
         return true;
     return false;
 }
@@ -339,6 +343,40 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
             }
         }
         return false;
+    }
+
+    // --- Кот Баюн: песня, от которой засыпают -------------------------------
+    //
+    // The one attack in the game that takes the player's turn away outright. It
+    // is telegraphed a turn early, and in the first phase it needs a cell or two
+    // of distance to land — so rushing him shuts the song off. In the second he
+    // sings point-blank, and the counter-play narrows to the charm he is
+    // guarding or the warding circle.
+    if (std::strcmp(sp.key, "kot_bayun") == 0) {
+        ++m.charge;
+        const int cycle = m.phase >= 2 ? 3 : 4;
+        const int min_range = m.phase >= 2 ? 1 : 2;
+        if (m.charge == cycle - 1 && map().visible(m.a.pos))
+            message(Text{"Кот Баюн заводит песню. Заткни уши или беги.",
+                         "Bayun draws breath for his song. Cover your ears, or run."},
+                    Severity::Critical);
+        if (m.charge >= cycle) {
+            m.charge = 0;
+            if (sees_hero && distance >= min_range && distance <= sp.sight) {
+                if (!hero_resists(Effect::Sleep)) {
+                    hero_.a.add_effect(Effect::Sleep, m.phase >= 2 ? 3 : 2, 1);
+                    message(Text{"Голос кота обволакивает — глаза сами закрываются.",
+                                 "The cat's voice wraps around you, and your eyes fall shut."},
+                            Severity::Critical);
+                } else {
+                    message(Text{"Песня скользит мимо — ты её не слышишь.",
+                                 "The song slides past — you do not hear it."},
+                            Severity::Good);
+                }
+                return true;   // the song is his whole turn
+            }
+        }
+        return false;   // otherwise he closes in and claws like anything else
     }
 
     return false;

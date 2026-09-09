@@ -341,3 +341,14 @@ TEST(Gear, DroppingAWornCharmOfLifeFoldsItsBonusBackOut) {
     EXPECT_LE(w.game.hero().a.hp, w.game.hero().a.max_hp)
         << "current health left standing above the new maximum";
 }
+
+TEST(Gear, TheCatsEyeGrantsSleepImmunityAndFartherSight) {
+    Wardrobe plain;
+    Wardrobe cat;
+    const int sight_before = plain.game.hero_sight();
+
+    cat.wear("koshkin_glaz");
+    EXPECT_TRUE(cat.game.hero_has(GpNoSleep));
+    EXPECT_TRUE(cat.game.hero_has(GpSight));
+    EXPECT_EQ(cat.game.hero_sight(), sight_before + 3) << "the charm did not widen the view";
+}

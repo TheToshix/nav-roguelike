@@ -158,6 +158,113 @@ void Game::ensure_level(int depth) {
             }
         }
     }
+
+    build_secret_room(lvl, depth);
+}
+
+void Game::build_secret_room(Level& lvl, int depth) {
+    // One hidden room, on the middle floor of the mire and of Кощей's kingdom.
+    if (depth != 6 && depth != 10) return;
+
+    Map& map = lvl.map;
+    const int cat = species_index("kot_bayun");
+    int charm_idx = -1;
+    {
+        const auto& g = gear_table();
+        for (std::size_t i = 0; i < g.size(); ++i)
+            if (std::strcmp(g[i].key, "koshkin_glaz") == 0) charm_idx = static_cast<int>(i);
+    }
+    if (cat < 0 || charm_idx < 0) return;
+
+    // Its own random stream, seeded from the run seed and the depth. The main
+    // sequence is not touched, so every floor below this one generates exactly
+    // as it would without the room — a shifted dungeon RNG is how a stray draw
+    // here would otherwise reach across a whole belt.
+    Rng r(cfg_.seed ^ (0x9E3779B97F4A7C15ULL * static_cast<std::uint64_t>(depth + 1)));
+
+    constexpr int iw = 5, ih = 3;   // interior size
+    const std::vector<Vec2> open = map.walkable_cells();
+    if (open.empty()) return;
+
+    for (int attempt = 0; attempt < 200; ++attempt) {
+        // Anchor beside an existing corridor, then step into the rock next to it.
+        const Vec2 anchor =
+            open[static_cast<std::size_t>(r.below(static_cast<int>(open.size())))];
+        if (chebyshev(anchor, lvl.entrance) < 8 || chebyshev(anchor, lvl.exit) < 8) continue;
+        if (lvl.arena.exists && lvl.arena.contains(anchor)) continue;
+
+        const Vec2 dir = directions4()[static_cast<std::size_t>(r.below(4))];
+        const Vec2 tl{anchor.x + dir.x * 3 - iw / 2, anchor.y + dir.y * 3 - ih / 2};
+        const Vec2 br{tl.x + iw - 1, tl.y + ih - 1};
+
+        // The whole footprint — interior plus a one-cell ring — must be solid
+        // wall right now, so carving it can strand nothing that already existed.
+        bool all_wall = true;
+        for (int y = tl.y - 1; y <= br.y + 1 && all_wall; ++y)
+            for (int x = tl.x - 1; x <= br.x + 1; ++x) {
+                if (x < 1 || y < 1 || x >= map.width() - 1 || y >= map.height() - 1) {
+                    all_wall = false;
+                    break;
+                }
+                if (map.at({x, y}) != Tile::Wall) { all_wall = false; break; }
+            }
+        if (!all_wall) continue;
+
+        // The hidden door is a ring cell with walkable floor just outside it.
+        Vec2 door{-1, -1};
+        for (int y = tl.y - 1; y <= br.y + 1 && door.x < 0; ++y)
+            for (int x = tl.x - 1; x <= br.x + 1; ++x) {
+                const bool on_ring =
+                    x == tl.x - 1 || x == br.x + 1 || y == tl.y - 1 || y == br.y + 1;
+                if (!on_ring) continue;
+                Vec2 out{0, 0};
+                if (x == tl.x - 1) out = {-1, 0};
+                else if (x == br.x + 1) out = {1, 0};
+                else if (y == tl.y - 1) out = {0, -1};
+                else out = {0, 1};
+                const Vec2 outside{x + out.x, y + out.y};
+                const Vec2 inside{x - out.x, y - out.y};
+                if (!map.walkable(outside)) continue;
+                if (inside.x < tl.x || inside.x > br.x || inside.y < tl.y || inside.y > br.y)
+                    continue;
+                door = {x, y};
+                break;
+            }
+        if (door.x < 0) continue;
+
+        // Carve the interior and hang a closed door in the ring. It is a real
+        // door — the room stays connected, so every reachability invariant still
+        // holds — but a door blocks sight, so from a corridor the room reads as
+        // solid wall until the hero is standing at it. It is "secret" by sitting
+        // at the end of nothing, far from either staircase.
+        for (int y = tl.y; y <= br.y; ++y)
+            for (int x = tl.x; x <= br.x; ++x) map.set({x, y}, Tile::Floor);
+        map.set(door, Tile::Door);
+
+        // Кот Баюн on the far side of the room, his charm near the middle.
+        const Species& sp = bestiary()[static_cast<std::size_t>(cat)];
+        const Vec2 cat_pos{door.x <= tl.x ? br.x : (door.x >= br.x ? tl.x : (tl.x + br.x) / 2),
+                           door.y <= tl.y ? br.y : (door.y >= br.y ? tl.y : (tl.y + br.y) / 2)};
+        Monster m{};
+        m.species = cat;
+        m.a.pos = cat_pos;
+        m.a.hp = m.a.max_hp = sp.hp;
+        m.a.attack = sp.attack;
+        m.a.defence = sp.defence;
+        m.a.speed = sp.speed;
+        m.awake = true;
+        lvl.monsters.push_back(m);
+
+        Item charm{};
+        charm.kind = ItemKind::Amulet;
+        charm.subtype = charm_idx;
+        charm.power = gear_table()[static_cast<std::size_t>(charm_idx)].power;
+        charm.identified = true;
+        charm.pos = {(tl.x + br.x) / 2, (tl.y + br.y) / 2};
+        if (charm.pos == cat_pos) charm.pos.x += (charm.pos.x > tl.x ? -1 : 1);
+        lvl.items.push_back(charm);
+        return;
+    }
 }
 
 /// Walls a hall around the floor's guardian.
@@ -638,7 +745,13 @@ bool Game::perform(const Action& action) {
     // — a step, a held key, a run — is dropped and the world moves on without
     // them. Freeze was always meant to do this ("your legs will not move"), but
     // nothing ever enforced it on the hero's side; see docs/BUG_REPORTS.md,
-    // NAV-020.
+    // NAV-020. Sleep is the same lock by another cause — Кот Баюн's song.
+    if (hero_.a.has(Effect::Sleep)) {
+        message(Text{"Ты спишь и не владеешь собой.",
+                     "You are asleep and not your own."},
+                Severity::Bad);
+        return perform_single(Action{ActionType::Wait, {}, -1, {}});
+    }
     if (hero_.a.has(Effect::Freeze)) {
         message(Text{"Тело не слушается — ход потерян.",
                      "Your body will not answer — the turn is lost."},

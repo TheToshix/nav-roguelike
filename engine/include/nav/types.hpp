@@ -90,6 +90,7 @@ enum class Effect : std::uint8_t {
     Might,      ///< +attack.
     Shield,     ///< +defence.
     Invisible,  ///< Monsters lose track of the hero.
+    Sleep,      ///< The hero loses every turn until it wears off — a full input lock. Кот Баюн's song.
     Count
 };
 

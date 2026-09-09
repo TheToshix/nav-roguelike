@@ -128,6 +128,10 @@ public:
                 h.nutrition = 20000;
                 h.a.clear_effect(Effect::Poison);
                 h.a.clear_effect(Effect::Burn);
+                // Кот Баюн's song locks the hero out of their turn, and the
+                // sweep is a survey instrument, not a player: a slept sweeper
+                // burns its floor budget doing nothing.
+                h.a.clear_effect(Effect::Sleep);
             }
 
             // A turn the policy could not spend is not the end of the run: the

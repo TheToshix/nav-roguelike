@@ -273,6 +273,48 @@ TEST(ArenaHall, TheHallSurvivesASaveAndLoad) {
     EXPECT_EQ(a.seals, g.arena().seals);
 }
 
+// ---------------------------------------------------------------------------
+// Кот Баюн's hidden room — built out of the same carve, but connected by an
+// ordinary closed door so every reachability invariant still holds.
+// ---------------------------------------------------------------------------
+
+TEST(SecretRoom, KotBayunAndHisCharmAreWalledOffOnSomeMidBeltFloor) {
+    const int cat = species_index("kot_bayun");
+    int charm = -1;
+    for (std::size_t i = 0; i < gear_table().size(); ++i)
+        if (std::strcmp(gear_table()[i].key, "koshkin_glaz") == 0) charm = static_cast<int>(i);
+    ASSERT_GE(cat, 0);
+    ASSERT_GE(charm, 0);
+
+    int rooms = 0;
+    for (std::uint64_t seed = 1; seed <= 12; ++seed) {
+        Game g = descend_to(11, seed * 6113);
+        for (int depth : {6, 10}) {
+            const Level& lvl = g.level_at(depth);
+            Vec2 cat_pos{-1, -1};
+            for (const Monster& m : lvl.monsters)
+                if (m.species == cat) cat_pos = m.a.pos;
+            if (cat_pos.x < 0) continue;
+            ++rooms;
+
+            // The charm is in the same room.
+            bool charm_here = false;
+            for (const Item& it : lvl.items)
+                if (it.kind == ItemKind::Amulet && it.subtype == charm &&
+                    chebyshev(it.pos, cat_pos) <= 4)
+                    charm_here = true;
+            EXPECT_TRUE(charm_here) << "seed " << seed << ", depth " << depth;
+
+            // The room is reached by an ordinary closed door, so the floor is
+            // still whole despite the extra walls, and the cat is standing on
+            // reachable ground.
+            EXPECT_EQ(reachable_from(lvl.map, lvl.entrance), walkable_cells(lvl.map))
+                << "seed " << seed << ", depth " << depth << ": the room carve stranded part of the floor";
+        }
+    }
+    EXPECT_GT(rooms, 0) << "no seed in the sample produced a hidden room at all";
+}
+
 TEST(ArenaHall, ASaveWithAnImpossibleHallIsRefused) {
     // The loader's job is to disbelieve the file. A hall with its corners the
     // wrong way round would be a rectangle the hero can never satisfy.

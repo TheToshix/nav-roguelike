@@ -42,6 +42,7 @@ GROUPS = [
     ('Koshchei', ['likho', 'kamennaya', 'nav', 'koldun', 'zmey']),
     ('Peklo', ['chert', 'chugaister', 'ognevik']),
     ('Not always an enemy', ['domovoy']),
+    ('Hidden room', ['kot_bayun']),
     ('Guardians 32x32', ['mara', 'viy', 'vodyanoy', 'babayaga',
                          'morozko', 'koschei', 'polozh', 'gorynych']),
 ]

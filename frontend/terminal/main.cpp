@@ -369,9 +369,9 @@ struct Ui {
 
     std::string effect_label(Effect e) const {
         static const char* ru[] = {"яд", "огонь", "оковы", "морок", "слепота",
-                                   "спешка", "вязко", "живая вода", "ярость", "оберег", "тень"};
+                                   "спешка", "вязко", "живая вода", "ярость", "оберег", "тень", "сон"};
         static const char* en[] = {"poison", "burn", "frozen", "confused", "blind",
-                                   "haste", "slow", "regen", "might", "ward", "unseen"};
+                                   "haste", "slow", "regen", "might", "ward", "unseen", "asleep"};
         const std::size_t i = static_cast<std::size_t>(e);
         if (i >= sizeof(ru) / sizeof(ru[0])) return "?";
         return lang == Lang::Ru ? ru[i] : en[i];

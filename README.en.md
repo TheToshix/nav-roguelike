@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-394-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-399-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -79,6 +79,13 @@ and another spot is tried; when the spot that works is not where the stairs were
 move to meet it. A floor without a hall is a small loss; a floor with an unreachable half is a
 broken game.
 
+The same carve hides a **secret room** partway down the mire and Koschei's kingdom: a small
+chamber cut into solid rock behind an ordinary closed door — and a door blocks sight, so from
+a corridor the room reads as blank wall. Inside is **Bayun the Cat**, an optional mini-boss:
+from a distance he sings, and the song takes the hero's whole turn away (its own effect,
+Sleep — not confusion, not the freeze). He is guarding the Cat's Eye, a charm the song can no
+longer touch once it is worn.
+
 ### The bosses fight by their own rules
 
 None of the three is a bigger pile of health. Each carries a mechanic out of the story it comes
@@ -103,7 +110,7 @@ switches renderers mid-run. Both are fed the same frame — the engine reports a
 
 <img src="docs/media/sprites.png" alt="Every sprite" width="740">
 
-Fifty-one sprites: ten tiles and effects, eight item kinds, six heroes and twenty-seven creatures. There
+Fifty-two sprites: ten tiles and effects, eight item kinds, six heroes and twenty-eight creatures. There
 is not a single PNG in the repository. All of it lives in `tools/sprites/pixels.py` as
 text — sixteen rows per sprite, `.` for transparent, every other character an index into
 that sprite's own palette:
@@ -223,7 +230,7 @@ of them is accepted.
 | | |
 |---|---|
 | **Classes** | Six, and three of them carry a mechanic rather than a stat spread (see below) |
-| **Bestiary** | 17 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement, trailing fire across the floor; one that is not always an enemy |
+| **Bestiary** | 18 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement, trailing fire across the floor; one that is not always an enemy |
 | **Bosses** | Viy (depth 4), Baba Yaga (depth 8), Koschei the Deathless (depth 12) — each with its own mechanic |
 | **Items** | 18 pieces of gear, 8 potions, 8 scrolls; consumables are unlabelled until you try them |
 | **Magic** | 6 spells, aimed along the line of sight |
@@ -328,7 +335,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 394 tests
+ctest --test-dir build --output-on-failure    # 399 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -398,7 +405,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **394** across 50 suites |
+| Unit and integration tests | **399** across 50 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -438,7 +445,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           394 GoogleTest cases
+tests/           399 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

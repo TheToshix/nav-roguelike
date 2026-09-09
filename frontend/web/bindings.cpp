@@ -129,6 +129,7 @@ const char* effect_key(nav::Effect e) {
         case nav::Effect::Regen:     return "regen";
         case nav::Effect::Might:     return "might";
         case nav::Effect::Shield:    return "shield";
+        case nav::Effect::Sleep:     return "sleep";
         default:                     return "other";
     }
 }

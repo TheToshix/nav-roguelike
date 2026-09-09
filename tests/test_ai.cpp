@@ -507,3 +507,62 @@ TEST(Ai, StrikingTheDomovoyTurnsItHostile) {
     EXPECT_FALSE(f.game.hero().a.has(Effect::Haste));
     EXPECT_FALSE(f.game.hero().a.has(Effect::Shield));
 }
+
+// ---------------------------------------------------------------------------
+// Кот Баюн — the optional mini-boss in the hidden room, and his song.
+// ---------------------------------------------------------------------------
+
+TEST(Ai, ASleepingHeroLosesEveryTurn) {
+    // Sleep is a full input lock, distinct from confusion (which randomises a
+    // move) and from freeze (which is another cause of the same lock).
+    Field f;
+    const Vec2 start = f.game.hero().a.pos;
+    f.game.mutable_hero().a.add_effect(Effect::Sleep, 3, 1);
+
+    for (int i = 0; i < 3; ++i)
+        f.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});
+    EXPECT_EQ(f.game.hero().a.pos, start) << "a sleeping hero walked anyway";
+
+    f.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});
+    EXPECT_EQ(f.game.hero().a.pos, (Vec2{start.x + 1, start.y})) << "the sleep never wore off";
+}
+
+TEST(Ai, KotBayunSingsTheHeroToSleepFromAcrossTheRoom) {
+    Field f;
+    Hero& h = f.game.mutable_hero();
+    h.a.max_hp = h.a.hp = 1000;
+    f.spawn("kot_bayun", {27, 15});   // in sight, out of melee for the first turns
+
+    bool slept = false;
+    for (int i = 0; i < 12 && !slept; ++i) {
+        f.game.perform(Action{ActionType::Wait, {}, -1, {}});
+        if (f.game.hero().a.has(Effect::Sleep)) slept = true;
+    }
+    EXPECT_TRUE(slept) << "the cat never got the song off";
+}
+
+TEST(Ai, TheCatsEyeCharmKeepsTheSongOut) {
+    Field f;
+    Hero& h = f.game.mutable_hero();
+    h.a.max_hp = h.a.hp = 400;
+
+    // Wear the charm straight into the slot.
+    const auto& gear = gear_table();
+    int ci = -1;
+    for (std::size_t i = 0; i < gear.size(); ++i)
+        if (std::string(gear[i].key) == "koshkin_glaz") ci = static_cast<int>(i);
+    ASSERT_GE(ci, 0);
+    Item charm{};
+    charm.kind = ItemKind::Amulet;
+    charm.subtype = ci;
+    charm.power = gear[static_cast<std::size_t>(ci)].power;
+    charm.identified = true;
+    ASSERT_TRUE(h.inv.add(charm));
+    h.inv.amulet = static_cast<int>(h.inv.items.size()) - 1;
+    ASSERT_TRUE(f.game.hero_has(GpNoSleep));
+
+    f.spawn("kot_bayun", {27, 15});
+    for (int i = 0; i < 20; ++i) f.game.perform(Action{ActionType::Wait, {}, -1, {}});
+
+    EXPECT_FALSE(f.game.hero().a.has(Effect::Sleep)) << "the charm let the song in";
+}

@@ -264,7 +264,10 @@ TEST(GameData, TablesAreInternallyConsistent) {
     for (const auto& gear : gear_table()) {
         EXPECT_GT(gear.power, 0) << gear.key;
         EXPECT_GE(gear.min_depth, 1) << gear.key;
-        EXPECT_GT(gear.weight, 0) << gear.key;
+        // Weight 0 is allowed, and means "never rolled by the loot tables,
+        // placed by hand" — Кот Баюн's charm is one such. A negative weight is
+        // still a typo.
+        EXPECT_GE(gear.weight, 0) << gear.key;
     }
 
     EXPECT_EQ(potion_names().size(), static_cast<std::size_t>(PotionKind::Count));

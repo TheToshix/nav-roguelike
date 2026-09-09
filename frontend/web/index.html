@@ -1460,10 +1460,11 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 
   function effectLabel(kind) {
     var ru = { poison: 'яд', burn: 'огонь', freeze: 'оковы', confusion: 'морок', blind: 'слепота',
-               haste: 'спешка', slow: 'вязко', regen: 'живая вода', might: 'ярость', shield: 'оберег' };
+               haste: 'спешка', slow: 'вязко', regen: 'живая вода', might: 'ярость', shield: 'оберег',
+               sleep: 'сон' };
     var en = { poison: 'poison', burn: 'burning', freeze: 'frozen', confusion: 'confused',
                blind: 'blind', haste: 'hasted', slow: 'slowed', regen: 'regen',
-               might: 'might', shield: 'ward' };
+               might: 'might', shield: 'ward', sleep: 'asleep' };
     return (LANG === 'ru' ? ru : en)[kind] || kind;
   }
 

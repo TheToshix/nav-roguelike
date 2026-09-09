@@ -29,6 +29,7 @@ enum GearPower : std::uint32_t {
     GpRegen      = 1u << 9,  ///< Slow, constant mending.
     GpCheapSpell = 1u << 10, ///< Spells cost less.
     GpRichGold   = 1u << 11, ///< Finds more gold.
+    GpNoSleep    = 1u << 12, ///< Кот Баюн's song cannot put you under.
 };
 
 /// The four matched sets. Each is exactly one weapon, one armour and one
