@@ -1371,6 +1371,106 @@ int Game::score() const {
     return s;
 }
 
+Epilogue Game::epilogue() const {
+    Epilogue ep;
+    if (state_ != RunState::Ascended) return ep;
+
+    // 1. Who walked back out — one line per class, in its own voice.
+    switch (hero_.cls) {
+        case HeroClass::Vityaz:
+            ep.lines.push_back(Text{
+                "Витязь поднялся к свету с иглой Кощеевой в кулаке. Про таких и складывают "
+                "былины — но ты знаешь цену каждой строчке.",
+                "The Vityaz climbed back into the light with Koschei's needle in his fist. "
+                "Songs are made of men like this — but you know the price of every line."});
+            break;
+        case HeroClass::Vedun:
+            ep.lines.push_back(Text{
+                "Ведун вышел из Нави тихо, как вошёл. То, что он видел внизу, останется при "
+                "нём — словам такое не даётся.",
+                "The Vedun left Nav as quietly as he entered it. What he saw down there stays "
+                "with him — some of it does not go into words."});
+            break;
+        case HeroClass::Tat:
+            ep.lines.push_back(Text{
+                "Тать выскользнул наверх с полными карманами и живой шкурой. Змей так и не "
+                "понял, кого не смог поймать.",
+                "The Tat slipped back to the surface with full pockets and an unmarked hide. "
+                "The serpent never quite understood who it had failed to catch."});
+            break;
+        case HeroClass::Znahar:
+            ep.lines.push_back(Text{
+                "Знахарь вернулся из Нави с горстью корней, которых наверху не растёт, и "
+                "памятью обо всём, что ими лечится.",
+                "The Znahar came back from Nav with a fistful of roots that grow nowhere "
+                "above, and the memory of everything they mend."});
+            break;
+        case HeroClass::Kuznets:
+            ep.lines.push_back(Text{
+                "Кузнец вынес из Нави то, что там ковалось до него: железо, которое помнит "
+                "огонь Пекла. В его руках оно ещё послужит.",
+                "The Kuznets carried out of Nav what was forged there before him: iron that "
+                "remembers the fire of the Scorch. In his hands it has work left."});
+            break;
+        case HeroClass::Bogatyr:
+            ep.lines.push_back(Text{
+                "Богатырь прошёл все шестнадцать этажей как через строй — и вышел, разводя "
+                "плечами. Нави нечем его удивить.",
+                "The Bogatyr went through all sixteen floors like a gauntlet and walked out "
+                "rolling his shoulders. Nav has nothing left to surprise him with."});
+            break;
+        case HeroClass::Count:
+            break;
+    }
+
+    // 2. How the last guardian's fight went.
+    if (flawless())
+        ep.lines.push_back(Text{
+            "За весь спуск ты не потерял ни капли крови. Шестнадцать этажей Нави — и ни "
+            "одной отметины. Такого не помнят даже здешние тени.",
+            "Not one drop of blood lost in the whole descent. Sixteen floors of Nav, and "
+            "not a single mark on you. Even the shadows down here do not remember the like."});
+    else if (unscathed_final_)
+        ep.lines.push_back(Text{
+            "Змей Горыныч дохнул трижды и трижды промахнулся. На последнем этаже он не "
+            "тронул тебя ни разу.",
+            "Zmey Gorynych breathed three times and missed three times. On the last floor "
+            "it never once laid a claw on you."});
+    else if (deepest_unhurt_ >= 13)
+        ep.lines.push_back(Text{
+            "До самого Пекла ты шёл нетронутым. Первую кровь у тебя взял только Змей — и "
+            "дорого за неё заплатил.",
+            "You walked untouched all the way to the Scorch. The serpent drew your first "
+            "blood — and paid dearly for it."});
+    else
+        ep.lines.push_back(Text{
+            "Ты вынес наверх больше шрамов, чем золота. Каждый из них — это этаж, который "
+            "не хотел тебя отпускать.",
+            "You carried out more scars than gold. Each one is a floor that did not want "
+            "to let you go."});
+
+    // 3. How long the descent took — only worth a line at the extremes.
+    if (turn_ <= 15000)
+        ep.lines.push_back(Text{
+            "И всё это — быстрее, чем весть о твоём уходе дошла до ближней деревни.",
+            "And all of it faster than word of your leaving reached the nearest village."});
+    else if (turn_ >= 30000)
+        ep.lines.push_back(Text{
+            "Ты не спешил. Навь успела выучить твоё лицо — и запомнит его надолго.",
+            "You were in no hurry. Nav had time to learn your face, and it will remember "
+            "it for a long while."});
+
+    // 4. The on-foot line: earned only by never once running or auto-exploring.
+    if (!used_run_or_explore())
+        ep.lines.push_back(Text{
+            "Каждый шаг всех шестнадцати этажей был твой собственный. Ни разу ты не дал "
+            "ногам идти самим.",
+            "Every step of all sixteen floors was your own. Not once did you let your feet "
+            "find the way without you."});
+
+    return ep;
+}
+
 // ---------------------------------------------------------------------------
 // Sprite keys
 //

@@ -40,6 +40,7 @@ add_executable(nav_tests
   test_scores.cpp
   test_achievements.cpp
   test_events.cpp
+  test_endings.cpp
   test_keys.cpp
   test_travel.cpp
   test_clarity.cpp

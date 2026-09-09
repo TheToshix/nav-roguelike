@@ -34,9 +34,11 @@ constexpr const char* kMagic = "NAV";
 // at "no damage" and "on foot". Version 8 adds the cursed flag on every item
 // and a ninth scroll (Remove Curse). Version 9 adds each floor's belt event and
 // how long it has been running, so a flood resumes at the water line it reached.
+// Version 10 adds the "the last guardian never drew blood" flag, read by the
+// victory epilogue.
 // There is no migration: an older save is refused rather than loaded as
 // something it is not — see docs/TEST_CASES.md, "what stayed unchecked".
-constexpr int kFormatVersion = 9;
+constexpr int kFormatVersion = 10;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -217,7 +219,7 @@ std::string Game::save() const {
 
     w << depth_ << turn_ << static_cast<int>(state_) << (needle_broken_ ? 1 : 0);
     w << (ever_ran_ ? 1 : 0) << (ever_explored_ ? 1 : 0) << (ever_hurt_ ? 1 : 0)
-      << deepest_unhurt_;
+      << deepest_unhurt_ << (unscathed_final_ ? 1 : 0);
 
     // --- Hero --------------------------------------------------------------
     write_actor(w, hero_.a);
@@ -314,12 +316,13 @@ bool Game::load(const std::string& blob) {
     if (!r.ok() || run_state < 0 || run_state > static_cast<int>(RunState::Ascended)) return false;
     g.needle_broken_ = needle != 0;
 
-    int ran = 0, explored = 0, hurt = 0;
-    r >> ran >> explored >> hurt >> g.deepest_unhurt_;
+    int ran = 0, explored = 0, hurt = 0, unscathed = 1;
+    r >> ran >> explored >> hurt >> g.deepest_unhurt_ >> unscathed;
     if (!r.ok() || g.deepest_unhurt_ < 0 || g.deepest_unhurt_ > kMaxDepth) return false;
     g.ever_ran_ = ran != 0;
     g.ever_explored_ = explored != 0;
     g.ever_hurt_ = hurt != 0;
+    g.unscathed_final_ = unscathed != 0;
     if (g.depth_ < kLobbyDepth || g.depth_ > kMaxDepth) return false;
     g.state_ = static_cast<RunState>(run_state);
 

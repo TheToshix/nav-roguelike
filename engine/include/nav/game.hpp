@@ -53,6 +53,15 @@ struct Postmortem {
 /// How many blows the ending screen looks back over.
 inline constexpr std::size_t kPostmortemBlows = 5;
 
+/// The victory screen's counterpart to the post-mortem: a short epilogue that
+/// reads the run back to the player. Death owes a reason; a win owes an ending
+/// that is *this* win and not a generic one — so the lines are chosen from the
+/// hero's class, whether the last guardian drew blood, and how long the descent
+/// took. Empty for any run that did not end in victory.
+struct Epilogue {
+    std::vector<Text> lines;   ///< One paragraph each, in reading order.
+};
+
 struct GameConfig {
     std::uint64_t seed{0};
     std::string seed_text;          ///< What the player typed, kept for display.
@@ -288,6 +297,14 @@ public:
     /// The last few blows, the killer, and what was left unused.
     Postmortem postmortem() const;
 
+    /// The victory epilogue, chosen from how the run actually went. Empty
+    /// unless the run ended in victory.
+    Epilogue epilogue() const;
+
+    /// True while the last guardian has not landed a single blow on the hero
+    /// on the bottom floor. Frozen once the run ends; part of the epilogue.
+    bool unscathed_final() const { return unscathed_final_; }
+
     /// Cells the hero could target with `s` right now (for the aiming UI).
     std::vector<Vec2> spell_targets(Spell s) const;
     /// Spells the hero knows and can currently pay for.
@@ -463,6 +480,9 @@ private:
     bool ever_explored_{false};
     bool ever_hurt_{false};
     int deepest_unhurt_{0};
+    /// Cleared the first time the hero loses health on the bottom floor — that
+    /// is, the first blow Змей Горыныч lands. Read only by the epilogue.
+    bool unscathed_final_{true};
     /// The first-floor hints, said once per run. Deliberately not part of the
     /// save: a player who reloads has already read them, and a save file is a
     /// description of a dungeon rather than of what its owner has been told.

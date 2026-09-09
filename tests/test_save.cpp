@@ -313,7 +313,10 @@ TEST(Save, RejectsAWrongFormatVersion) {
     std::string blob = original.save();
     const std::size_t space = blob.find(' ');
     ASSERT_NE(space, std::string::npos);
-    blob.replace(space + 1, 1, "1");  // any version but the current one is refused
+    const std::size_t after = blob.find(' ', space + 1);
+    ASSERT_NE(after, std::string::npos);
+    // Replace the whole version token with one that is not the current version.
+    blob.replace(space + 1, after - space - 1, "1");
 
     Game restored;
     EXPECT_FALSE(restored.load(blob));

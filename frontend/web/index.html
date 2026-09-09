@@ -478,6 +478,10 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 .end-stats { font-family: var(--mono); font-size: 14px; line-height: 1.85; color: var(--ink-dim); margin: 14px 0 20px; }
 .end-stats b { color: var(--ink); }
 
+.epilogue { margin: 4px 0 18px; border-left: 2px solid var(--good); padding-left: 12px; }
+.epilogue p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.6; color: var(--ink-dim); }
+.epilogue p:last-child { margin-bottom: 0; }
+
 .toast {
   position: fixed;
   left: 50%;
@@ -1017,6 +1021,19 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
              '</div>';
     }
     return out;
+  }
+
+  /// The victory epilogue: this win read back in its own words. Chosen by the
+  /// engine from the hero's class, whether the last guardian drew blood, and
+  /// how long the descent took — the counterpart to the post-mortem.
+  function epilogueHtml() {
+    if (!Api) return '';
+    var pm;
+    try { pm = Api.postmortem(); } catch (e) { return ''; }
+    if (!pm.epilogue || !pm.epilogue.length) return '';
+    return '<div class="epilogue">' +
+           pm.epilogue.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
+           '</div>';
   }
 
   /// The board, as rows. `highlight` marks the run just finished, or -1.
@@ -1950,6 +1967,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       '<h2 class="end-title ' + (won ? 'end-win' : 'end-lose') + '">' +
       (won ? t('won') : t('lost')) + '</h2>' +
       '<p class="sub">' + (won ? t('wonText') : t('lostText')) + '</p>' +
+      epilogueHtml() +
       '<div class="end-stats">' +
       t('finalScore') + ': <b>' + state.score + '</b><br>' +
       t('finalDepth') + ': <b>' + state.depth + '</b><br>' +

@@ -776,6 +776,18 @@ std::string postmortem_text(const Game& g, Lang lang) {
     return out;
 }
 
+/// The victory epilogue: the run read back to the player, in the colour of a
+/// good ending. The counterpart to postmortem_text, and chosen the same way —
+/// from what actually happened, not from a template.
+std::string epilogue_text(const Game& g, Lang lang) {
+    const Epilogue ep = g.epilogue();
+    if (ep.lines.empty()) return "";
+    std::string out = "\n";
+    for (const Text& line : ep.lines)
+        out += "\x1b[38;5;114m" + line.get(lang) + "\x1b[0m\n";
+    return out;
+}
+
 /// The help screen, generated from the engine's key table.
 ///
 /// Written out rather than hand-maintained for a reason that cost this project
@@ -1219,6 +1231,9 @@ int main(int argc, char** argv) {
                 else if (place > 0)
                     body += (ui.lang == Lang::Ru ? "\n\nВ таблице: место " : "\n\nOn the board: place ") +
                             std::to_string(place + 1);
+
+                // The epilogue: this victory, read back in its own words.
+                if (won) body += "\n" + epilogue_text(game, ui.lang);
 
                 // Fold this run's deeds into the kept set and name any new ones.
                 std::vector<std::string> unlocked = load_feats();

@@ -731,6 +731,14 @@ EMSCRIPTEN_KEEPALIVE char* nav_postmortem_json() {
         if (i) out += ',';
         append_json_string(out, pm.unspent[i].get(g_lang));
     }
+    out += "],\"epilogue\":[";
+    {
+        const nav::Epilogue ep = g_game.epilogue();
+        for (std::size_t i = 0; i < ep.lines.size(); ++i) {
+            if (i) out += ',';
+            append_json_string(out, ep.lines[i].get(g_lang));
+        }
+    }
     out += "]}";
     return to_c_string(out);
 }
