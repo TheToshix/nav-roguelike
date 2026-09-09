@@ -94,6 +94,20 @@ void Game::damage_monster(Monster& m, int amount, const Text& source) {
     m.awake = true;
     update_boss_phase(m);
 
+    // A struck Домовой stops being a bystander. From here it is an ordinary
+    // brute; `m.revives` is the latch the AI reads, reusing the field Кощей uses
+    // for the same "this monster no longer behaves the default way" purpose.
+    if (m.a.alive && idx < beasts_all.size() && (beasts_all[idx].ai & AiNeutral) &&
+        m.revives == 0) {
+        m.revives = 1;
+        m.charge = 0;
+        if (map().visible(m.a.pos))
+            message(format(Text{"{} оскорблён и бросается на тебя.",
+                                "{} takes offence and turns on you."},
+                           monster_name(m)),
+                    Severity::Bad);
+    }
+
     // Кощей's death is not in his body. Until the needle is broken he simply
     // gets back up, and the first time he does the floor gives up the needle's
     // location — a mechanic the player cannot guess is a mechanic that is only

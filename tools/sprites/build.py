@@ -41,6 +41,7 @@ GROUPS = [
     ('Chernotop', ['mavka', 'poludnitsa', 'volkolak', 'aspid', 'shishiga', 'izbushka']),
     ('Koshchei', ['likho', 'kamennaya', 'nav', 'koldun', 'zmey']),
     ('Peklo', ['chert', 'chugaister', 'ognevik']),
+    ('Not always an enemy', ['domovoy']),
     ('Guardians 32x32', ['mara', 'viy', 'vodyanoy', 'babayaga',
                          'morozko', 'koschei', 'polozh', 'gorynych']),
 ]

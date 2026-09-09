@@ -389,6 +389,38 @@ void Game::monster_turn(std::size_t index) {
     const bool sees_hero = distance <= sp.sight && !hero_.a.has(Effect::Invisible) &&
                            has_line_of_sight(lvl.map, m.a.pos, hero_.a.pos, sp.sight);
 
+    // --- Not an enemy, unless you make it one ---------------------------
+    //
+    // The Домовой never advances and never strikes first. Walk past it a few
+    // turns without crowding it or hitting it — no noise, no light thrown its
+    // way — and it repays the courtesy with a short blessing and is gone. Strike
+    // it and `m.revives` flips to 1, this branch is skipped from then on, and it
+    // fights like any other brute (damage_monster sets the flag). A distinct
+    // flag rather than AiCoward: a coward is still an enemy, this is not one.
+    if ((sp.ai & AiNeutral) && m.revives == 0) {
+        m.awake = true;   // aware of the hero, but not roused
+        constexpr int kDomovoyPatience = 6;
+        constexpr int kDomovoyRadius = 4;
+        if (sees_hero && distance <= kDomovoyRadius) {
+            if (++m.charge >= kDomovoyPatience) {
+                // Speed or defence, fixed per spawn so a seed is reproducible.
+                const bool haste = ((m.a.pos.x + m.a.pos.y) & 1) == 0;
+                hero_.a.add_effect(haste ? Effect::Haste : Effect::Shield, 40, haste ? 1 : 3);
+                if (lvl.map.visible(m.a.pos))
+                    message(haste
+                        ? Text{"Домовой доволен: ты не потревожил его. Ноги делаются лёгкими — а его уже нет.",
+                               "The Domovoy is content: you gave it no trouble. Your feet turn light — and it is gone."}
+                        : Text{"Домовой доволен: ты не потревожил его. Он кладёт на тебя оберег — а его уже нет.",
+                               "The Domovoy is content: you gave it no trouble. It lays a ward on you — and it is gone."},
+                        Severity::Good);
+                m.a.alive = false;   // reaped this tick: no kill counted, nothing dropped
+            }
+        } else if (m.charge > 0) {
+            --m.charge;   // a glimpse from across the floor should not add up
+        }
+        return;   // it stays where it lives
+    }
+
     // --- Waking up --------------------------------------------------------
     if (!m.awake) {
         // Sleeping monsters notice the hero by sight, or by noise when close.
@@ -583,9 +615,11 @@ void Game::monster_summon(Monster& m) {
     const auto& beasts = bestiary();
     std::vector<int> weights(beasts.size(), 0);
     for (std::size_t i = 0; i < beasts.size(); ++i) {
-        // A summoner never calls a boss, and never calls something tougher
-        // than itself — otherwise Баба-Яга can fill her room with Кощеи.
-        if (beasts[i].ai & AiBoss) continue;
+        // A summoner never calls a boss, never calls something not hostile by
+        // default (a summoned Домовой would just wander off or hand the hero a
+        // blessing), and never calls something tougher than itself — otherwise
+        // Баба-Яга can fill her room with Кощеи.
+        if (beasts[i].ai & (AiBoss | AiNeutral)) continue;
         if (beasts[i].xp > beasts[static_cast<std::size_t>(m.species)].xp) continue;
         weights[i] = spawn_weight(beasts[i], depth_);
     }

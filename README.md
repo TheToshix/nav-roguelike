@@ -8,7 +8,7 @@
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-389-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-393-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -162,7 +162,7 @@
 
 <img src="docs/media/sprites.png" alt="Все спрайты" width="740">
 
-Пятьдесят спрайтов: десять тайлов и эффектов, восемь предметов, шесть героев и двадцать шесть тварей.
+Пятьдесят один спрайт: десять тайлов и эффектов, восемь предметов, шесть героев и двадцать семь тварей.
 Ни одного PNG в репозитории — вся графика лежит в `tools/sprites/pixels.py` текстом, по
 шестнадцать строк на спрайт, где точка это прозрачность, а остальные знаки — ключи в
 палитру самого спрайта:
@@ -235,7 +235,7 @@ beast('volkolak', {'1': '#4a3520', '2': '#6f4f2d', '3': '#8f6b40', 'w': '#e8e0d0
 | | |
 |---|---|
 | **Классы** | Шесть, и у трёх из них не разброс характеристик, а своя механика (см. ниже) |
-| **Бестиарий** | 18 видов нечисти с разными повадками: погоня, стрельба, бегство при ранении, призыв подмоги, хаотичное движение, поджог пола под собой |
+| **Бестиарий** | 19 видов с разными повадками: погоня, стрельба, бегство при ранении, призыв подмоги, хаотичное движение, поджог пола под собой; один — не всегда враг |
 | **Боссы** | Восемь: четыре хозяина поясов и четыре меньших стража. У каждого своя механика и две-три фазы |
 | **Предметы** | 30 видов снаряжения (12 из них — четыре набора со своими механиками), 8 зелий, 8 свитков; зелья и свитки не подписаны, пока их не испробуешь |
 | **Магия** | 6 заклятий с наведением по линии видимости |
@@ -359,7 +359,7 @@ cmake --build build -j
 ### Тесты
 
 ```bash
-ctest --test-dir build --output-on-failure    # 389 тест
+ctest --test-dir build --output-on-failure    # 393 тест
 ./build/nav --demo 20                         # 20 полных партий без экрана
 ./build/nav --sweep 4                         # обходчик: дойти до дна и убить всех стражей
 ```
@@ -429,7 +429,7 @@ WASD не работает (см. [NAV-016](docs/BUG_REPORTS.md)).
 
 | | |
 |---|---|
-| Юнит- и интеграционных тестов | **389** в 50 наборах |
+| Юнит- и интеграционных тестов | **393** в 50 наборах |
 | Покрытие движка по строкам | **94%** |
 | Платформы в CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Дополнительно в CI | ASan + UBSan, `-Werror`, отчёт покрытия, 20 полных партий без экрана, обходчик до 16 этажа, сборка WebAssembly |
@@ -471,7 +471,7 @@ engine/          ядро: правила игры, без ввода-вывод
 frontend/
   terminal/      ANSI-рендер, сырой ввод с клавиатуры и бот для прогонов
   web/           C-обёртка для WebAssembly, страница игры и спрайты
-tests/           389 тест на GoogleTest
+tests/           393 тест на GoogleTest
 docs/            как запустить, архитектура, тест-план, тест-кейсы, багрепорты
 tools/           сборка веб-версии
   sprites/       пиксель-графика как текст и генератор из неё

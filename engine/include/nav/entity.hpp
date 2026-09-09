@@ -86,6 +86,7 @@ enum AiFlag : std::uint32_t {
     AiStationary= 1u << 5,  ///< Never leaves its cell.
     AiBoss      = 1u << 6,  ///< Never sleeps, immune to instant effects.
     AiMiniBoss  = 1u << 7,  ///< A belt's mid-floor guardian: a boss, but not its master.
+    AiNeutral   = 1u << 8,  ///< Not hostile: never initiates, and turns on the hero only if struck.
 };
 
 /// A monster species — one row of the bestiary.
@@ -125,9 +126,9 @@ struct Monster {
     Vec2 last_seen{-1, -1};  ///< Where the hero was last spotted; drives searching.
     int search_turns{0};
     int summon_cooldown{0};
-    /// Boss bookkeeping. Ordinary monsters leave both at zero.
-    int charge{0};   ///< Вий: how far along his eyelids are.
-    int revives{0};  ///< Кощей: how many times he has risen again.
+    /// Boss (and Домовой) bookkeeping. Ordinary monsters leave both at zero.
+    int charge{0};   ///< Вий: how far along his eyelids are. Домовой: turns the hero has spent near it without giving offence.
+    int revives{0};  ///< Кощей: how many times he has risen again. Домовой: 1 once struck, after which it fights like anything else.
     /// Which phase of its fight a boss is in, counting from 1. Only ever rises:
     /// healing a boss past a threshold must not hand the player back the easier
     /// pattern it has already beaten.

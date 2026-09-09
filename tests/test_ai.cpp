@@ -430,3 +430,62 @@ TEST(Ai, CinderlingFireBurnsOtherCreaturesLedIntoIt) {
     EXPECT_LT(f.game.monsters()[0].a.hp, hp)
         << "an ordinary creature standing in the trail took no fire damage";
 }
+
+// ---------------------------------------------------------------------------
+// Домовой — the first creature that is not automatically an enemy.
+// ---------------------------------------------------------------------------
+
+TEST(Ai, TheDomovoyNeverStrikesFirst) {
+    Field f;
+    Hero& h = f.game.mutable_hero();
+    h.a.max_hp = h.a.hp = 200;
+    f.spawn("domovoy", {21, 15});   // right next to the hero
+
+    const int before = f.game.hero().a.hp;
+    f.wait(3);   // fewer turns than its patience: it should just stand there
+
+    EXPECT_EQ(f.game.hero().a.hp, before) << "the Домовой attacked an idle hero";
+}
+
+TEST(Ai, TheDomovoyStaysWhereItLives) {
+    Field f;
+    Monster& m = f.spawn("domovoy", {40, 26});   // out of the hero's way
+    const Vec2 home = m.a.pos;
+
+    f.wait(12);
+
+    ASSERT_TRUE(f.any_monster());
+    EXPECT_EQ(f.game.monsters()[0].a.pos, home) << "the Домовой wandered off";
+}
+
+TEST(Ai, PassingTheDomovoyWithoutTroubleEarnsABoon) {
+    Field f;
+    f.spawn("domovoy", {23, 15});   // a few cells away, in plain sight
+
+    for (int i = 0; i < 10 && f.any_monster(); ++i)
+        f.game.perform(Action{ActionType::Wait, {}, -1, {}});
+
+    EXPECT_FALSE(f.any_monster()) << "the Домовой never left";
+    EXPECT_EQ(f.game.hero().kills, 0) << "a parting gift is not a kill";
+    EXPECT_TRUE(f.game.hero().a.has(Effect::Haste) || f.game.hero().a.has(Effect::Shield))
+        << "the Домовой left without a blessing";
+}
+
+TEST(Ai, StrikingTheDomovoyTurnsItHostile) {
+    Field f;
+    Hero& h = f.game.mutable_hero();
+    h.a.max_hp = h.a.hp = 300;
+    Monster& m = f.spawn("domovoy", {21, 15});
+    m.a.hp = m.a.max_hp = 200;   // it has to outlast the blow that provokes it
+
+    // One deliberate blow.
+    f.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});
+    ASSERT_EQ(f.game.monsters().size(), 1u);
+    EXPECT_EQ(f.game.monsters()[0].revives, 1) << "the blow did not provoke it";
+
+    const int before = f.game.hero().a.hp;
+    f.wait(6);
+    EXPECT_LT(f.game.hero().a.hp, before) << "a provoked Домовой still would not fight back";
+    EXPECT_FALSE(f.game.hero().a.has(Effect::Haste));
+    EXPECT_FALSE(f.game.hero().a.has(Effect::Shield));
+}

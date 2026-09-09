@@ -143,6 +143,17 @@ const std::vector<Species>& bestiary() {
         {"izbushka",  Text{"Избушка на курьих ножках", "Hut on Hen's Legs"}, 'A', "#b06a3a", 55, 7, 6, 100, 4, 60, 8, 8, 0,
          AiStationary | AiMelee, Effect::Poison, 0, 0,
          Text{"Пока стоит изба — хозяйку не взять.", "While the hut stands, its mistress cannot be touched."}},
+
+        // --- Не всегда враг ------------------------------------------------
+        //
+        // The first creature in the game that is not automatically an enemy.
+        // It never strikes first; pass it by without crowding or hitting it and
+        // it leaves you a blessing. Hit it and it is a plain brute for the rest
+        // of its short life.
+        {"domovoy",   Text{"Домовой", "Domovoy"},                 'd', "#a8895f", 26,  9,  4,  90, 7,  16,  2, 12,  3,
+         AiNeutral, Effect::Poison, 0, 0,
+         Text{"Хозяин дома. Не тронешь — не тронет, а за уважение и отблагодарит.",
+              "The keeper of the house. Leave it be and it leaves you be — and a little courtesy it repays."}},
     };
     return table;
 }
@@ -157,6 +168,11 @@ int species_index(const char* key) {
 int spawn_weight(const Species& s, int depth) {
     if (s.weight <= 0) return 0;                       // bosses never roll
     if (depth < s.min_depth || depth > s.max_depth) return 0;
+    // A guardian's floor is "something waits here", not "someone keeps house
+    // here": the Домовой and anything else not hostile by default stays off it.
+    // Keeping their weight out of those tables also leaves the guardian-floor
+    // spawn rolls exactly as they were before the neutral was added.
+    if ((s.ai & AiNeutral) && boss_for_depth(depth) != nullptr) return 0;
     // Species are commonest in the middle of their depth window and taper off
     // towards its edges, so floors feel distinct instead of uniformly random.
     const int span = s.max_depth - s.min_depth;

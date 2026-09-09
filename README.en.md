@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-389-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-393-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -103,7 +103,7 @@ switches renderers mid-run. Both are fed the same frame — the engine reports a
 
 <img src="docs/media/sprites.png" alt="Every sprite" width="740">
 
-Fifty sprites: ten tiles and effects, eight item kinds, six heroes and twenty-six creatures. There
+Fifty-one sprites: ten tiles and effects, eight item kinds, six heroes and twenty-seven creatures. There
 is not a single PNG in the repository. All of it lives in `tools/sprites/pixels.py` as
 text — sixteen rows per sprite, `.` for transparent, every other character an index into
 that sprite's own palette:
@@ -223,7 +223,7 @@ of them is accepted.
 | | |
 |---|---|
 | **Classes** | Six, and three of them carry a mechanic rather than a stat spread (see below) |
-| **Bestiary** | 16 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement, trailing fire across the floor |
+| **Bestiary** | 17 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement, trailing fire across the floor; one that is not always an enemy |
 | **Bosses** | Viy (depth 4), Baba Yaga (depth 8), Koschei the Deathless (depth 12) — each with its own mechanic |
 | **Items** | 18 pieces of gear, 8 potions, 8 scrolls; consumables are unlabelled until you try them |
 | **Magic** | 6 spells, aimed along the line of sight |
@@ -328,7 +328,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 389 tests
+ctest --test-dir build --output-on-failure    # 393 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -398,7 +398,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **389** across 50 suites |
+| Unit and integration tests | **393** across 50 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -438,7 +438,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           389 GoogleTest cases
+tests/           393 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it
