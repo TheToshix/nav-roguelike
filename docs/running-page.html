@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Запуск Нави</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
 <style>
@@ -319,7 +320,7 @@ html { scroll-behavior: smooth; }
     <li><b>C++17</b></li>
     <li>CMake <b>3.16+</b></li>
     <li>сборка <b>~10 с</b></li>
-    <li><b>321</b> тест</li>
+    <li><b>457</b> тестов</li>
     <li>Windows · macOS · Linux</li>
   </ul>
 </header>
@@ -434,7 +435,8 @@ html { scroll-behavior: smooth; }
 frontend/
   terminal/      версия для терминала
   web/           обёртка WebAssembly, страница, спрайты, музыка
-tests/           321 тест на GoogleTest
+                 index.html — разметка; рядом app.css и app.js
+tests/           457 тестов на GoogleTest
 docs/            архитектура, тест-план, тест-кейсы, багрепорты
 tools/           сборка веб-версии и генератор спрайтов</pre>
       </div>
@@ -534,13 +536,16 @@ tools/           сборка веб-версии и генератор спра
 <span class="p">$</span> ctest --test-dir build --output-on-failure</pre>
         </div>
       </div>
-      <p>Ожидаемое: <code>100% tests passed, 0 tests failed out of 321</code>, примерно три
-      секунды.</p>
+      <p>Ожидаемое: <code>100% tests passed out of 457</code>, примерно шесть секунд. Точная
+      формулировка строки зависит от версии CMake; важно, что процент — сто. Следом ctest
+      допишет, что <code>Portability.PrintTheFingerprints</code> не запускался: так и должно
+      быть, это не тест, а служебная команда для обновления отпечатков подземелья.</p>
       <div class="term">
         <div class="bar"><span>Часть тестов</span><span class="spacer"></span><button type="button" data-copy>Копировать</button></div>
-<pre><span class="p">$</span> ctest --test-dir build -R Phases --output-on-failure   <span class="c"># фазы боссов</span>
-<span class="p">$</span> ctest --test-dir build -R Lobby  --output-on-failure   <span class="c"># перекрёсток</span>
-<span class="p">$</span> ctest --test-dir build -N                              <span class="c"># список, без запуска</span></pre>
+<pre><span class="p">$</span> ctest --test-dir build -R Phases      --output-on-failure   <span class="c"># фазы боссов</span>
+<span class="p">$</span> ctest --test-dir build -R Lobby       --output-on-failure   <span class="c"># перекрёсток</span>
+<span class="p">$</span> ctest --test-dir build -R Portability --output-on-failure   <span class="c"># переносимость зерна</span>
+<span class="p">$</span> ctest --test-dir build -N                                   <span class="c"># список, без запуска</span></pre>
       </div>
     </section>
 
@@ -606,8 +611,10 @@ tools/           сборка веб-версии и генератор спра
 <span class="p">$</span> git push -u origin main</pre>
       </div>
       <div class="note">
-        <p>Ветка обязательно <code>main</code>: сборка страницы и CI запускаются по пушу
-        именно в неё.</p>
+        <p>Ветку можно назвать и <code>main</code>, и <code>master</code> — оба workflow'а
+        слушают оба имени. У GitHub по умолчанию <code>main</code>, а репозиторий проекта
+        живёт на <code>master</code>; если слушать только одно имя, второе останется вообще
+        без проверок, а молчащий CI выглядит точно так же, как зелёный.</p>
         <p>Если Git попросит пароль — обычный пароль GitHub больше не принимает. Нужен
         <b>Personal Access Token</b>: Settings → Developer settings → Personal access tokens →
         Tokens (classic) → Generate new token, права <code>repo</code>. Токен вводится вместо
@@ -617,13 +624,14 @@ tools/           сборка веб-версии и генератор спра
       <h3>Включить Pages</h3>
       <p>В репозитории: <b>Settings → Pages</b>, в поле <b>Source</b> выбрать
       <b>GitHub Actions</b> — не «Deploy from a branch». Дальше всё само: workflow соберёт
-      WebAssembly и опубликует игру при каждом пуше в <code>main</code>. Первая сборка идёт
-      около пяти минут.</p>
+      WebAssembly и опубликует игру при каждом пуше в <code>main</code> или
+      <code>master</code>. Первая сборка идёт около пяти минут.</p>
 
       <h3>Проверить, что зелено</h3>
-      <p>Вкладка <b>Actions</b>. Там пять задач: тесты на четырёх платформах, санитайзеры,
-      покрытие, сборка WebAssembly и проверка, что спрайты не отстали от исходника. Зелёные
-      галочки на главной странице репозитория — половина впечатления от портфолио.</p>
+      <p>Вкладка <b>Actions</b>. Там шесть задач: тесты на четырёх платформах, санитайзеры,
+      покрытие, проверка, что спрайты не отстали от исходника, ESLint по коду страницы и
+      сборка WebAssembly. Зелёные галочки на главной странице репозитория — половина
+      впечатления от портфолио.</p>
       <p>Напоследок стоит заполнить описание репозитория (шестерёнка справа от «About»):
       короткая строка, ссылка на Pages и темы — <code>roguelike</code>, <code>cpp</code>,
       <code>webassembly</code>, <code>gamedev</code>, <code>pixel-art</code>.</p>

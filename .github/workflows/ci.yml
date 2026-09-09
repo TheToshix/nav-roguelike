@@ -2,7 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    # Both names on purpose. The repository is on master; docs/RUNNING.md walks
+    # a reader through publishing it and lands them on main, which is what
+    # GitHub gives a new repository by default. Listening to only one of the two
+    # means the other silently gets no CI at all — which is exactly the state
+    # this project was in, and not the kind of thing anyone notices quickly.
+    branches: [master, main]
   pull_request:
   workflow_dispatch:
 

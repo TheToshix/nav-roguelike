@@ -5,7 +5,9 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    # Both names: see the note in ci.yml. Publishing that quietly never fires is
+    # worse than publishing that fails loudly.
+    branches: [master, main]
   workflow_dispatch:
 
 permissions:
