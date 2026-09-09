@@ -877,6 +877,25 @@ Text boss_phase_line(const char* key, int phase) {
     return Text{"", ""};
 }
 
+const std::vector<const char*>& behaviour_species_keys() {
+    static const std::vector<const char*> keys = {
+        species_key::kViy,      species_key::kBabaYaga, species_key::kIzbushka,
+        species_key::kKoschei,  species_key::kGorynych, species_key::kMara,
+        species_key::kVodyanoy, species_key::kMorozko,  species_key::kPolozh,
+        species_key::kOgnevik,  species_key::kKotBayun, species_key::kSolovey,
+    };
+    return keys;
+}
+
+const std::vector<const char*>& behaviour_gear_keys() {
+    static const std::vector<const char*> keys = {
+        gear_key::kObZhizni, gear_key::kObSily,      gear_key::kObZorko,
+        gear_key::kObSkoro,  gear_key::kObYada,      gear_key::kKoshkinGlaz,
+        gear_key::kPosokh,   gear_key::kMantiya,
+    };
+    return keys;
+}
+
 const char* boss_for_depth(int depth) {
     for (const auto& b : boss_table())
         if (b.depth == depth) return b.species_key;

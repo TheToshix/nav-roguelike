@@ -362,6 +362,79 @@ TEST(Save, RejectsAnImpossibleDepth) {
     EXPECT_FALSE(restored.load(rebuilt));
 }
 
+/// Tokenises a save so a test can rewrite one field and hand it back.
+std::vector<std::string> tokens_of(const std::string& blob) {
+    std::istringstream in(blob);
+    std::vector<std::string> tokens;
+    std::string token;
+    while (in >> token) tokens.push_back(token);
+    return tokens;
+}
+
+std::string rejoin(const std::vector<std::string>& tokens) {
+    std::string out;
+    for (const auto& t : tokens) out += t + " ";
+    return out;
+}
+
+/// The hero's coordinates are the first two words of the hero record, which
+/// starts after the nineteen words of run header.
+constexpr std::size_t kHeroPosX = 20;
+constexpr std::size_t kHeroPosY = 21;
+
+TEST(Save, RejectsAHeroStandingOffTheMap) {
+    GameConfig cfg;
+    cfg.seed = 8123;
+    Game original;
+    original.start(cfg);
+    leave_crossroads(original);
+
+    std::vector<std::string> tokens = tokens_of(original.save());
+    ASSERT_GT(tokens.size(), kHeroPosY);
+    // Sanity: the words being rewritten really are where the hero is.
+    EXPECT_EQ(std::stoi(tokens[kHeroPosX]), original.hero().a.pos.x);
+    EXPECT_EQ(std::stoi(tokens[kHeroPosY]), original.hero().a.pos.y);
+
+    // Out of bounds is not a crash — Map reports wall outside its grid — which
+    // is exactly why it has to be refused here. Loaded, it would be a run in a
+    // corner of nothing that no monster can reach and no stair can end.
+    for (const auto& spot : {std::pair<const char*, const char*>{"9999", "-9999"},
+                             {"-1", "5"},
+                             {"5", "-1"},
+                             {"72", "5"}}) {
+        std::vector<std::string> doctored = tokens;
+        doctored[kHeroPosX] = spot.first;
+        doctored[kHeroPosY] = spot.second;
+        Game restored;
+        EXPECT_FALSE(restored.load(rejoin(doctored)))
+            << "accepted a hero at " << spot.first << "," << spot.second;
+    }
+
+    // The untouched save still loads, so the check rejects the doctoring and
+    // not the test's own rebuilding of the blob.
+    Game honest;
+    EXPECT_TRUE(honest.load(rejoin(tokens)));
+}
+
+TEST(Save, AcceptsAHeroOnTheEdgeOfTheMap) {
+    GameConfig cfg;
+    cfg.seed = 8124;
+    Game original;
+    original.start(cfg);
+    leave_crossroads(original);
+
+    std::vector<std::string> tokens = tokens_of(original.save());
+    ASSERT_GT(tokens.size(), kHeroPosY);
+    tokens[kHeroPosX] = "0";
+    tokens[kHeroPosY] = "0";
+
+    // Only the edges are enforced, not walkability: the border cell is a wall,
+    // but a rule stricter than the game's own would start refusing honest saves
+    // of a hero standing in water or a doorway.
+    Game restored;
+    EXPECT_TRUE(restored.load(rejoin(tokens)));
+}
+
 TEST(Save, AFailedLoadLeavesTheExistingGameUntouched) {
     GameConfig cfg;
     cfg.seed = 11;

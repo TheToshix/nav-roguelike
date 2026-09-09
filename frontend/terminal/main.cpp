@@ -30,6 +30,7 @@
 #  include <conio.h>
 #  include <windows.h>
 #else
+#  include <csignal>
 #  include <termios.h>
 #  include <unistd.h>
 #endif
@@ -66,23 +67,94 @@ int read_key() { return _getch(); }
 
 #else
 
+/// The terminal settings as they were before the game touched them, kept at
+/// file scope because a signal handler has to be able to reach them.
+///
+/// `sig_atomic_t` rather than `bool` for the flag: it is written by the handler
+/// and read by ordinary code, which is the one kind of sharing the standard
+/// actually promises to work.
+termios g_original_termios{};
+volatile sig_atomic_t g_raw_active = 0;
+
+/// Hands the terminal back. Safe to call from a signal handler: `tcsetattr` and
+/// `write` are both on POSIX's async-signal-safe list, and nothing here
+/// allocates or touches stdio.
+void restore_terminal() {
+    if (g_raw_active == 0) return;
+    g_raw_active = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &g_original_termios);
+    // Colour off, cursor back, and a newline so the shell prompt does not land
+    // in the middle of the last row the game drew.
+    static const char kReset[] = "\x1b[0m\x1b[?25h\n";
+    const ssize_t written = ::write(STDOUT_FILENO, kReset, sizeof(kReset) - 1);
+    (void)written;
+}
+
+bool enter_raw_mode() {
+    termios raw = g_original_termios;
+    raw.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO));
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) != 0) return false;
+    g_raw_active = 1;
+    return true;
+}
+
+/// Ctrl+C and friends. `ISIG` is deliberately left on — a wedged game must
+/// still be killable from the keyboard — but that means the default action
+/// terminates the process without unwinding, so the destructor below never
+/// runs and the player is dropped back into a shell with no echo. Restore
+/// first, then die of the original signal so the exit status still tells the
+/// truth about what killed us.
+void on_terminating_signal(int sig) {
+    restore_terminal();
+    ::signal(sig, SIG_DFL);
+    ::raise(sig);
+}
+
+/// Ctrl+Z. Same story: the shell that gets the terminal back must get it back
+/// cooked. Re-entered on SIGCONT.
+void on_suspend(int sig) {
+    restore_terminal();
+    ::signal(sig, SIG_DFL);
+    ::raise(sig);
+}
+
+void on_resume(int) {
+    if (isatty(STDIN_FILENO)) {
+        ::signal(SIGTSTP, on_suspend);
+        enter_raw_mode();
+    }
+}
+
 /// Puts the terminal into raw mode for the lifetime of the object and restores
-/// the previous settings on the way out, including on an exception.
+/// the previous settings on the way out — on an exception, on a signal, and on
+/// a suspend.
 struct RawMode {
-    termios previous{};
     bool active{false};
 
     RawMode() {
         if (!isatty(STDIN_FILENO)) return;
-        if (tcgetattr(STDIN_FILENO, &previous) != 0) return;
-        termios raw = previous;
-        raw.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO));
-        raw.c_cc[VMIN] = 1;
-        raw.c_cc[VTIME] = 0;
-        if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == 0) active = true;
+        if (tcgetattr(STDIN_FILENO, &g_original_termios) != 0) return;
+        if (!enter_raw_mode()) return;
+        active = true;
+
+        // SA_RESTART matters: without it the blocking read() in read_key()
+        // returns EINTR after a resume, which the decoder would report as a
+        // keypress that never happened.
+        struct sigaction sa {};
+        sa.sa_handler = on_terminating_signal;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_RESTART;
+        for (int sig : {SIGINT, SIGTERM, SIGHUP, SIGQUIT}) sigaction(sig, &sa, nullptr);
+
+        sa.sa_handler = on_suspend;
+        sigaction(SIGTSTP, &sa, nullptr);
+        sa.sa_handler = on_resume;
+        sigaction(SIGCONT, &sa, nullptr);
     }
     ~RawMode() {
-        if (active) tcsetattr(STDIN_FILENO, TCSAFLUSH, &previous);
+        if (active) restore_terminal();
     }
 };
 

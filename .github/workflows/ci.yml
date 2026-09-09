@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
   workflow_dispatch:
 
@@ -190,12 +190,26 @@ jobs:
               console.log('wasm ok: turn ' + s.turn + ', save ' + blob.length + ' bytes');
             }).catch(e => { console.error(e); process.exit(1); });
           "
+      # Packaged exactly the way pages.yml packages it. Publishing folds the
+      # generated art and music into the page, and that fold is a script with
+      # its own way to fail; building the artifact any other way here would
+      # leave the only path that ever reaches players untested.
       - name: Package
         run: |
-          mkdir -p dist
-          cp frontend/web/index.html dist/
+          python3 tools/inline_sprites.py dist
           cp build-web/nav.js dist/
           touch dist/.nojekyll
+      - name: The published page carries its own art
+        run: |
+          for name in sprites.js music.js; do
+            if grep -q "script src=\"$name\"" dist/index.html; then
+              echo "::error::$name was not inlined into dist/index.html"; exit 1
+            fi
+            if [ -f "dist/$name" ]; then
+              echo "::error::dist/$name should not be published separately"; exit 1
+            fi
+          done
+          echo "ok: dist/index.html is self-contained"
       - uses: actions/upload-artifact@v4
         with:
           name: web

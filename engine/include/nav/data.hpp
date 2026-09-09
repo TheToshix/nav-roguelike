@@ -18,6 +18,64 @@ inline constexpr int kMaxDepth = 16;
 inline constexpr int kLobbyDepth = 0;
 
 // ---------------------------------------------------------------------------
+// The keys behaviour hangs on
+// ---------------------------------------------------------------------------
+//
+// Content lives in tables and is looked up by a short string key, which is what
+// keeps `data.cpp` readable and lets a frontend name a sprite without knowing
+// an enum. The cost is that the key appears twice: once in the table that
+// defines the creature, and once in the rule that gives it its mechanic. Spelt
+// as bare literals, those two are free to disagree, and they disagree quietly —
+// `species_index` returns -1 and the caller does nothing, or a `strcmp` never
+// matches and a guardian simply stops using its ability. Nothing crashes and no
+// test necessarily fails.
+//
+// So every key that a *rule* depends on is written down once, here, and used by
+// both sides. Renaming a creature is now one edit that cannot half-apply.
+// Keys that only ever name themselves — the ordinary bestiary, most of the
+// gear — stay as literals in the table; they have no second place to drift to.
+namespace species_key {
+
+inline constexpr const char* kViy       = "viy";
+inline constexpr const char* kBabaYaga  = "babayaga";
+inline constexpr const char* kIzbushka  = "izbushka";
+inline constexpr const char* kKoschei   = "koschei";
+inline constexpr const char* kGorynych  = "gorynych";
+inline constexpr const char* kMara      = "mara";
+inline constexpr const char* kVodyanoy  = "vodyanoy";
+inline constexpr const char* kMorozko   = "morozko";
+inline constexpr const char* kPolozh    = "polozh";
+inline constexpr const char* kOgnevik   = "ognevik";
+inline constexpr const char* kKotBayun  = "kot_bayun";
+inline constexpr const char* kSolovey   = "solovey";
+
+}  // namespace species_key
+
+namespace gear_key {
+
+inline constexpr const char* kObZhizni    = "ob_zhizni";
+inline constexpr const char* kObSily      = "ob_sily";
+inline constexpr const char* kObZorko     = "ob_zorko";
+inline constexpr const char* kObSkoro     = "ob_skoro";
+inline constexpr const char* kObYada      = "ob_yada";
+inline constexpr const char* kKoshkinGlaz = "koshkin_glaz";
+inline constexpr const char* kPosokh      = "posokh";
+inline constexpr const char* kMantiya     = "mantiya";
+
+}  // namespace gear_key
+
+/// Every key declared above, in one list each.
+///
+/// The defining tables in `data.cpp` still spell their keys as literals: they
+/// are column-aligned so that a balance change reads as a balance change in the
+/// diff, and threading constants through them would cost more than it buys.
+/// What that leaves is one seam — a creature renamed in the table while the
+/// constant keeps the old spelling — and `GameData.EveryBehaviourKeyNamesSomething`
+/// stands on it. Add a constant above, add it here, and the test does the rest.
+const std::vector<const char*>& behaviour_species_keys();
+const std::vector<const char*>& behaviour_gear_keys();
+
+// ---------------------------------------------------------------------------
 // Zones
 // ---------------------------------------------------------------------------
 

@@ -103,10 +103,10 @@ void Game::damage_monster(Monster& m, int amount, const Text& source) {
 
     // Вий with his eyelids down cannot see the blow coming: the window between
     // gazes is when the fight is actually winnable.
-    if (std::strcmp(key, "viy") == 0 && m.charge < 3) amount = amount * 3 / 2;
+    if (std::strcmp(key, species_key::kViy) == 0 && m.charge < 3) amount = amount * 3 / 2;
 
     // Баба-Яга is shielded while her huts stand. Knocking them down is the fight.
-    if (std::strcmp(key, "babayaga") == 0 && huts_standing()) {
+    if (std::strcmp(key, species_key::kBabaYaga) == 0 && huts_standing()) {
         amount = std::max(1, amount / 5);
         if (rng_.chance(25))
             message(Text{"Удар вязнет — изба держит хозяйку.",
@@ -149,7 +149,7 @@ void Game::damage_monster(Monster& m, int amount, const Text& source) {
     // gets back up, and the first time he does the floor gives up the needle's
     // location — a mechanic the player cannot guess is a mechanic that is only
     // unfair.
-    if (!m.a.alive && std::strcmp(key, "koschei") == 0 && !needle_broken_) {
+    if (!m.a.alive && std::strcmp(key, species_key::kKoschei) == 0 && !needle_broken_) {
         m.a.alive = true;
         m.a.hp = std::max(1, m.a.max_hp * 3 / 5);
         ++m.revives;
@@ -171,7 +171,7 @@ void Game::damage_monster(Monster& m, int amount, const Text& source) {
     message(format(Text{"{} падает замертво.", "{} falls dead."}, name), Severity::Good);
     ++hero_.kills;
 
-    if (std::strcmp(key, "izbushka") == 0) {
+    if (std::strcmp(key, species_key::kIzbushka) == 0) {
         // `huts_standing()` still counts this one until the corpse is reaped,
         // so look for a second hut rather than trusting the count.
         int remaining = 0;
@@ -192,7 +192,7 @@ void Game::damage_monster(Monster& m, int amount, const Text& source) {
             message(format(Text{"Страж этажа повержен. ({})", "The floor's guardian is slain. ({})"},
                            source),
                     Severity::System);
-            if (std::strcmp(beasts[si].key, "koschei") == 0)
+            if (std::strcmp(beasts[si].key, species_key::kKoschei) == 0)
                 message(Text{"Игла сломана. Кощей рассыпается прахом.",
                              "The needle snaps, and Koschei crumbles to dust."},
                         Severity::Critical);
@@ -551,7 +551,7 @@ int Game::derived_max_hp() const {
     if (hero_.inv.amulet >= 0) {
         const Item& am = hero_.inv.items[static_cast<std::size_t>(hero_.inv.amulet)];
         const std::size_t gi = static_cast<std::size_t>(am.subtype);
-        if (gi < gear.size() && std::strcmp(gear[gi].key, "ob_zhizni") == 0)
+        if (gi < gear.size() && std::strcmp(gear[gi].key, gear_key::kObZhizni) == 0)
             bonus = am.total_power();
     }
     const ClassTemplate& tpl = class_info(hero_.cls);
@@ -567,7 +567,7 @@ int Game::derived_max_mana() const {
         const Item& g = hero_.inv.items[static_cast<std::size_t>(slot_index)];
         const std::size_t gi = static_cast<std::size_t>(g.subtype);
         if (gi >= gear.size()) return;
-        if (std::strcmp(gear[gi].key, "posokh") == 0 || std::strcmp(gear[gi].key, "mantiya") == 0)
+        if (std::strcmp(gear[gi].key, gear_key::kPosokh) == 0 || std::strcmp(gear[gi].key, gear_key::kMantiya) == 0)
             mana_bonus += 5;
     };
     staff_bonus(hero_.inv.weapon);
@@ -693,7 +693,7 @@ void Game::quaff(const Item& it) {
                          "Living water. Your wounds knit closed."}, Severity::Good);
             break;
         case PotionKind::Poison:
-            if (has_amulet(hero_, "ob_yada")) {
+            if (has_amulet(hero_, gear_key::kObYada)) {
                 message(Text{"Оберег гасит отраву.", "Your charm neutralises the venom."},
                         Severity::Good);
             } else {

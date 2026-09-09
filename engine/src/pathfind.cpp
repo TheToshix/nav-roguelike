@@ -3,8 +3,9 @@
 
 #include <algorithm>
 #include <deque>
-#include <map>
+#include <limits>
 #include <queue>
+#include <vector>
 
 namespace nav {
 namespace {
@@ -22,19 +23,31 @@ struct OpenNode {
     }
 };
 
+constexpr int kNoCell = -1;
+constexpr int kInfinity = std::numeric_limits<int>::max();
+
 }  // namespace
 
 std::vector<Vec2> find_path(const Map& map, Vec2 start, Vec2 goal,
                             const std::function<bool(Vec2)>& passable, int max_nodes) {
     std::vector<Vec2> path;
-    if (start == goal || !map.in_bounds(goal)) return path;
+    if (start == goal || !map.in_bounds(goal) || !map.in_bounds(start)) return path;
+
+    // Both bookkeeping tables are flat arrays over the grid rather than
+    // `std::map<Vec2, …>`. A search that expands a few thousand cells did a
+    // red-black tree insert and an allocation per neighbour, which put this
+    // function at the top of the profile on the lower floors. The grid is
+    // dense and its size is known, so the natural index is the cell itself.
+    const int w = map.width(), h = map.height();
+    const auto index = [w](Vec2 p) { return static_cast<std::size_t>(p.y) * static_cast<std::size_t>(w) +
+                                            static_cast<std::size_t>(p.x); };
+    const std::size_t cells = static_cast<std::size_t>(w) * static_cast<std::size_t>(h);
+    std::vector<int> g_score(cells, kInfinity);
+    std::vector<int> came_from(cells, kNoCell);
 
     std::priority_queue<OpenNode, std::vector<OpenNode>, std::greater<OpenNode>> open;
-    std::map<Vec2, int> g_score;
-    std::map<Vec2, Vec2> came_from;
-
     open.push({chebyshev(start, goal), 0, start});
-    g_score[start] = 0;
+    g_score[index(start)] = 0;
 
     int expanded = 0;
     while (!open.empty() && expanded < max_nodes) {
@@ -42,29 +55,38 @@ std::vector<Vec2> find_path(const Map& map, Vec2 start, Vec2 goal,
         open.pop();
 
         // Stale entry: a cheaper route to this cell was found after it was queued.
-        const auto known = g_score.find(cur.pos);
-        if (known == g_score.end() || cur.g > known->second) continue;
+        if (cur.g > g_score[index(cur.pos)]) continue;
         ++expanded;
 
         if (cur.pos == goal) {
-            for (Vec2 p = goal; p != start; p = came_from[p]) path.push_back(p);
+            for (Vec2 p = goal; p != start;) {
+                path.push_back(p);
+                const int from = came_from[index(p)];
+                // Cannot happen while the search is correct; bailing out beats
+                // walking off the end of a chain that was supposed to lead home.
+                if (from == kNoCell) return {};
+                p = Vec2{from % w, from / w};
+            }
             std::reverse(path.begin(), path.end());
             return path;
         }
 
         for (Vec2 d : directions8()) {
             const Vec2 nxt = cur.pos + d;
+            // Bounds first: `passable` is supplied by the caller and is not
+            // obliged to be a bounds check, but the tables below are indexed
+            // by cell and very much are.
+            if (!map.in_bounds(nxt)) continue;
             // The goal itself is always enterable, even when occupied — that is
             // what makes "path to the hero" work while the hero stands there.
             if (nxt != goal && !passable(nxt)) continue;
             if (nxt == goal && !map.walkable(nxt)) continue;
 
             const int cost = cur.g + 1;
-            const auto it = g_score.find(nxt);
-            if (it != g_score.end() && cost >= it->second) continue;
+            if (cost >= g_score[index(nxt)]) continue;
 
-            g_score[nxt] = cost;
-            came_from[nxt] = cur.pos;
+            g_score[index(nxt)] = cost;
+            came_from[index(nxt)] = static_cast<int>(index(cur.pos));
             open.push({cost + chebyshev(nxt, goal), cost, nxt});
         }
     }

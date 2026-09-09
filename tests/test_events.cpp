@@ -28,20 +28,6 @@ int count_tiles(const Map& map, Tile t) {
     return n;
 }
 
-/// Descends to `depth` by force, leaving the floor exactly as generated.
-Game descend_to(int depth, std::uint64_t seed) {
-    GameConfig cfg;
-    cfg.seed = seed;
-    Game g;
-    g.start(cfg);
-    leave_crossroads(g);
-    for (int d = 1; d < depth; ++d) {
-        g.mutable_hero().a.pos = g.level().exit;
-        g.refresh_view();
-        EXPECT_TRUE(g.perform(Action{ActionType::Descend, {}, -1, {}}));
-    }
-    return g;
-}
 
 void wait(Game& g, int turns) {
     for (int i = 0; i < turns && g.state() == RunState::Playing; ++i)

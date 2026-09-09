@@ -301,6 +301,28 @@ TEST(GameData, EveryBossExistsInTheBestiary) {
     EXPECT_EQ(species_index("no_such_creature"), -1);
 }
 
+/// The seam between a rule and the table it reads.
+///
+/// A mechanic finds its creature by key: Вий's eyelids, Кощей's needle, the
+/// fire the Огневик leaves behind. Rename the creature in `data.cpp` and the
+/// rule does not stop compiling — `species_index` returns -1 and the caller
+/// quietly does nothing, or the `strcmp` simply never matches again. The boss
+/// still appears, still has its health bar, and has silently lost the thing
+/// that made it a boss. Nothing else in this suite would necessarily notice.
+TEST(GameData, EveryBehaviourKeyNamesSomething) {
+    for (const char* key : behaviour_species_keys())
+        EXPECT_GE(species_index(key), 0)
+            << '"' << key << "\" is what a rule looks for and no creature answers to it";
+
+    for (const char* key : behaviour_gear_keys()) {
+        bool found = false;
+        for (const auto& gear : gear_table())
+            if (std::strcmp(gear.key, key) == 0) { found = true; break; }
+        EXPECT_TRUE(found)
+            << '"' << key << "\" is what a rule looks for and no gear answers to it";
+    }
+}
+
 TEST(GameData, ExperienceCurveRisesMonotonically) {
     EXPECT_EQ(xp_for_level(1), 0);
     for (int level = 2; level <= 30; ++level)

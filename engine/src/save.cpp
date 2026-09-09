@@ -161,6 +161,14 @@ private:
     bool ok_{true};
 };
 
+/// Whether a coordinate read out of a save falls on the floor it claims to be
+/// on. Out-of-bounds is not a memory hazard here — `Map` reports wall outside
+/// its grid and `walkable` refuses it — but it is still a game that cannot be
+/// played, so the save is refused rather than resumed into a corner of nothing.
+bool in_level(Vec2 p, int width, int height) {
+    return p.x >= 0 && p.y >= 0 && p.x < width && p.y < height;
+}
+
 void write_actor(Writer& w, const Actor& a) {
     w << a.pos.x << a.pos.y << a.hp << a.max_hp << a.attack << a.defence << a.speed
       << a.energy << (a.alive ? 1 : 0) << a.effects.size();
@@ -432,13 +440,22 @@ bool Game::load(const std::string& blob) {
             // a boss into a pattern that has no code behind it.
             const int phases = bestiary()[static_cast<std::size_t>(m.species)].phases;
             if (m.phase < 1 || m.phase > std::max(1, phases)) return false;
+            // A creature off the edge of its own floor. The map answers "wall"
+            // out of bounds so nothing would crash, which is precisely why this
+            // has to be caught here: it would not crash, it would quietly play
+            // on with a monster that cannot be reached, seen or killed.
+            if (!in_level(m.a.pos, w, h)) return false;
             m.awake = awake != 0;
         }
 
         if (!r.count(n, 4096)) return false;
         lvl.items.resize(n);
-        for (auto& it : lvl.items)
+        for (auto& it : lvl.items) {
             if (!read_item(r, it)) return false;
+            // Items in the pack carry a stale position and are read elsewhere;
+            // these are the ones lying on the ground, and the ground has edges.
+            if (!in_level(it.pos, w, h)) return false;
+        }
 
         if (!r.count(n, 4096)) return false;
         lvl.embers.resize(n);
@@ -456,7 +473,13 @@ bool Game::load(const std::string& blob) {
     }
     if (!r.ok()) return false;
     if (g.levels_.size() <= static_cast<std::size_t>(g.depth_)) return false;
-    if (!g.levels_[static_cast<std::size_t>(g.depth_)].generated) return false;
+    const Level& here = g.levels_[static_cast<std::size_t>(g.depth_)];
+    if (!here.generated) return false;
+    // Checked last because it is the first point at which the floor the hero
+    // stands on has been read. Only the edges are enforced, not walkability: a
+    // hero can legitimately be standing in water or a doorway, and a rule
+    // stricter than the game's own would refuse honest saves.
+    if (!in_level(g.hero_.a.pos, here.map.width(), here.map.height())) return false;
 
     *this = std::move(g);
     recompute_fov();

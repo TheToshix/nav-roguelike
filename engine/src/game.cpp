@@ -382,12 +382,12 @@ void Game::build_secret_room(Level& lvl, int depth) {
     if (depth != 6 && depth != 10) return;
 
     Map& map = lvl.map;
-    const int cat = species_index("kot_bayun");
+    const int cat = species_index(species_key::kKotBayun);
     int charm_idx = -1;
     {
         const auto& g = gear_table();
         for (std::size_t i = 0; i < g.size(); ++i)
-            if (std::strcmp(g[i].key, "koshkin_glaz") == 0) charm_idx = static_cast<int>(i);
+            if (std::strcmp(g[i].key, gear_key::kKoshkinGlaz) == 0) charm_idx = static_cast<int>(i);
     }
     if (cat < 0 || charm_idx < 0) return;
 
@@ -553,9 +553,19 @@ void Game::build_arena(Level& lvl, int depth) {
             if (!map.in_bounds(in) || !map.walkable(in)) continue;
             doors.push_back({std::abs(p.x - lvl.entrance.x) + std::abs(p.y - lvl.entrance.y), p});
         }
+        // Ties are broken by position, and that is not tidiness. The first
+        // candidate that leaves the floor whole becomes the door, so the order
+        // among equal distances picks the door, the door picks the hall and the
+        // hall picks the floor. Ordering by distance alone leaves that choice to
+        // whatever std::sort does with equivalent elements — which is not the
+        // same in libstdc++, libc++ and MSVC. On a survey of the whole dungeon
+        // eighteen halls out of twenty-six had at least one tie, so the seed
+        // would have meant a different dungeon on a different standard library:
+        // exactly the divergence the hand-written generator exists to prevent.
         std::sort(doors.begin(), doors.end(),
                   [](const std::pair<int, Vec2>& l, const std::pair<int, Vec2>& r) {
-                      return l.first < r.first;
+                      if (l.first != r.first) return l.first < r.first;
+                      return l.second < r.second;
                   });
 
         for (const auto& candidate : doors) {
@@ -584,7 +594,7 @@ void Game::build_arena(Level& lvl, int depth) {
                 // Кощей keeps his hall open. His death is on a needle somewhere
                 // else on the floor, so a sealed room would be a room the
                 // player cannot win in.
-                a.seals = std::strcmp(key, "koschei") != 0;
+                a.seals = std::strcmp(key, species_key::kKoschei) != 0;
                 lvl.arena = a;
                 return true;
             }
@@ -732,7 +742,7 @@ void Game::build_lobby(Level& lvl) {
     // music, not in the boss table — but the one thing on the crossroads that
     // is met rather than chosen. He does not chase; his whistle does. Because
     // the lobby is built once and kept, he is met exactly once.
-    if (const int solovey = species_index("solovey"); solovey >= 0) {
+    if (const int solovey = species_index(species_key::kSolovey); solovey >= 0) {
         const Species& sp = bestiary()[static_cast<std::size_t>(solovey)];
         Monster m{};
         m.species = solovey;
@@ -907,8 +917,8 @@ void Game::populate(Level& lvl, int depth) {
 
             // Баба-Яга does not fight alone: her huts stand with her, and she
             // is all but untouchable while any of them is still standing.
-            if (std::strcmp(key, "babayaga") == 0) {
-                const int hut = species_index("izbushka");
+            if (std::strcmp(key, species_key::kBabaYaga) == 0) {
+                const int hut = species_index(species_key::kIzbushka);
                 if (hut >= 0) {
                     const Species& hut_sp = beasts[static_cast<std::size_t>(hut)];
                     for (int i = 0; i < 2; ++i) {
@@ -934,7 +944,7 @@ void Game::populate(Level& lvl, int depth) {
     // the floor is asked for by his name, never spelled as a number. It was
     // spelled as one once, the dungeon grew four floors deeper, and the needle
     // quietly moved away from him (NAV-011).
-    if (depth == boss_depth("koschei")) {
+    if (depth == boss_depth(species_key::kKoschei)) {
         Item needle{};
         needle.kind = ItemKind::Needle;
         needle.identified = true;
@@ -1185,7 +1195,7 @@ void Game::tick_embers() {
             // of it. Everything else on Пекло's floors burns, which is what
             // makes leading a чёрт across the trail a real tactic.
             const std::size_t si = static_cast<std::size_t>(m.species);
-            if (si < bestiary().size() && std::strcmp(bestiary()[si].key, "ognevik") == 0)
+            if (si < bestiary().size() && std::strcmp(bestiary()[si].key, species_key::kOgnevik) == 0)
                 continue;
             damage_monster(m, burn, Text{"горящий пол", "the burning floor"});
         }
@@ -1295,7 +1305,7 @@ int Game::hero_attack() const {
     }
     if (inv.amulet >= 0 && inv.amulet < static_cast<int>(inv.items.size())) {
         const Item& am = inv.items[static_cast<std::size_t>(inv.amulet)];
-        if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, "ob_sily") == 0)
+        if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, gear_key::kObSily) == 0)
             atk += am.total_power();
     }
     atk += hero_.a.effect_power(Effect::Might);
@@ -1319,7 +1329,7 @@ int Game::hero_sight() const {
     const auto& inv = hero_.inv;
     if (inv.amulet >= 0 && inv.amulet < static_cast<int>(inv.items.size())) {
         const Item& am = inv.items[static_cast<std::size_t>(inv.amulet)];
-        if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, "ob_zorko") == 0)
+        if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, gear_key::kObZorko) == 0)
             sight += am.total_power();
     }
     if (hero_has(GpSight)) sight += 3;
@@ -1333,7 +1343,7 @@ int Game::hero_speed() const {
     const auto& inv = hero_.inv;
     if (inv.amulet >= 0 && inv.amulet < static_cast<int>(inv.items.size())) {
         const Item& am = inv.items[static_cast<std::size_t>(inv.amulet)];
-        if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, "ob_skoro") == 0)
+        if (std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, gear_key::kObSkoro) == 0)
             speed += am.total_power();
     }
     // Both halves of the traveller's kit push, so wearing the pair is worth

@@ -27,7 +27,7 @@ bool Game::hero_resists(Effect e) const {
     if (e == Effect::Poison && hero_.inv.amulet >= 0) {
         const Item& am = hero_.inv.items[static_cast<std::size_t>(hero_.inv.amulet)];
         if (am.is_gear() &&
-            std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, "ob_yada") == 0)
+            std::strcmp(gear_table()[static_cast<std::size_t>(am.subtype)].key, gear_key::kObYada) == 0)
             return true;
     }
     if (e == Effect::Poison && hero_has(GpNoPoison)) return true;
@@ -42,7 +42,7 @@ bool Game::hero_resists(Effect e) const {
 }
 
 bool Game::huts_standing() const {
-    const int hut = species_index("izbushka");
+    const int hut = species_index(species_key::kIzbushka);
     if (hut < 0) return false;
     for (const auto& m : level().monsters)
         if (m.a.alive && m.species == hut) return true;
@@ -122,7 +122,7 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     // struck hard and left blind. The counter-play is to break line of sight on
     // the turn he is telegraphed to open — which is why the warning arrives one
     // turn early.
-    if (std::strcmp(sp.key, "viy") == 0) {
+    if (std::strcmp(sp.key, species_key::kViy) == 0) {
         // The eyelid cycle shortens as he tires of waiting: four turns, then
         // three, then two. The counter-play never changes — get out of sight —
         // but the room to hit him between gazes keeps shrinking.
@@ -171,21 +171,21 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     // is about knocking those down first.
     // From her second phase she rides the mortar: faster than the hero, and
     // unwilling to stand still for a trade.
-    if (std::strcmp(sp.key, "babayaga") == 0 && m.phase >= 2) m.a.speed = 145;
+    if (std::strcmp(sp.key, species_key::kBabaYaga) == 0 && m.phase >= 2) m.a.speed = 145;
 
     // Her third phase raises a fresh hut. Done here, on her turn, rather than
     // in update_boss_phase: that runs inside damage_monster, which holds a
     // reference to her that a spawn's vector growth would invalidate (NAV-021).
     // `m.revives` — unused by her otherwise — latches it to once.
-    if (std::strcmp(sp.key, "babayaga") == 0 && m.phase >= 3 && m.revives == 0) {
+    if (std::strcmp(sp.key, species_key::kBabaYaga) == 0 && m.phase >= 3 && m.revives == 0) {
         m.revives = 1;
-        const int hut = species_index("izbushka");
+        const int hut = species_index(species_key::kIzbushka);
         const Vec2 origin = m.a.pos;
         if (hut >= 0) spawn_species(mutable_level(), hut, origin, 3);
         return true;
     }
 
-    if (std::strcmp(sp.key, "babayaga") == 0 && huts_standing()) {
+    if (std::strcmp(sp.key, species_key::kBabaYaga) == 0 && huts_standing()) {
         if (m.summon_cooldown > 0) --m.summon_cooldown;
         else if (sees_hero && rng_.chance(50)) { monster_summon(m); return true; }
 
@@ -199,7 +199,7 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     }
 
     // --- Кощей: сначала бьёт, потом тянет, потом зовёт -----------------------
-    if (std::strcmp(sp.key, "koschei") == 0) {
+    if (std::strcmp(sp.key, species_key::kKoschei) == 0) {
         // Phase two turns the fight into a race: every blow he lands closes his
         // own wounds, so out-healing him stops working and out-running his
         // health bar becomes the only line.
@@ -225,7 +225,7 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     // The phases are literal here — a head falls at each threshold — so the
     // fight gets faster and hotter exactly as it gets shorter. Fewer heads,
     // less reason to pace himself.
-    if (std::strcmp(sp.key, "gorynych") == 0) {
+    if (std::strcmp(sp.key, species_key::kGorynych) == 0) {
         const int heads = 4 - m.phase;                  // 3, then 2, then 1
         const int between = m.phase >= 3 ? 1 : (m.phase == 2 ? 2 : 3);
         ++m.charge;
@@ -240,7 +240,7 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     }
 
     // --- Мара: морок, а на второй фазе ещё и двойники ------------------------
-    if (std::strcmp(sp.key, "mara") == 0) {
+    if (std::strcmp(sp.key, species_key::kMara) == 0) {
         // The delusion only reaches across a room. Closing the distance is the
         // counter-play, and it has to be one the player can find on their first
         // meeting: she is the first fight in the game that is not a monster.
@@ -281,7 +281,7 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     }
 
     // --- Водяной: вода — его дом ---------------------------------------------
-    if (std::strcmp(sp.key, "vodyanoy") == 0) {
+    if (std::strcmp(sp.key, species_key::kVodyanoy) == 0) {
         if (map().at(m.a.pos) == Tile::Water) m.a.heal(m.phase >= 2 ? 5 : 3);
 
         // Phase two floods the room he is standing in, which turns his healing
@@ -310,7 +310,7 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     }
 
     // --- Морозко: «тепло ли тебе?» -------------------------------------------
-    if (std::strcmp(sp.key, "morozko") == 0) {
+    if (std::strcmp(sp.key, species_key::kMorozko) == 0) {
         ++m.charge;
         const int cycle = m.phase >= 2 ? 3 : 4;
         if (m.charge == cycle - 1 && map().visible(m.a.pos))
@@ -336,7 +336,7 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     }
 
     // --- Огненный Полоз: ходит сквозь камень ---------------------------------
-    if (std::strcmp(sp.key, "polozh") == 0) {
+    if (std::strcmp(sp.key, species_key::kPolozh) == 0) {
         if (sees_hero && distance <= 1 && rng_.chance(40) && !hero_has(GpNoBurn))
             hero_.a.add_effect(Effect::Burn, 4, 3);
 
@@ -362,7 +362,7 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     // of distance to land — so rushing him shuts the song off. In the second he
     // sings point-blank, and the counter-play narrows to the charm he is
     // guarding or the warding circle.
-    if (std::strcmp(sp.key, "kot_bayun") == 0) {
+    if (std::strcmp(sp.key, species_key::kKotBayun) == 0) {
         ++m.charge;
         const int cycle = m.phase >= 2 ? 3 : 4;
         const int min_range = m.phase >= 2 ? 1 : 2;
@@ -559,7 +559,7 @@ void Game::monster_turn(std::size_t index) {
     }
 
     // --- Соловей-Разбойник: свист, что валит с ног --------------------------
-    if (std::strcmp(sp.key, "solovey") == 0) {
+    if (std::strcmp(sp.key, species_key::kSolovey) == 0) {
         if (solovey_turn(m, sp, sees_hero, distance)) return;
         // On a non-whistle turn he still swings at anyone right beside him.
         if (distance <= 1) { monster_attacks_hero(m); }
@@ -572,7 +572,7 @@ void Game::monster_turn(std::size_t index) {
     // Кощеево царство's: it lights the cell under it at the start of every turn
     // and then moves on, so it drags a burning trail across the room. It is
     // deaf to its own fire; anything else that ends a turn in the trail is not.
-    if (std::strcmp(sp.key, "ognevik") == 0) ignite(m.a.pos, kEmberTurns);
+    if (std::strcmp(sp.key, species_key::kOgnevik) == 0) ignite(m.a.pos, kEmberTurns);
 
     // --- Confusion overrides every other decision -------------------------
     if (m.a.has(Effect::Confusion)) {
