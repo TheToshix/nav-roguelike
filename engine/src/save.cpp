@@ -28,11 +28,13 @@ constexpr const char* kMagic = "NAV";
 // Version 5 adds the burning cells the Огневик trails behind it: a floor now
 // remembers where it is on fire and for how long, so a save taken mid-fight
 // resumes with the same hazard on the ground. Version 6 adds the codex: which
-// bestiary rows the hero has unlocked by sight, so the screen's progress
-// survives a reload.
+// bestiary rows the hero has unlocked by sight. Version 7 adds the achievement
+// watchers — whether the run has used run or auto-explore, whether it has taken
+// damage, and how deep it got before it did — so a resumed run keeps its shot
+// at "no damage" and "on foot".
 // There is no migration: an older save is refused rather than loaded as
 // something it is not — see docs/TEST_CASES.md, "what stayed unchecked".
-constexpr int kFormatVersion = 6;
+constexpr int kFormatVersion = 7;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -210,6 +212,8 @@ std::string Game::save() const {
     w << rs[0] << rs[1] << rs[2] << rs[3];
 
     w << depth_ << turn_ << static_cast<int>(state_) << (needle_broken_ ? 1 : 0);
+    w << (ever_ran_ ? 1 : 0) << (ever_explored_ ? 1 : 0) << (ever_hurt_ ? 1 : 0)
+      << deepest_unhurt_;
 
     // --- Hero --------------------------------------------------------------
     write_actor(w, hero_.a);
@@ -303,6 +307,13 @@ bool Game::load(const std::string& blob) {
     r >> g.depth_ >> g.turn_ >> run_state >> needle;
     if (!r.ok() || run_state < 0 || run_state > static_cast<int>(RunState::Ascended)) return false;
     g.needle_broken_ = needle != 0;
+
+    int ran = 0, explored = 0, hurt = 0;
+    r >> ran >> explored >> hurt >> g.deepest_unhurt_;
+    if (!r.ok() || g.deepest_unhurt_ < 0 || g.deepest_unhurt_ > kMaxDepth) return false;
+    g.ever_ran_ = ran != 0;
+    g.ever_explored_ = explored != 0;
+    g.ever_hurt_ = hurt != 0;
     if (g.depth_ < kLobbyDepth || g.depth_ > kMaxDepth) return false;
     g.state_ = static_cast<RunState>(run_state);
 

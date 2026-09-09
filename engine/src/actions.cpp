@@ -53,6 +53,11 @@ void Game::damage_hero(int amount, const Text& source) {
     const int before = hero_.a.hp;
     hero_.a.damage(amount);
 
+    // Once real health is lost in the dungeon proper, the "no damage" run is
+    // over. The crossroads is preparation, not the run, so Соловей's whistle
+    // does not count against it.
+    if (depth_ >= 1 && hero_.a.hp < before) ever_hurt_ = true;
+
     // Remember the blow. A run that ends badly ends in a few seconds, and the
     // player cannot read a scrolling log while it happens — so the ending
     // screen reads it back to them afterwards.

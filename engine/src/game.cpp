@@ -599,6 +599,7 @@ void Game::enter_level(int depth, bool descending) {
     hero_.a.pos = descending ? lvl.entrance : lvl.exit;
     if (!lvl.map.walkable(hero_.a.pos)) hero_.a.pos = random_free_spot(lvl);
     hero_.deepest = std::max(hero_.deepest, depth_);
+    if (!ever_hurt_ && depth_ >= 1) deepest_unhurt_ = std::max(deepest_unhurt_, depth_);
 
     // The warding shirt gets its one blow back on every new floor. Tying it to
     // the floor rather than to a timer means the player can count on it at the

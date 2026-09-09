@@ -78,8 +78,11 @@ bool Game::act_run(Vec2 dir) {
 
     // With someone in sight, a run is one step. That is not a refusal: stepping
     // into a monster is how this game attacks, so Shift and a direction still
-    // does the obvious thing when the obvious thing is to hit something.
+    // does the obvious thing when the obvious thing is to hit something — and
+    // that single step does not count as "having used run" for the achievement.
     if (foe_in_view()) return perform_single(Action{ActionType::Move, dir, -1, {}});
+
+    ever_ran_ = true;   // the "on foot" achievement is off the table for this run
 
     // Corridors and rooms want different rules. In a corridor the interesting
     // event is a side passage opening up; in a room there are openings
@@ -145,6 +148,7 @@ bool Game::act_explore() {
                      "No wandering with company in sight."}, Severity::Bad);
         return false;
     }
+    ever_explored_ = true;   // the "on foot" achievement is off the table for this run
 
     int steps = 0;
     bool moved = false;

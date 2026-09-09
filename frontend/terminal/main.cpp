@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "nav/achievements.hpp"
 #include "nav/fov.hpp"
 #include "nav/game.hpp"
 #include "nav/keys.hpp"
@@ -649,6 +650,11 @@ std::string scores_path() {
     return "nav_scores.txt";
 }
 
+std::string feats_path() {
+    if (const char* home = std::getenv("HOME")) return std::string(home) + "/.nav_achievements";
+    return "nav_achievements.txt";
+}
+
 std::string save_path() {
     if (const char* home = std::getenv("HOME")) return std::string(home) + "/.nav_save";
     return "nav_save.txt";
@@ -674,6 +680,41 @@ bool read_file(const std::string& path, std::string& data) {
     data = ss.str();
     return true;
 }
+
+bool feat_in(const std::vector<std::string>& v, const std::string& key) {
+    return std::find(v.begin(), v.end(), key) != v.end();
+}
+
+std::vector<std::string> load_feats() {
+    std::vector<std::string> unlocked;
+    std::string blob;
+    if (read_file(feats_path(), blob)) parse_achievements(blob, unlocked);
+    return unlocked;
+}
+
+/// The achievements list. Unlocked ones are lit and their line is the deed;
+/// locked ones are dim and their line is the goal. `fresh` marks any earned in
+/// the run just finished.
+std::string feats_text(const std::vector<std::string>& unlocked,
+                       const std::vector<std::string>& fresh, Lang lang) {
+    std::ostringstream out;
+    out << (lang == Lang::Ru ? "\x1b[1mДостижения\x1b[0m  " : "\x1b[1mAchievements\x1b[0m  ");
+    out << "\x1b[38;5;244m" << unlocked.size() << " / " << achievement_table().size()
+        << "\x1b[0m\n\n";
+    for (const AchievementInfo& a : achievement_table()) {
+        const bool have = feat_in(unlocked, a.key);
+        const bool now = feat_in(fresh, a.key);
+        if (now) out << "  \x1b[38;5;179m✦ ";
+        else if (have) out << "  \x1b[38;5;250m✔ ";
+        else out << "  \x1b[38;5;240m· ";
+        out << pad_to(a.name.get(lang), 20) << "\x1b[0m";
+        out << "\x1b[38;5;244m" << a.how.get(lang);
+        if (now) out << (lang == Lang::Ru ? "  — открыто!" : "  — new!");
+        out << "\x1b[0m\n";
+    }
+    return out.str();
+}
+
 
 /// Language and control scheme, remembered between runs.
 ///
@@ -806,6 +847,7 @@ bool game_menu(Game& g, Ui& ui) {
             ui.lang == Lang::Ru ? "Загрузить"         : "Load",
             ui.lang == Lang::Ru ? "Карта этажа"       : "The whole floor",
             ui.lang == Lang::Ru ? "Бестиарий"         : "Bestiary",
+            ui.lang == Lang::Ru ? "Достижения"        : "Achievements",
             std::string(ui.lang == Lang::Ru ? "Управление: " : "Controls: ") +
                 key_scheme_name(ui.scheme).get(ui.lang),
             ui.lang == Lang::Ru ? "Язык: русский / English" : "Language: Русский / English",
@@ -820,17 +862,18 @@ bool game_menu(Game& g, Ui& ui) {
             case 2: do_load(g, ui); return false;
             case 3: ui.map_screen(g); break;
             case 4: ui.codex_screen(g); break;
-            case 5:
+            case 5: ui.notice(feats_text(load_feats(), {}, ui.lang)); break;
+            case 6:
                 ui.scheme = ui.scheme == KeyScheme::Classic ? KeyScheme::Wasd : KeyScheme::Classic;
                 write_preferences(Preferences{ui.lang, ui.scheme});
                 ui.notice(help_text(ui.lang, ui.scheme));
                 break;
-            case 6:
+            case 7:
                 ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru;
                 write_preferences(Preferences{ui.lang, ui.scheme});
                 break;
-            case 7: ui.notice(help_text(ui.lang, ui.scheme)); break;
-            case 8: return true;
+            case 8: ui.notice(help_text(ui.lang, ui.scheme)); break;
+            case 9: return true;
             default: break;
         }
     }
@@ -877,6 +920,8 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
         out += ui.lang == Lang::Ru ? "  \x1b[38;5;180mk\x1b[0m) управление: "
                                    : "  \x1b[38;5;180mk\x1b[0m) controls: ";
         out += key_scheme_name(ui.scheme).get(ui.lang) + std::string("\n");
+        out += ui.lang == Lang::Ru ? "  \x1b[38;5;180ma\x1b[0m) достижения\n"
+                                   : "  \x1b[38;5;180ma\x1b[0m) achievements\n";
         out += ui.lang == Lang::Ru ? "  \x1b[38;5;180m?\x1b[0m) как играть      \x1b[38;5;180mq\x1b[0m) выход\n"
                                    : "  \x1b[38;5;180m?\x1b[0m) how to play     \x1b[38;5;180mq\x1b[0m) quit\n";
         std::fputs(out.c_str(), stdout);
@@ -895,6 +940,7 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
             continue;
         }
         if (key == '?') { ui.notice(help_text(ui.lang, ui.scheme)); continue; }
+        if (key == 'a') { ui.notice(feats_text(load_feats(), {}, ui.lang)); continue; }
         if (key == 'L') { cfg.seed_text = "\x01load"; return true; }
         if (key == 's') {
             ui.clear();
@@ -1162,6 +1208,19 @@ int main(int argc, char** argv) {
                 else if (place > 0)
                     body += (ui.lang == Lang::Ru ? "\n\nВ таблице: место " : "\n\nOn the board: place ") +
                             std::to_string(place + 1);
+
+                // Fold this run's deeds into the kept set and name any new ones.
+                std::vector<std::string> unlocked = load_feats();
+                const std::vector<std::string> fresh =
+                    merge_achievements(unlocked, achievements_earned(game));
+                write_file(feats_path(), serialize_achievements(unlocked));
+                if (!fresh.empty()) {
+                    body += (ui.lang == Lang::Ru ? "\n\n\x1b[38;5;179mОткрыто:\x1b[0m" : "\n\n\x1b[38;5;179mUnlocked:\x1b[0m");
+                    for (const std::string& key : fresh)
+                        for (const AchievementInfo& a : achievement_table())
+                            if (key == a.key)
+                                body += "\n  \x1b[38;5;179m✦ " + a.name.get(ui.lang) + "\x1b[0m";
+                }
 
                 body += "\n" + postmortem_text(game, ui.lang);
                 body += "\n" + score_table_text(table, ui.lang, place);

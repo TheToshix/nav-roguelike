@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-409-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-416-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -247,6 +247,7 @@ of them is accepted.
 | **Magic** | 6 spells, aimed along the line of sight |
 | **Effects** | Poison, burning, freezing, confusion, blindness, haste, slow, regeneration, might, ward, sleep |
 | **Codex** | A bestiary screen (`v`, or the menu): a row unlocks the first time you see the creature, and the progress lives in the save |
+| **Achievements** | A set of feats (no damage to floor 8, a win without running, by a given class, a speedrun); progress persists between runs in `~/.nav_achievements` |
 | **Also** | Hunger, water and chasms, doors, shrines that bless your gear, a speed-based turn scheduler, saved games |
 
 ### Six heroes
@@ -347,7 +348,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 409 tests
+ctest --test-dir build --output-on-failure    # 416 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -417,7 +418,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **409** across 50 suites |
+| Unit and integration tests | **416** across 51 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -457,7 +458,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           409 GoogleTest cases
+tests/           416 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

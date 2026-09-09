@@ -38,6 +38,7 @@ add_executable(nav_tests
   test_gear.cpp
   test_lobby.cpp
   test_scores.cpp
+  test_achievements.cpp
   test_keys.cpp
   test_travel.cpp
   test_clarity.cpp

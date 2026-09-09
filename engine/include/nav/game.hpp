@@ -184,6 +184,15 @@ public:
         const std::size_t i = static_cast<std::size_t>(species);
         return i < codex_seen_.size() && codex_seen_[i] != 0;
     }
+
+    // --- What the achievements watch ------------------------------------
+    /// True once the run has used the run key or auto-explore even once.
+    bool used_run_or_explore() const { return ever_ran_ || ever_explored_; }
+    /// True while not one point of health has been lost this run.
+    bool flawless() const { return !ever_hurt_; }
+    /// The deepest floor reached before the first point of damage — frozen the
+    /// moment any is taken.
+    int deepest_unhurt() const { return deepest_unhurt_; }
     /// Final score: gold, depth, kills and hero level rolled into one number.
     int score() const;
 
@@ -422,6 +431,12 @@ private:
     RunState state_{RunState::Playing};
     bool needs_flow_rebuild_{true};
     bool needle_broken_{false};  ///< Until this is true, Кощей does not stay dead.
+    // Achievement bookkeeping, part of the save so a resumed run keeps its
+    // progress towards them.
+    bool ever_ran_{false};
+    bool ever_explored_{false};
+    bool ever_hurt_{false};
+    int deepest_unhurt_{0};
     /// The first-floor hints, said once per run. Deliberately not part of the
     /// save: a player who reloads has already read them, and a save file is a
     /// description of a dungeon rather than of what its owner has been told.

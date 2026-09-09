@@ -105,7 +105,7 @@ engine/          ядро: правила игры, без ввода-вывод
 frontend/
   terminal/      версия для терминала
   web/           обёртка для WebAssembly, страница игры, спрайты и музыка
-tests/           409 тест на GoogleTest
+tests/           416 тест на GoogleTest
 docs/            архитектура, тест-план, тест-кейсы, багрепорты
 tools/           сборка веб-версии и генератор спрайтов
 ```
@@ -168,7 +168,7 @@ build\Release\nav.exe
 вниз и три вещи на постаментах. Взять можно ровно одну.
 
 Сохранение пишется в `~/.nav_save` (на Windows — в `nav_save.txt` рядом с исполняемым файлом).
-Таблица рекордов — в `~/.nav_scores` (на Windows — `nav_scores.txt` там же). Оба файла текстовые:
+Таблица рекордов — в `~/.nav_scores`, достижения — в `~/.nav_achievements` (на Windows — `nav_scores.txt` и `nav_achievements.txt` там же). Все эти файлы текстовые:
 их можно открыть и прочитать глазами, а если удалить — игра начнёт с чистого листа.
 
 ### Партии без экрана
@@ -209,7 +209,7 @@ cmake --build build --config Release
 ctest --test-dir build --build-config Release --output-on-failure
 ```
 
-Ожидаемый результат — `100% tests passed, 0 tests failed out of 409`, около трёх секунд.
+Ожидаемый результат — `100% tests passed, 0 tests failed out of 416`, около трёх секунд.
 
 Чтобы не качать GoogleTest, можно поставить его системно:
 

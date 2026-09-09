@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "nav/achievements.hpp"
 #include "nav/game.hpp"
 #include "nav/keys.hpp"
 #include "nav/score.hpp"
@@ -106,6 +107,34 @@ public:
 private:
     std::vector<std::string> values_;
 };
+
+/// The achievement list as JSON, each row marked unlocked or not against
+/// `unlocked`, and `fresh` for the ones just earned.
+std::string achievements_json(const std::vector<std::string>& unlocked,
+                              const std::vector<std::string>& fresh) {
+    using namespace nav;
+    const auto has = [](const std::vector<std::string>& v, const char* k) {
+        for (const std::string& s : v) if (s == k) return true;
+        return false;
+    };
+    std::string out = "[";
+    bool first = true;
+    for (const AchievementInfo& a : achievement_table()) {
+        if (!first) out += ',';
+        first = false;
+        out += "{\"key\":";
+        append_json_string(out, a.key);
+        out += ",\"name\":";
+        append_json_string(out, a.name.get(g_lang));
+        out += ",\"how\":";
+        append_json_string(out, a.how.get(g_lang));
+        out += ",\"unlocked\":" + std::string(has(unlocked, a.key) ? "true" : "false");
+        out += ",\"fresh\":" + std::string(has(fresh, a.key) ? "true" : "false");
+        out += "}";
+    }
+    out += "]";
+    return out;
+}
 
 const char* severity_name(nav::Severity s) {
     switch (s) {
@@ -578,6 +607,29 @@ EMSCRIPTEN_KEEPALIVE char* nav_record_score(const char* blob) {
     }
     out += "]}";
     return to_c_string(out);
+}
+/// Folds the current run's deeds into `blob` and hands back the merged store
+/// plus the full list. Mirrors nav_record_score.
+EMSCRIPTEN_KEEPALIVE char* nav_achievements_record(const char* blob) {
+    using namespace nav;
+    std::vector<std::string> unlocked;
+    if (blob) parse_achievements(blob, unlocked);
+    const std::vector<std::string> fresh =
+        merge_achievements(unlocked, achievements_earned(g_game));
+
+    std::string out = "{\"blob\":";
+    append_json_string(out, serialize_achievements(unlocked));
+    out += ",\"list\":" + achievements_json(unlocked, fresh);
+    out += "}";
+    return to_c_string(out);
+}
+
+/// Reads a stored achievements blob back for the title screen.
+EMSCRIPTEN_KEEPALIVE char* nav_achievements_table(const char* blob) {
+    using namespace nav;
+    std::vector<std::string> unlocked;
+    if (blob) parse_achievements(blob, unlocked);
+    return to_c_string(achievements_json(unlocked, {}));
 }
 
 /// Reads a stored table back for the title screen, without adding anything.

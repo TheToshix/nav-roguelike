@@ -676,6 +676,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       <button id="btnHelpTitle">Как играть</button>
       <button id="btnBoardTitle">Рекорды</button>
       <button id="btnBestiaryTitle">Бестиарий</button>
+      <button id="btnFeatsTitle">Достижения</button>
       <button id="btnSettingsTitle">Настройки</button>
       <button id="btnLang">English</button>
     </div>
@@ -813,6 +814,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       helpTitle: 'Как играть', helpSub: 'Шестнадцать этажей вниз, восемь стражей. Смерть окончательна.',
       legendTitle: 'Знаки',
       bestTitle: 'Бестиарий', bestSub: 'Открывается по мере встреч', bestLocked: '— не встречен —',
+      featTitle: 'Достижения', featSub: 'Открывается раз и навсегда', featNew: 'открыто!',
       bossTag: 'страж', depthTag: 'гл.',
       mapTitle: 'Этаж', mapFound: 'Лестница вниз отмечена светлым — ты её уже нашёл.',
       mapLost: 'Лестница вниз ещё не найдена.',
@@ -876,6 +878,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       helpTitle: 'How to play', helpSub: 'Sixteen floors down, eight guardians. Death is final.',
       legendTitle: 'Glyphs',
       bestTitle: 'Bestiary', bestSub: 'Fills in as you meet them', bestLocked: '— not yet met —',
+      featTitle: 'Achievements', featSub: 'Earned once, kept for good', featNew: 'new!',
       bossTag: 'guardian', depthTag: 'depth',
       mapTitle: 'Floor', mapFound: 'The way down is marked pale — you have found it.',
       mapLost: 'The way down has not been found yet.',
@@ -927,12 +930,43 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   var cell = { w: 0, h: 0, size: 0 };
   var SAVE_KEY = 'nav.save.v1';
   var SCORES_KEY = 'nav.scores.v1';
+  var FEATS_KEY = 'nav.feats.v1';
 
   function loadScoreBlob() {
     try { return localStorage.getItem(SCORES_KEY) || ''; } catch (e) { return ''; }
   }
   function storeScoreBlob(blob) {
     try { localStorage.setItem(SCORES_KEY, blob); } catch (e) { /* private mode */ }
+  }
+  function loadFeatsBlob() {
+    try { return localStorage.getItem(FEATS_KEY) || ''; } catch (e) { return ''; }
+  }
+  function storeFeatsBlob(blob) {
+    try { localStorage.setItem(FEATS_KEY, blob); } catch (e) { /* private mode */ }
+  }
+
+  /// The achievements screen. `list` is [{key,name,how,unlocked,fresh}].
+  function featsHtml(list) {
+    var have = 0;
+    var rows = list.map(function (a) {
+      if (a.unlocked) have++;
+      var mark = a.fresh ? '✦' : (a.unlocked ? '✔' : '·');
+      var cls = a.fresh ? 'good' : (a.unlocked ? '' : '');
+      return '<div class="beast"' + (a.unlocked ? '' : ' style="opacity:.55"') + '>' +
+        '<span class="g" style="color:' + (a.fresh ? 'var(--gold)' : (a.unlocked ? 'var(--good)' : 'var(--ink-faint)')) + '">' +
+        mark + '</span>' +
+        '<span class="b"><b>' + esc(a.name) + (a.fresh ? ' — ' + esc(t('featNew')) : '') +
+        '</b><small>' + esc(a.how) + '</small></span></div>';
+    }).join('');
+    return '<p class="sub">' + t('featSub') + ' — ' + have + ' / ' + list.length + '</p>' + rows;
+  }
+
+  function showFeats() {
+    var list = Api ? Api.achievementsTable(loadFeatsBlob()) : [];
+    openModal(
+      '<h2>' + t('featTitle') + '</h2>' + featsHtml(list) +
+      '<div style="margin-top:14px"><button id="mClose">' + t('close') + '</button></div>',
+      function (overlay) { overlay.querySelector('#mClose').addEventListener('click', closeModal); });
   }
 
   /// The last few blows and what was never used.
@@ -1017,6 +1051,16 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       scoreTable: function (blob) {
         return JSON.parse(readString(
           m.ccall('nav_score_table', 'number', ['string'], [blob || ''])));
+      },
+      // Achievements: earned once, kept between runs. Same engine merge as the
+      // terminal, so the two stores mean the same thing.
+      achievementsRecord: function (blob) {
+        return JSON.parse(readString(
+          m.ccall('nav_achievements_record', 'number', ['string'], [blob || ''])));
+      },
+      achievementsTable: function (blob) {
+        return JSON.parse(readString(
+          m.ccall('nav_achievements_table', 'number', ['string'], [blob || ''])));
       },
       // The keymap comes from the engine as well. The browser resolves keys
       // itself for speed, but out of the same table the terminal reads, so the
@@ -1833,6 +1877,21 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     try { board = Api.recordScore(loadScoreBlob()); } catch (e) { /* keep going */ }
     if (board.blob) storeScoreBlob(board.blob);
 
+    // Fold this run's deeds into the kept set; keep the ones that are new.
+    var freshFeats = [];
+    try {
+      var rec = Api.achievementsRecord(loadFeatsBlob());
+      if (rec.blob) storeFeatsBlob(rec.blob);
+      freshFeats = (rec.list || []).filter(function (a) { return a.fresh; });
+    } catch (e) { /* keep going */ }
+    var featsBlock = freshFeats.length
+      ? '<h3 class="pm-h">' + t('featTitle') + '</h3>' +
+        freshFeats.map(function (a) {
+          return '<div class="pm-items"><span style="color:var(--gold)">✦ ' + esc(a.name) +
+                 '</span> <span style="color:var(--ink-faint)">' + esc(a.how) + '</span></div>';
+        }).join('')
+      : '';
+
     openModal(
       '<h2 class="end-title ' + (won ? 'end-win' : 'end-lose') + '">' +
       (won ? t('won') : t('lost')) + '</h2>' +
@@ -1846,6 +1905,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       '</div>' +
       (board.place === 0 ? '<p class="sub" style="color:var(--gold)">' + t('best') + '</p>'
        : board.place > 0 ? '<p class="sub">' + t('placed') + (board.place + 1) + '</p>' : '') +
+      featsBlock +
       postmortemHtml() +
       scoreTableHtml(board.rows || [], board.place) +
       '<div style="height:14px"></div>' +
@@ -2109,6 +2169,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('btnSettingsTitle').textContent = t('settings');
     if ($('rotateText')) $('rotateText').textContent = t('rotate');
     $('btnBoardTitle').textContent = t('boardBtn');
+    $('btnFeatsTitle').textContent = t('featTitle');
     $('btnLang').textContent = t('otherLang');
 
     $('topBrand').textContent = t('brand');
@@ -2246,6 +2307,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   $('btnBestiaryTitle').addEventListener('click', showBestiary);
   $('btnSettingsTitle').addEventListener('click', showSettings);
   $('btnBoardTitle').addEventListener('click', showBoard);
+  $('btnFeatsTitle').addEventListener('click', showFeats);
   $('btnLang').addEventListener('click', function () {
     LANG = LANG === 'ru' ? 'en' : 'ru';
     applyLanguage();
