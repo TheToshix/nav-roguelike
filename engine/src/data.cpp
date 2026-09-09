@@ -173,6 +173,17 @@ const std::vector<Species>& bestiary() {
          AiSkittish, Effect::Poison, 0, 0,
          Text{"Птица из огня и света. В руки не даётся — но кто изловчится, тому перо.",
               "A bird of fire and light. It will not be held — but a feather to whoever is quick enough."}},
+
+        // --- Распутье: разовая встреча, не на этаже ---------------------
+        //
+        // Weight 0, placed by hand on the crossroads. He does not chase — he
+        // sits on his oak and whistles, and the whistle stuns the hero and
+        // hurls them back down the road. Kill him or slip past; either way it
+        // happens once, at the very start.
+        {"solovey",   Text{"Соловей-Разбойник", "Solovei the Brigand"}, 'w', "#5a6b3a", 60, 6, 4, 100, 12, 40, 0, 0, 0,
+         AiStationary, Effect::Sleep, 0, 0,
+         Text{"Сидит на девяти дубах и свищет. От свиста лес клонится, а человек — с ног.",
+              "He sits in nine oaks and whistles. The forest bows to it, and a man is knocked flat."}},
     };
     return table;
 }

@@ -44,6 +44,7 @@ GROUPS = [
     ('Not always an enemy', ['domovoy']),
     ('Hidden room', ['kot_bayun']),
     ('Not a fight', ['zharptica']),
+    ('The crossroads', ['solovey']),
     ('Guardians 32x32', ['mara', 'viy', 'vodyanoy', 'babayaga',
                          'morozko', 'koschei', 'polozh', 'gorynych']),
 ]

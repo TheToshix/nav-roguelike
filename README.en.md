@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-403-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-406-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -116,7 +116,7 @@ switches renderers mid-run. Both are fed the same frame — the engine reports a
 
 <img src="docs/media/sprites.png" alt="Every sprite" width="740">
 
-Fifty-four sprites: ten tiles and effects, nine item kinds, six heroes and twenty-nine creatures. There
+Fifty-five sprites: ten tiles and effects, nine item kinds, six heroes and thirty creatures. There
 is not a single PNG in the repository. All of it lives in `tools/sprites/pixels.py` as
 text — sixteen rows per sprite, `.` for transparent, every other character an index into
 that sprite's own palette:
@@ -155,10 +155,15 @@ list would agree with the engine and disagree with the pictures.
 Sixteen floors in four belts. Each belt has its own generator, palette and hazards, a master
 at the bottom and a lesser guardian halfway down.
 
-A run begins on the **crossroads** — depth zero, the one floor nothing generates. No monsters,
-a shrine, a stair down and three pieces of gear on pedestals. Exactly one leaves with the
-hero; the rule lives in one branch of `act_pick_up` rather than in a flag on the item, because
-three things and one pair of hands is the whole idea of the room.
+A run begins on the **crossroads** — depth zero, the one floor nothing generates. A shrine, a
+stair down and three pieces of gear on pedestals. Exactly one leaves with the hero; the rule
+lives in one branch of `act_pick_up` rather than in a flag on the item, because three things
+and one pair of hands is the whole idea of the room.
+
+By the road down sits **Solovei the Brigand** — not a guardian (no hall, no music, not in the
+boss table) but a one-time encounter. He never leaves his spot, but every third turn he
+whistles, and the whistle shoves the hero sideways off the path, costs a turn and stings a
+little. Kill him or slip past; either way it happens exactly once, at the very start.
 
 Every guardian fights in **two or three phases**, turning at even fractions of its health. A
 boss whose only change is a smaller number is a wall, not a fight — so what changes is
@@ -236,7 +241,7 @@ of them is accepted.
 | | |
 |---|---|
 | **Classes** | Six, and three of them carry a mechanic rather than a stat spread (see below) |
-| **Bestiary** | 19 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement, trailing fire across the floor; one that is not always an enemy |
+| **Bestiary** | 20 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement, trailing fire across the floor; one that is not always an enemy |
 | **Bosses** | Viy (depth 4), Baba Yaga (depth 8), Koschei the Deathless (depth 12) — each with its own mechanic |
 | **Items** | 18 pieces of gear, 8 potions, 8 scrolls; consumables are unlabelled until you try them |
 | **Magic** | 6 spells, aimed along the line of sight |
@@ -341,7 +346,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 403 tests
+ctest --test-dir build --output-on-failure    # 406 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -411,7 +416,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **403** across 50 suites |
+| Unit and integration tests | **406** across 50 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -451,7 +456,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           403 GoogleTest cases
+tests/           406 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

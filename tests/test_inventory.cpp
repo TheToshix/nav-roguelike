@@ -253,7 +253,9 @@ TEST(GameData, TablesAreInternallyConsistent) {
         EXPECT_GT(species.attack, 0) << species.key;
         EXPECT_GE(species.defence, 0) << species.key;
         EXPECT_GT(species.speed, 0) << species.key;
-        EXPECT_GE(species.min_depth, 1) << species.key;
+        // 0 is the crossroads (kLobbyDepth) — Соловей-Разбойник lives there and
+        // nowhere else; everything with a real dungeon floor starts at 1.
+        EXPECT_GE(species.min_depth, 0) << species.key;
         EXPECT_LE(species.max_depth, kMaxDepth) << species.key;
         EXPECT_LE(species.min_depth, species.max_depth) << species.key;
         EXPECT_FALSE(species.name.ru.empty()) << species.key;

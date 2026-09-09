@@ -445,6 +445,9 @@ private:
     /// sort of thing a harness hides until someone reads its numbers.
     bool crossroads_turn() {
         const Vec2 me = game_.hero().a.pos;
+        // Соловей-Разбойник sits by the road down. If a whistle has shoved the
+        // hero up against him, hit back rather than dancing round the pickups.
+        if (attack_adjacent()) return true;
         if (game_.item_index_at(me) >= 0 && act(Action{ActionType::PickUp, {}, -1, {}}))
             return true;
         if (!game_.floor_items().empty()) {

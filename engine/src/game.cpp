@@ -92,6 +92,9 @@ void Game::start(const GameConfig& cfg) {
     message(Text{"Возьми с собой одну вещь — остальное перекрёсток оставит себе.",
                  "Take one thing with you; the crossroads keeps the rest."},
             Severity::Info);
+    message(Text{"У дороги вниз сидит Соловей-Разбойник и уже приметил тебя. Мимо так не пройти.",
+                 "Solovei the Brigand sits by the road down, and he has already seen you. This is not a quiet way past."},
+            Severity::Critical);
     message(format(Text{"{} — в путь.", "{} — on your way."}, tpl.name), Severity::Info);
 }
 
@@ -557,6 +560,26 @@ void Game::build_lobby(Level& lvl) {
         it.identified = true;
         it.pos = stands[i];
         lvl.items.push_back(it);
+    }
+
+    // Соловей-Разбойник sits by the road down: not a guardian — no hall, no
+    // music, not in the boss table — but the one thing on the crossroads that
+    // is met rather than chosen. He does not chase; his whistle does. Because
+    // the lobby is built once and kept, he is met exactly once.
+    if (const int solovey = species_index("solovey"); solovey >= 0) {
+        const Species& sp = bestiary()[static_cast<std::size_t>(solovey)];
+        Monster m{};
+        m.species = solovey;
+        // Off to the side of the beaten path down the middle: his whistle then
+        // shoves the hero sideways rather than back up the road, so it is a
+        // hazard to cross, not a wall that a patient walker can never pass.
+        m.a.pos = {centre.x - 6, centre.y + 3};
+        m.a.hp = m.a.max_hp = sp.hp;
+        m.a.attack = sp.attack;
+        m.a.defence = sp.defence;
+        m.a.speed = sp.speed;
+        m.awake = true;
+        lvl.monsters.push_back(m);
     }
 
     lvl.generated = true;

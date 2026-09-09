@@ -376,6 +376,9 @@ private:
     bool spawn_species(Level& lvl, int species, Vec2 near, int radius);
     /// Runs a boss's own mechanic. Returns true when it consumed the turn.
     bool boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance);
+    /// Соловей-Разбойник's whistle on the crossroads. Returns true when it was
+    /// his whole turn.
+    bool solovey_turn(Monster& m, const Species& sp, bool sees_hero, int distance);
     /// Re-reads a boss's phase from its health, announcing any crossing.
     ///
     /// Called after damage rather than on a timer: a phase is a statement about

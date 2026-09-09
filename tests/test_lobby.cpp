@@ -36,12 +36,17 @@ TEST(Lobby, ARunBeginsThereAndNotInTheDungeon) {
     EXPECT_EQ(g.zone(), Zone::Rasputye);
 }
 
-TEST(Lobby, NothingLivesThere) {
-    // The crossroads is the only floor in the game with no monsters on it. That
-    // is what makes it a place to prepare rather than a fight with a shop in it.
+TEST(Lobby, OnlySoloveiLivesThere) {
+    // The crossroads holds exactly one creature, on every seed: Соловей-
+    // Разбойник by the road down. Nothing else generates here — it is a place
+    // to prepare, plus the one encounter that is met rather than chosen.
+    const int solovey = species_index("solovey");
+    ASSERT_GE(solovey, 0);
     for (std::uint64_t seed = 1; seed <= 40; ++seed) {
         Game g = fresh(seed);
-        EXPECT_TRUE(g.monsters().empty()) << "seed " << seed;
+        ASSERT_EQ(g.monsters().size(), 1u) << "seed " << seed;
+        EXPECT_EQ(g.monsters()[0].species, solovey) << "seed " << seed;
+        EXPECT_TRUE(g.monsters()[0].awake) << "he has already seen the hero";
     }
 }
 
@@ -111,8 +116,11 @@ TEST(Lobby, ClimbingBackFromTheFirstFloorReturnsToIt) {
     g.mutable_level().map.set(g.hero().a.pos, Tile::StairsUp);
     ASSERT_TRUE(g.perform(Action{ActionType::Ascend, {}, -1, {}}));
     EXPECT_EQ(g.depth(), kLobbyDepth);
-    EXPECT_TRUE(g.floor_items().empty() || !g.floor_items().empty());  // either way it survived
-    EXPECT_TRUE(g.monsters().empty()) << "the crossroads grew monsters while the hero was away";
+    // The crossroads is kept as it was left: at most Соловей, and only him —
+    // it does not spontaneously grow a garrison while the hero is away.
+    EXPECT_LE(g.monsters().size(), 1u) << "the crossroads grew monsters while the hero was away";
+    for (const auto& m : g.monsters())
+        EXPECT_EQ(m.species, species_index("solovey"));
 }
 
 TEST(Lobby, ARunThatStartsThereStillSavesAndLoads) {
@@ -123,4 +131,56 @@ TEST(Lobby, ARunThatStartsThereStillSavesAndLoads) {
     EXPECT_EQ(back.depth(), kLobbyDepth);
     EXPECT_EQ(back.floor_items().size(), g.floor_items().size());
     EXPECT_TRUE(back.in_lobby());
+}
+
+// ---------------------------------------------------------------------------
+// Соловей-Разбойник — the one thing on the crossroads that is met, not chosen.
+// ---------------------------------------------------------------------------
+
+TEST(Lobby, SoloveiWhistlesTheHeroOffTheRoadAndStunsThem) {
+    Game g = fresh(3);
+    Monster& s = g.mutable_level().monsters[0];
+    ASSERT_EQ(s.species, species_index("solovey"));
+
+    // Stand a few cells from him, in plain sight, and just wait.
+    g.mutable_hero().a.pos = s.a.pos + Vec2{3, 0};
+    g.mutable_hero().a.max_hp = g.mutable_hero().a.hp = 100;
+    g.refresh_view();
+    const Vec2 stood = g.hero().a.pos;
+
+    bool whistled = false;
+    for (int i = 0; i < 8 && !whistled; ++i) {
+        g.perform(Action{ActionType::Wait, {}, -1, {}});
+        if (g.hero().a.pos != stood || g.hero().a.has(Effect::Sleep)) whistled = true;
+    }
+    EXPECT_TRUE(whistled) << "Соловей never whistled";
+    EXPECT_LT(g.hero().a.hp, 100) << "the whistle did no damage at all";
+}
+
+TEST(Lobby, SoloveiNeverLeavesHisOak) {
+    Game g = fresh(5);
+    const Vec2 perch = g.monsters()[0].a.pos;
+    g.mutable_hero().a.pos = perch + Vec2{4, 0};
+    g.mutable_hero().a.max_hp = g.mutable_hero().a.hp = 100;
+    g.refresh_view();
+
+    for (int i = 0; i < 12; ++i) g.perform(Action{ActionType::Wait, {}, -1, {}});
+
+    ASSERT_FALSE(g.monsters().empty());
+    EXPECT_EQ(g.monsters()[0].a.pos, perch) << "Соловей walked off his perch";
+}
+
+TEST(Lobby, SoloveiCanBePutDownAndThenTheRoadIsClear) {
+    Game g = fresh(9);
+    const Vec2 perch = g.monsters()[0].a.pos;
+    g.mutable_hero().a.pos = perch + Vec2{-1, 0};   // right beside him
+    g.mutable_hero().a.attack = 40;                 // a decisive arm
+    g.mutable_hero().a.max_hp = g.mutable_hero().a.hp = 200;
+    g.refresh_view();
+
+    for (int i = 0; i < 20 && !g.monsters().empty(); ++i)
+        g.perform(Action{ActionType::Move, step_towards(g.hero().a.pos, perch), -1, {}});
+
+    EXPECT_TRUE(g.monsters().empty()) << "Соловей would not go down";
+    EXPECT_EQ(g.hero().kills, 1);
 }

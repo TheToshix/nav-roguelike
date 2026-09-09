@@ -382,6 +382,39 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     return false;
 }
 
+/// Соловей-Разбойник's whistle. Not a boss mechanic — he is a stationary
+/// set-piece on the crossroads, not a floor guardian — so it lives here rather
+/// than in boss_turn. He sits and whistles every third turn: light damage, a
+/// two-cell shove sideways off the road, and a lost turn. Returns true when the
+/// whistle was his whole turn.
+bool Game::solovey_turn(Monster& m, const Species& sp, bool sees_hero, int distance) {
+    ++m.charge;
+    if (m.charge == 2 && map().visible(m.a.pos))
+        message(Text{"Соловей набирает полную грудь воздуху — держись.",
+                     "Solovei fills his chest with air — brace."},
+                Severity::Critical);
+    if (m.charge < 3) return false;
+
+    m.charge = 0;
+    if (!sees_hero || distance > sp.sight) return true;
+
+    message(Text{"Соловей свищет — и земля уходит из-под ног.",
+                 "Solovei whistles, and the ground goes out from under you."},
+            Severity::Critical);
+    // The whistle's teeth are the shove and the lost turn, not the hit.
+    damage_hero(2, Text{"свист Соловья", "Solovei's whistle"});
+    if (hero_.a.alive) {
+        const Vec2 away = step_towards(m.a.pos, hero_.a.pos);
+        for (int i = 0; i < 2 && (away.x != 0 || away.y != 0); ++i) {
+            const Vec2 next = hero_.a.pos + away;
+            if (!map().walkable(next) || monster_at(next)) break;
+            hero_.a.pos = next;
+        }
+        if (!hero_resists(Effect::Sleep)) hero_.a.add_effect(Effect::Sleep, 1, 1);
+    }
+    return true;
+}
+
 bool Game::spawn_species(Level& lvl, int species, Vec2 near, int radius) {
     const auto& beasts = bestiary();
     const std::size_t si = static_cast<std::size_t>(species);
@@ -513,6 +546,14 @@ void Game::monster_turn(std::size_t index) {
         m.search_turns = kSearchPersistence;
     } else if (m.search_turns > 0) {
         --m.search_turns;
+    }
+
+    // --- Соловей-Разбойник: свист, что валит с ног --------------------------
+    if (std::strcmp(sp.key, "solovey") == 0) {
+        if (solovey_turn(m, sp, sees_hero, distance)) return;
+        // On a non-whistle turn he still swings at anyone right beside him.
+        if (distance <= 1) { monster_attacks_hero(m); }
+        return;
     }
 
     // --- Огневик: the floor catches wherever it stands -------------------
