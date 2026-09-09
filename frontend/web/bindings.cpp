@@ -31,6 +31,7 @@ namespace {
 
 nav::Game g_game;
 nav::Lang g_lang = nav::Lang::Ru;
+nav::Palette g_palette = nav::Palette::Default;
 
 /// Escapes a UTF-8 string for embedding in JSON. Multi-byte sequences pass
 /// through untouched — JSON is defined over Unicode, so Cyrillic needs no
@@ -191,7 +192,7 @@ std::string build_state_json() {
         for (int x = 0; x < map.width(); ++x) {
             const RenderCell cell = g.render_at({x, y});
             glyphs += cell.explored ? cell.glyph : ' ';
-            colors += palette.index_of(cell.color);
+            colors += palette.index_of(display_color(cell.color, g_palette).c_str());
             visibility += cell.visible ? '2' : (cell.explored ? '1' : '0');
             // Sprite keys travel next to the glyphs rather than instead of
             // them: the page can switch between the two renderers without
@@ -233,9 +234,9 @@ std::string build_state_json() {
     // kingdom do not need three copies of every tile.
     {
         const ZoneTheme& theme = zone_theme_for_depth(g.depth());
-        append_field(out, "tintWall", std::string(theme.wall_color), first);
-        append_field(out, "tintFloor", std::string(theme.floor_color), first);
-        append_field(out, "tintLiquid", std::string(theme.liquid_color), first);
+        append_field(out, "tintWall", display_color(theme.wall_color, g_palette), first);
+        append_field(out, "tintFloor", display_color(theme.floor_color, g_palette), first);
+        append_field(out, "tintLiquid", display_color(theme.liquid_color, g_palette), first);
     }
 
     // The floor's guardian, while it lives. The page uses it to name the fight
@@ -485,6 +486,12 @@ EMSCRIPTEN_KEEPALIVE int nav_perform(int type, int dx, int dy, int index, int tx
 /// Sets the display language: 0 Russian, 1 English.
 EMSCRIPTEN_KEEPALIVE void nav_set_language(int lang) {
     g_lang = lang == 1 ? nav::Lang::En : nav::Lang::Ru;
+}
+
+/// Sets the colour palette: 0 default, 1 colour-blind (red-green). Affects only
+/// how colours are reported to the page — never the run.
+EMSCRIPTEN_KEEPALIVE void nav_set_palette(int cb) {
+    g_palette = cb == 1 ? nav::Palette::Colorblind : nav::Palette::Default;
 }
 
 /// Returns the whole game state as JSON. The caller must free the pointer with

@@ -6,6 +6,7 @@
 // code free of magic numbers.
 #include "nav/data.hpp"
 
+#include <cstdio>
 #include <cstring>
 #include <utility>
 
@@ -240,6 +241,49 @@ int belt_last_depth(Zone zone) {
     for (int d = 1; d <= kMaxDepth; ++d)
         if (zone_for_depth(d) == zone) last = d;
     return last;
+}
+
+std::string display_color(const char* hex, Palette mode) {
+    if (hex == nullptr) return std::string();
+    if (mode == Palette::Default) return std::string(hex);
+    if (hex[0] != '#' || std::strlen(hex) < 7) return std::string(hex);
+
+    auto part = [hex](int offset) -> int {
+        int v = 0;
+        for (int i = 0; i < 2; ++i) {
+            const char c = hex[offset + i];
+            v <<= 4;
+            if (c >= '0' && c <= '9') v += c - '0';
+            else if (c >= 'a' && c <= 'f') v += c - 'a' + 10;
+            else if (c >= 'A' && c <= 'F') v += c - 'A' + 10;
+            else return -1;
+        }
+        return v;
+    };
+    const int r = part(1), g = part(3), b = part(5);
+    if (r < 0 || g < 0 || b < 0) return std::string(hex);
+
+    const auto clamp = [](int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); };
+    int nr = r, ng = g, nb = b;
+
+    // Red-green blindness: the two hues collapse onto one another. Move green
+    // off towards blue and red off towards a lighter orange, so they separate
+    // again by hue *and* by lightness.
+    if (g >= r + 10 && g >= b + 10) {          // a green
+        nr = r * 3 / 5;
+        ng = g;
+        nb = clamp(b + g * 3 / 5);
+    } else if (r >= g + 25 && r >= b + 25) {   // a red
+        nr = r;
+        ng = clamp(g + (r - g) * 2 / 5);
+        nb = b * 3 / 5;
+    } else {
+        return std::string(hex);               // already clear of the axis
+    }
+
+    char out[8];
+    std::snprintf(out, sizeof(out), "#%02x%02x%02x", clamp(nr), clamp(ng), clamp(nb));
+    return std::string(out);
 }
 
 EventKind belt_event(Zone zone) {

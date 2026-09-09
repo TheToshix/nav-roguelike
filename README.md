@@ -8,7 +8,7 @@
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-444-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-451-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -263,6 +263,7 @@ beast('volkolak', {'1': '#4a3520', '2': '#6f4f2d', '3': '#8f6b40', 'w': '#e8e0d0
 | **Ежедневный сид** | Кнопка/клавиша `D`: общий для всех сид дня (по календарю UTC); результат ложится в ту же таблицу рекордов с отдельной колонкой и фильтром |
 | **События этажа** | У трёх поясов есть своё: половодье в Чернотопи (вода прибывает), метель в Кощеевом царстве (обзор сжимается), пожар в Пекле (огонь расходится). Выпадает не на каждом этаже, решается отдельным потоком ГПСЧ — генерация не сдвигается |
 | **Концовки** | Экран победы дописывает эпилог по тому, как всё прошло: класс героя, тронул ли последний страж, за сколько ходов. Парный к «разбору смерти» на экране поражения |
+| **Доступность** | Палитра для дальтоников (красно-зелёная слепота) в настройках обоих фронтендов: зелень уходит в синеву, красное — в оранжевое, и болото перестаёт путаться с Пеклом |
 | **Прочее** | Голод, вода и пропасти, двери, капища для освящения оружия, система очередей ходов по скорости, сохранения |
 
 ### Снаряжение, которое что-то делает
@@ -382,7 +383,7 @@ cmake --build build -j
 ### Тесты
 
 ```bash
-ctest --test-dir build --output-on-failure    # 444 тест
+ctest --test-dir build --output-on-failure    # 451 тест
 ./build/nav --demo 20                         # 20 полных партий без экрана
 ./build/nav --sweep 4                         # обходчик: дойти до дна и убить всех стражей
 ```
@@ -452,7 +453,7 @@ WASD не работает (см. [NAV-016](docs/BUG_REPORTS.md)).
 
 | | |
 |---|---|
-| Юнит- и интеграционных тестов | **444** в 53 наборах |
+| Юнит- и интеграционных тестов | **451** в 54 наборах |
 | Покрытие движка по строкам | **94%** |
 | Платформы в CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Дополнительно в CI | ASan + UBSan, `-Werror`, отчёт покрытия, 20 полных партий без экрана, обходчик до 16 этажа, сборка WebAssembly |
@@ -494,7 +495,7 @@ engine/          ядро: правила игры, без ввода-вывод
 frontend/
   terminal/      ANSI-рендер, сырой ввод с клавиатуры и бот для прогонов
   web/           C-обёртка для WebAssembly, страница игры и спрайты
-tests/           444 тест на GoogleTest
+tests/           451 тест на GoogleTest
 docs/            как запустить, архитектура, тест-план, тест-кейсы, багрепорты
 tools/           сборка веб-версии
   sprites/       пиксель-графика как текст и генератор из неё

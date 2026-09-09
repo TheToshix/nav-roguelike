@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 #pragma once
+#include <string>
 #include <vector>
 
 #include "nav/entity.hpp"
@@ -66,6 +67,14 @@ const ZoneTheme& zone_theme(Zone zone);
 inline const ZoneTheme& zone_theme_for_depth(int depth) { return zone_theme(zone_for_depth(depth)); }
 /// True when `depth` is the first floor of its belt (where the flavour lands).
 bool is_zone_entrance(int depth);
+
+/// Rewrites a `#rrggbb` colour for a colour-blind-safe palette. For
+/// `Palette::Colorblind` (red-green blindness): greens are pushed towards blue
+/// and reds towards a lighter orange, so the two stop reading alike and each
+/// keeps its own lightness. `Palette::Default`, an unparseable string, or a
+/// colour already clear of the red-green axis comes back unchanged. Pure
+/// function — both frontends run their map colours through it.
+std::string display_color(const char* hex, Palette mode);
 
 /// The floor event a belt can raise, or EventKind::None for belts that have
 /// none (Погост, the crossroads). One place to ask, for the same reason as

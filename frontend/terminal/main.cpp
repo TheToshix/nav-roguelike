@@ -190,14 +190,35 @@ const char* severity_color(Severity s) {
     }
 }
 
-/// Converts one of the engine's "#rrggbb" colours into an ANSI 24-bit escape.
-std::string ansi_from_hex(const char* hex) {
-    if (!hex || hex[0] != '#' || std::strlen(hex) < 7) return "\x1b[0m";
-    auto part = [hex](int offset) {
-        return std::stoi(std::string(hex + offset, 2), nullptr, 16);
+/// Converts one of the engine's "#rrggbb" colours into an ANSI 24-bit escape,
+/// through the display palette — so the colour-blind setting reaches the map,
+/// the bestiary and the nearby-list the same way it reaches everything else.
+std::string ansi_from_hex(const char* hex, Palette pal = Palette::Default) {
+    const std::string c = display_color(hex, pal);
+    if (c.size() < 7 || c[0] != '#') return "\x1b[0m";
+    auto part = [&c](int offset) {
+        return std::stoi(c.substr(static_cast<std::size_t>(offset), 2), nullptr, 16);
     };
     return "\x1b[38;2;" + std::to_string(part(1)) + ";" + std::to_string(part(3)) + ";" +
            std::to_string(part(5)) + "m";
+}
+
+/// Swaps the three fixed 256-colour codes the HUD and log use for good / hurt /
+/// critical (green, pink, red) for a colour-blind-safe cyan / amber / orange.
+/// Run once over a finished frame; a no-op in the default palette.
+std::string cb_swap(std::string s, Palette pal) {
+    if (pal != Palette::Colorblind) return s;
+    const std::pair<const char*, const char*> swaps[] = {
+        {"\x1b[38;5;114m", "\x1b[38;5;80m"},   // good  green -> cyan
+        {"\x1b[38;5;174m", "\x1b[38;5;179m"},  // bad   pink  -> amber
+        {"\x1b[38;5;203m", "\x1b[38;5;208m"},  // crit  red   -> orange
+    };
+    for (const auto& [from, to] : swaps) {
+        const std::string f = from, tt = to;
+        for (std::size_t at = s.find(f); at != std::string::npos; at = s.find(f, at + tt.size()))
+            s.replace(at, f.size(), tt);
+    }
+    return s;
 }
 
 /// Display width of a UTF-8 string in terminal cells (counts codepoints, which
@@ -221,10 +242,19 @@ std::string pad_to(const std::string& s, std::size_t width) {
 struct Ui {
     Lang lang{Lang::Ru};
     KeyScheme scheme{KeyScheme::Classic};
+    Palette palette{Palette::Default};
     int view_w{58};
     int view_h{22};
 
     const std::string& t(const Text& text) const { return text.get(lang); }
+
+    /// The one place a finished frame leaves the program: runs the colour-blind
+    /// swap over it and flushes.
+    void emit(std::string frame) const {
+        frame = cb_swap(std::move(frame), palette);
+        std::fputs(frame.c_str(), stdout);
+        std::fflush(stdout);
+    }
 
     void clear() const { std::fputs("\x1b[2J\x1b[H", stdout); }
 
@@ -258,7 +288,7 @@ struct Ui {
                 if (!cell.explored) { out += ' '; continue; }
 
                 const std::string color =
-                    cell.visible ? ansi_from_hex(cell.color) : std::string("\x1b[38;5;238m");
+                    cell.visible ? ansi_from_hex(cell.color, palette) : std::string("\x1b[38;5;238m");
                 if (color != current) { out += color; current = color; }
                 out += cell.glyph;
             }
@@ -303,8 +333,7 @@ struct Ui {
                            : "i pack  z cast  m map  > < stairs  Esc menu");
         out += "\x1b[0m\x1b[K\x1b[J";
 
-        std::fputs(out.c_str(), stdout);
-        std::fflush(stdout);
+        emit(std::move(out));
     }
 
     std::vector<std::string> sidebar(const Game& g) const {
@@ -354,7 +383,7 @@ struct Ui {
         for (const auto& m : g.monsters()) {
             if (listed >= 5 || !g.map().visible(m.a.pos)) continue;
             const auto& sp = bestiary()[static_cast<std::size_t>(m.species)];
-            add(ansi_from_hex(sp.color) + std::string(1, sp.glyph) + "\x1b[0m " +
+            add(ansi_from_hex(sp.color, palette) + std::string(1, sp.glyph) + "\x1b[0m " +
                 pad_to(t(sp.name), 20) + std::to_string(m.a.hp) + "/" + std::to_string(m.a.max_hp));
             ++listed;
         }
@@ -393,8 +422,7 @@ struct Ui {
         }
         if (entries.empty()) out += (lang == Lang::Ru ? "  (пусто)\n" : "  (empty)\n");
         out += "\n\x1b[38;5;244m" + footer + "\x1b[0m\n";
-        std::fputs(out.c_str(), stdout);
-        std::fflush(stdout);
+        emit(std::move(out));
 
         const int key = read_key_decoded();
         if (key == kEsc || key == ' ' || key == 'q') return -1;
@@ -450,17 +478,14 @@ struct Ui {
             out += lang == Lang::Ru ? "Лестница вниз ещё не найдена."
                                     : "The way down has not been found yet.";
         out += "\x1b[0m";
-        std::fputs(out.c_str(), stdout);
-        std::fputs(lang == Lang::Ru ? "\n\n[любая клавиша]" : "\n\n[any key]", stdout);
-        std::fflush(stdout);
+        out += lang == Lang::Ru ? "\n\n[любая клавиша]" : "\n\n[any key]";
+        emit(std::move(out));
         read_key_decoded();
     }
 
     void notice(const std::string& body) const {
         clear();
-        std::fputs(body.c_str(), stdout);
-        std::fputs(lang == Lang::Ru ? "\n\n[любая клавиша]" : "\n\n[any key]", stdout);
-        std::fflush(stdout);
+        emit(body + (lang == Lang::Ru ? "\n\n[любая клавиша]" : "\n\n[any key]"));
         read_key_decoded();
     }
 
@@ -491,7 +516,7 @@ struct Ui {
                        std::to_string(sp.max_depth);
 
             if (seen) {
-                out += "  " + ansi_from_hex(sp.color) + std::string(1, sp.glyph) + "\x1b[0m ";
+                out += "  " + ansi_from_hex(sp.color, palette) + std::string(1, sp.glyph) + "\x1b[0m ";
                 out += "\x1b[1m" + pad_to(t(sp.name), 22) + "\x1b[0m";
                 out += "\x1b[38;5;244m" + pad_to(band, 16) + t(sp.description) + "\x1b[0m\n";
             } else {
@@ -500,9 +525,8 @@ struct Ui {
                 out += pad_to(band, 16) + "\x1b[0m\n";
             }
         }
-        std::fputs(out.c_str(), stdout);
-        std::fputs(lang == Lang::Ru ? "\n[любая клавиша]" : "\n[any key]", stdout);
-        std::fflush(stdout);
+        out += lang == Lang::Ru ? "\n[любая клавиша]" : "\n[any key]";
+        emit(std::move(out));
         read_key_decoded();
     }
 };
@@ -727,6 +751,7 @@ std::string feats_text(const std::vector<std::string>& unlocked,
 struct Preferences {
     Lang lang{Lang::Ru};
     KeyScheme scheme{KeyScheme::Classic};
+    Palette palette{Palette::Default};
 };
 
 Preferences read_preferences() {
@@ -736,17 +761,24 @@ Preferences read_preferences() {
     std::istringstream in(blob);
     std::string magic;
     int version = 0;
-    if (!(in >> magic >> version) || magic != "NAVCONF" || version != 1) return p;
+    // Version 1 had no palette field; a version-1 file still reads, it just
+    // leaves the palette at its default.
+    if (!(in >> magic >> version) || magic != "NAVCONF" || (version != 1 && version != 2)) return p;
     std::string lang, scheme;
     if (!(in >> lang >> scheme)) return p;
     p.lang = lang == "en" ? Lang::En : Lang::Ru;
     p.scheme = scheme == "wasd" ? KeyScheme::Wasd : KeyScheme::Classic;
+    std::string palette;
+    if (version >= 2 && (in >> palette))
+        p.palette = palette == "cb" ? Palette::Colorblind : Palette::Default;
     return p;
 }
 
 void write_preferences(const Preferences& p) {
-    write_file(config_path(), std::string("NAVCONF 1 ") + (p.lang == Lang::En ? "en" : "ru") + " " +
-                                  key_scheme_key(p.scheme) + "\n");
+    write_file(config_path(),
+               std::string("NAVCONF 2 ") + (p.lang == Lang::En ? "en" : "ru") + " " +
+                   key_scheme_key(p.scheme) + " " +
+                   (p.palette == Palette::Colorblind ? "cb" : "default") + "\n");
 }
 
 /// The last few blows and what was left unused.
@@ -866,6 +898,10 @@ bool game_menu(Game& g, Ui& ui) {
             std::string(ui.lang == Lang::Ru ? "Управление: " : "Controls: ") +
                 key_scheme_name(ui.scheme).get(ui.lang),
             ui.lang == Lang::Ru ? "Язык: русский / English" : "Language: Русский / English",
+            std::string(ui.lang == Lang::Ru ? "Палитра: " : "Palette: ") +
+                (ui.palette == Palette::Colorblind
+                     ? (ui.lang == Lang::Ru ? "для дальтоников" : "colour-blind")
+                     : (ui.lang == Lang::Ru ? "обычная" : "default")),
             ui.lang == Lang::Ru ? "Как играть"        : "How to play",
             ui.lang == Lang::Ru ? "Бросить партию"    : "Abandon the run",
         };
@@ -880,15 +916,20 @@ bool game_menu(Game& g, Ui& ui) {
             case 5: ui.notice(feats_text(load_feats(), {}, ui.lang)); break;
             case 6:
                 ui.scheme = ui.scheme == KeyScheme::Classic ? KeyScheme::Wasd : KeyScheme::Classic;
-                write_preferences(Preferences{ui.lang, ui.scheme});
+                write_preferences(Preferences{ui.lang, ui.scheme, ui.palette});
                 ui.notice(help_text(ui.lang, ui.scheme));
                 break;
             case 7:
                 ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru;
-                write_preferences(Preferences{ui.lang, ui.scheme});
+                write_preferences(Preferences{ui.lang, ui.scheme, ui.palette});
                 break;
-            case 8: ui.notice(help_text(ui.lang, ui.scheme)); break;
-            case 9: return true;
+            case 8:
+                ui.palette = ui.palette == Palette::Colorblind ? Palette::Default
+                                                               : Palette::Colorblind;
+                write_preferences(Preferences{ui.lang, ui.scheme, ui.palette});
+                break;
+            case 9: ui.notice(help_text(ui.lang, ui.scheme)); break;
+            case 10: return true;
             default: break;
         }
     }
@@ -939,21 +980,30 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
         out += key_scheme_name(ui.scheme).get(ui.lang) + std::string("\n");
         out += ui.lang == Lang::Ru ? "  \x1b[38;5;180ma\x1b[0m) достижения\n"
                                    : "  \x1b[38;5;180ma\x1b[0m) achievements\n";
+        out += ui.lang == Lang::Ru ? "  \x1b[38;5;180mp\x1b[0m) палитра: "
+                                   : "  \x1b[38;5;180mp\x1b[0m) palette: ";
+        out += (ui.palette == Palette::Colorblind
+                    ? (ui.lang == Lang::Ru ? "для дальтоников\n" : "colour-blind\n")
+                    : (ui.lang == Lang::Ru ? "обычная\n" : "default\n"));
         out += ui.lang == Lang::Ru ? "  \x1b[38;5;180m?\x1b[0m) как играть      \x1b[38;5;180mq\x1b[0m) выход\n"
                                    : "  \x1b[38;5;180m?\x1b[0m) how to play     \x1b[38;5;180mq\x1b[0m) quit\n";
-        std::fputs(out.c_str(), stdout);
-        std::fflush(stdout);
+        ui.emit(std::move(out));
 
         const int key = read_key_decoded();
         if (key == 'q' || key == kEsc) return false;
+        if (key == 'p') {
+            ui.palette = ui.palette == Palette::Colorblind ? Palette::Default : Palette::Colorblind;
+            write_preferences(Preferences{ui.lang, ui.scheme, ui.palette});
+            continue;
+        }
         if (key == 'T') {
             ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru;
-            write_preferences(Preferences{ui.lang, ui.scheme});
+            write_preferences(Preferences{ui.lang, ui.scheme, ui.palette});
             continue;
         }
         if (key == 'k') {
             ui.scheme = ui.scheme == KeyScheme::Classic ? KeyScheme::Wasd : KeyScheme::Classic;
-            write_preferences(Preferences{ui.lang, ui.scheme});
+            write_preferences(Preferences{ui.lang, ui.scheme, ui.palette});
             continue;
         }
         if (key == '?') { ui.notice(help_text(ui.lang, ui.scheme)); continue; }
@@ -1168,6 +1218,7 @@ int main(int argc, char** argv) {
     const Preferences prefs = read_preferences();
     ui.lang = prefs.lang;
     ui.scheme = prefs.scheme;
+    ui.palette = prefs.palette;
     GameConfig cfg;
 
     while (true) {
@@ -1333,7 +1384,7 @@ int main(int argc, char** argv) {
                     break;
                 case Command::Lang:
                     ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru;
-                    write_preferences(Preferences{ui.lang, ui.scheme});
+                    write_preferences(Preferences{ui.lang, ui.scheme, ui.palette});
                     break;
                 case Command::Help:
                     ui.notice(help_text(ui.lang, ui.scheme));

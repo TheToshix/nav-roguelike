@@ -25,6 +25,18 @@
   --crit: #d9534f;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --hp-a: #8c3a3a;
+  --hp-b: #c9736b;
+}
+
+/* Colour-blind palette (red-green): good goes blue, bad/crit go amber, so the
+   readouts stop sharing a hue. The map colours are handled engine-side. */
+:root[data-cb] {
+  --good: #4d9de0;
+  --bad: #e0913a;
+  --crit: #e0742a;
+  --hp-a: #7a5a1e;
+  --hp-b: #e0a94d;
 }
 
 * { box-sizing: border-box; }
@@ -259,7 +271,7 @@ input[type=text]:focus { outline: none; border-color: var(--gold); }
 .meter .row { display: flex; justify-content: space-between; margin-bottom: 3px; color: var(--ink-dim); }
 .meter .track { height: 6px; background: #100e0c; border-radius: 3px; overflow: hidden; }
 .meter .fill { height: 100%; transition: width .18s ease-out; }
-.fill-hp { background: linear-gradient(90deg, #8c3a3a, #c9736b); }
+.fill-hp { background: linear-gradient(90deg, var(--hp-a), var(--hp-b)); }
 .fill-mp { background: linear-gradient(90deg, #3d5a7a, #7fa3c9); }
 .fill-xp { background: linear-gradient(90deg, #6b5a2a, #c8a45c); }
 
@@ -852,6 +864,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       setView: 'Вид карты', viewWhole: 'Весь этаж', viewClose: 'Крупно',
       setGfx: 'Графика', gfxSprites: 'Спрайты', setSound: 'Музыка боссов',
       setLang: 'Язык', on: 'Вкл', off: 'Выкл', rotate: 'Поверни телефон — так удобнее',
+      setPalette: 'Палитра', palDefault: 'Обычная', palCb: 'Для дальтоников',
       boardTitle: 'Лучшие спуски', boardSub: 'Десять лучших партий в этом браузере.',
       boardEmpty: 'Пока никто не спускался.', boardBtn: 'Рекорды',
       wonTag: 'победа', dailyTag: 'ежедн.', boardAll: 'Все', best: 'Лучший спуск.', placed: 'В таблице: место ',
@@ -916,6 +929,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       setView: 'Map view', viewWhole: 'Whole floor', viewClose: 'Close up',
       setGfx: 'Graphics', gfxSprites: 'Sprites', setSound: 'Boss music',
       setLang: 'Language', on: 'On', off: 'Off', rotate: 'Turn the phone — it plays better',
+      setPalette: 'Palette', palDefault: 'Default', palCb: 'Colour-blind',
       boardTitle: 'Best descents', boardSub: 'The ten best runs in this browser.',
       boardEmpty: 'Nobody has gone down yet.', boardBtn: 'Scores',
       wonTag: 'won', dailyTag: 'daily', boardAll: 'All', best: 'Your best descent yet.', placed: 'On the board: place ',
@@ -1076,6 +1090,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
         return m._nav_perform(type, dx | 0, dy | 0, index | 0, tx | 0, ty | 0) === 1;
       },
       setLanguage: function (lang) { m._nav_set_language(lang === 'en' ? 1 : 0); },
+      setPalette: function (cb) { m._nav_set_palette(cb ? 1 : 0); },
       state: function () { return JSON.parse(readString(m._nav_state_json())); },
       statics: function () { return JSON.parse(readString(m._nav_static_json())); },
       save: function () { return readString(m._nav_save()); },
@@ -1149,6 +1164,31 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   function refreshKeyTable() {
     if (!Api) return;
     keyTable = Api.keys(scheme);
+  }
+
+  // ------------------------------------------------------------- palette --
+  //
+  // A colour-blind palette (red-green): the engine reports the same colours,
+  // and display_color() rewrites them so mire-green and scorch-orange, and the
+  // good/bad readouts, stop reading alike. The CSS side is a set of custom
+  // properties swapped under [data-cb]; the map side is the engine call.
+  var PALETTE_KEY = 'nav.palette.v1';
+  var cbPalette = false;
+
+  function loadPalette() {
+    try { cbPalette = localStorage.getItem(PALETTE_KEY) === 'cb'; } catch (e) {}
+  }
+
+  function applyPalette() {
+    document.documentElement.toggleAttribute('data-cb', cbPalette);
+    if (Api) Api.setPalette(cbPalette);
+  }
+
+  function setPalette(on) {
+    cbPalette = !!on;
+    try { localStorage.setItem(PALETTE_KEY, cbPalette ? 'cb' : 'default'); } catch (e) {}
+    applyPalette();
+    if (Api && state) refresh();
   }
 
   // -------------------------------------------------------------- sprites --
@@ -1758,6 +1798,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       row(t('setView'), [t('viewWhole'), t('viewClose')], wholeFloor ? 0 : 1, 'data-view') +
       row(t('setGfx'), [t('gfxSprites'), 'ASCII'], spriteMode ? 0 : 1, 'data-gfx') +
       row(t('setSound'), [t('on'), t('off')], soundIsOn() ? 0 : 1, 'data-sound') +
+      row(t('setPalette'), [t('palDefault'), t('palCb')], cbPalette ? 1 : 0, 'data-pal') +
       row(t('setLang'), ['Русский', 'English'], LANG === 'ru' ? 0 : 1, 'data-lang') +
       '<p class="sub" style="margin-top:14px">' + t('settingsKeys') + '</p>' +
       '<div style="margin-top:6px"><button id="mHelp">' + t('help') + '</button> ' +
@@ -1791,6 +1832,12 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
           b.addEventListener('click', function () {
             if ((parseInt(b.getAttribute('data-sound'), 10) === 0) !== soundIsOn())
               toggleSound();
+            again();
+          });
+        });
+        overlay.querySelectorAll('[data-pal]').forEach(function (b) {
+          b.addEventListener('click', function () {
+            setPalette(parseInt(b.getAttribute('data-pal'), 10) === 1);
             again();
           });
         });
@@ -2437,6 +2484,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     Api.setLanguage(LANG);
     loadScheme();
     loadView();
+    loadPalette();
+    applyPalette();
     refreshKeyTable();
     statics = Api.statics();
     renderClasses();

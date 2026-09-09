@@ -116,6 +116,16 @@ enum class ScrollKind : std::uint8_t {
 };
 
 // ---------------------------------------------------------------------------
+// Accessibility
+// ---------------------------------------------------------------------------
+
+/// Which colour palette the frontends draw in. A display setting, not part of
+/// the run: it never touches the seed, the save, or the rules — only how a
+/// colour reported by the engine is shown. `Colorblind` targets red-green
+/// colour blindness (deuteranopia / protanopia), the common case.
+enum class Palette : std::uint8_t { Default, Colorblind };
+
+// ---------------------------------------------------------------------------
 // Floor events
 // ---------------------------------------------------------------------------
 
