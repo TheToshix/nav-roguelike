@@ -32,7 +32,7 @@ ALPHABET = '0123456789abcdefghijklmnopqrstuv'
 # terrain / items / heroes / bestiary rather than as one alphabetical wall.
 GROUPS = [
     ('Terrain', ['wall', 'floor', 'water', 'chasm', 'door', 'door_open',
-                 'stairs_down', 'stairs_up', 'altar']),
+                 'stairs_down', 'stairs_up', 'altar', 'fire']),
     ('Items', ['item_weapon', 'item_armor', 'item_amulet', 'item_potion',
                'item_scroll', 'item_food', 'item_gold', 'item_needle']),
     ('Heroes', ['hero_vityaz', 'hero_vedun', 'hero_tat', 'hero_znahar',
@@ -40,7 +40,7 @@ GROUPS = [
     ('Pogost', ['anchutka', 'upyr', 'kikimora', 'bolotnik']),
     ('Chernotop', ['mavka', 'poludnitsa', 'volkolak', 'aspid', 'shishiga', 'izbushka']),
     ('Koshchei', ['likho', 'kamennaya', 'nav', 'koldun', 'zmey']),
-    ('Peklo', ['chert', 'chugaister']),
+    ('Peklo', ['chert', 'chugaister', 'ognevik']),
     ('Guardians 32x32', ['mara', 'viy', 'vodyanoy', 'babayaga',
                          'morozko', 'koschei', 'polozh', 'gorynych']),
 ]

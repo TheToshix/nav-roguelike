@@ -93,6 +93,13 @@ TEST(Sprites, EverySpeciesHasOne) {
     for (const Species& s : bestiary()) expect_drawn(s.key, std::string("species ") + s.key);
 }
 
+TEST(Sprites, TheFireOverlayHasOne) {
+    // Fire is not a tile — it is a timed overlay the engine draws over the floor
+    // — so it is not covered by EveryTileHasOne, but the renderer still asks for
+    // it by name and it still has to exist.
+    expect_drawn(ember_sprite_key(), "the burning-floor overlay");
+}
+
 TEST(Sprites, NoSpriteIsDrawnThatNothingCanShow) {
     // The other direction: art nobody asks for is dead weight in the payload,
     // and usually means a key was renamed on one side only.
@@ -105,6 +112,7 @@ TEST(Sprites, NoSpriteIsDrawnThatNothingCanShow) {
     for (int c = 0; c < static_cast<int>(HeroClass::Count); ++c)
         reachable.insert(hero_sprite_key(static_cast<HeroClass>(c)));
     for (const Species& s : bestiary()) reachable.insert(s.key);
+    reachable.insert(ember_sprite_key());   // the burning-floor overlay
 
     for (const std::string& drawn : drawn_sprites())
         EXPECT_EQ(reachable.count(drawn), 1u)

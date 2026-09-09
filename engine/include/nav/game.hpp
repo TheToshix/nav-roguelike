@@ -87,12 +87,27 @@ struct Arena {
     bool is_door(Vec2 p) const { return exists && p.x == door.x && p.y == door.y; }
 };
 
+/// A cell that is on fire, and the number of turns it has left to burn.
+///
+/// Пекло's own tactical device: the Огневик trails these behind it, and anything
+/// standing on one takes fire damage on its turn. Kept as a list on the level
+/// rather than as a tile so it needs no new Tile value, no change to the
+/// generator or the pathfinder, and expires on its own.
+struct Ember {
+    Vec2 pos{-1, -1};
+    int turns{0};
+};
+
+/// How long a cell the Огневик lights keeps burning.
+inline constexpr int kEmberTurns = 3;
+
 /// One dungeon floor, kept in memory so ascending returns to the level as it
 /// was left — corpses, dropped loot and explored tiles included.
 struct Level {
     Map map;
     std::vector<Monster> monsters;
     std::vector<Item> items;
+    std::vector<Ember> embers;
     Vec2 entrance{-1, -1};
     Vec2 exit{-1, -1};
     bool generated{false};
@@ -123,6 +138,9 @@ const char* hero_sprite_key(HeroClass c);
 const char* item_sprite_key(ItemKind kind);
 /// Sprite key for a tile ("wall", "floor", "door", ...).
 const char* tile_sprite_key(Tile t);
+/// Sprite key for a burning cell, drawn over the floor beneath whatever stands
+/// in it. Not a tile: fire is a timed overlay (see `Ember`).
+const char* ember_sprite_key();
 
 /// The complete rules engine.
 ///
@@ -221,6 +239,9 @@ public:
     const Monster* monster_at(Vec2 p) const;
     /// Index of the topmost floor item at `p`, or -1.
     int item_index_at(Vec2 p) const;
+    /// Turns of fire left on `p`, or 0. The frontends draw a flame wherever this
+    /// is non-zero; the held-walk stop rule treats it as something underfoot.
+    int ember_at(Vec2 p) const;
 
     /// What to draw at `p`, resolving monster over item over terrain.
     RenderCell render_at(Vec2 p) const;
@@ -259,6 +280,12 @@ public:
     /// Hurts the hero, through the warding shirt and on into the death check.
     /// Public for the same reason as `damage_monster`.
     void damage_hero(int amount, const Text& source);
+
+    /// Sets a cell on fire for `turns`, refreshing an ember already there. A
+    /// no-op off bare floor, or once the floor already holds too many. Public
+    /// because it is a real engine operation — the Огневик, a spell, and a
+    /// belt-wide event all light the ground the same way — not a hero action.
+    void ignite(Vec2 p, int turns);
 
     /// Recomputes what the hero can see from where they now stand.
     ///
@@ -299,6 +326,8 @@ private:
     void advance_until_hero_turn();
     void tick_effects(Actor& a, bool is_hero);
     void tick_hero_upkeep();
+    /// Burns whatever stands on a lit cell, then counts every ember down.
+    void tick_embers();
     void recompute_fov();
     void reap_dead();
 

@@ -353,3 +353,80 @@ TEST(Ai, KillingEverythingLeavesAQuietFloor) {
     EXPECT_TRUE(f.game.monsters().empty()) << "some monsters survived a long hunt";
     EXPECT_EQ(f.game.hero().kills, 5);
 }
+
+// ---------------------------------------------------------------------------
+// Огневик — Пекло's tactical device: it leaves the floor burning behind it,
+// the way venom is Чернотопь's answer and the freeze is Кощеево царство's.
+// ---------------------------------------------------------------------------
+
+namespace {
+int ember_count(const Game& g) { return static_cast<int>(g.level().embers.size()); }
+}  // namespace
+
+TEST(Ai, TheCinderlingLeavesABurningTrailAsItMoves) {
+    Field f;
+    Monster& m = f.spawn("ognevik", {28, 15});
+    m.awake = true;
+
+    // Long enough to have moved several cells, short enough that the earliest
+    // embers have not yet burned out: what we are checking is that more than one
+    // cell is alight at once, i.e. that it trails fire rather than lighting a
+    // single spot.
+    f.wait(3);
+
+    EXPECT_GE(ember_count(f.game), 2)
+        << "the Огневик walked without setting the floor alight behind it";
+}
+
+TEST(Ai, CinderlingFireBurnsWhoeverStandsInIt) {
+    Field f;
+    Hero& h = f.game.mutable_hero();
+    h.a.max_hp = h.a.hp = 200;   // the Field hero is otherwise unkillable
+
+    f.game.ignite(f.game.hero().a.pos, 3);
+    const int before = f.game.hero().a.hp;
+    f.wait(1);
+
+    EXPECT_LT(f.game.hero().a.hp, before) << "standing in fire did no damage";
+}
+
+TEST(Ai, CinderlingFireBurnsItselfOut) {
+    Field f;
+    // Somewhere the hero is not standing, so only the countdown ends it.
+    const Vec2 spot{30, 15};
+    f.game.ignite(spot, 3);
+    ASSERT_GT(f.game.ember_at(spot), 0);
+
+    f.wait(5);
+    EXPECT_EQ(f.game.ember_at(spot), 0) << "the fire never went out";
+    EXPECT_EQ(ember_count(f.game), 0);
+}
+
+TEST(Ai, TheCinderlingWalksItsOwnFireUnharmed) {
+    Field f;
+    Monster& m = f.spawn("ognevik", {24, 15});
+    m.awake = true;
+    // Pin it in place so it sits in the fire it makes rather than wandering off.
+    m.a.add_effect(Effect::Freeze, 20, 1);
+    const int hp = m.a.hp;
+    f.game.ignite(m.a.pos, 3);
+
+    f.wait(4);
+
+    ASSERT_TRUE(f.any_monster()) << "the Огневик burned itself to death";
+    EXPECT_EQ(f.game.monsters()[0].a.hp, hp) << "its own fire hurt it";
+}
+
+TEST(Ai, CinderlingFireBurnsOtherCreaturesLedIntoIt) {
+    Field f;
+    Monster& other = f.spawn("upyr", {30, 15});
+    other.a.add_effect(Effect::Freeze, 20, 1);   // hold it on the spot
+    const int hp = other.a.hp;
+
+    f.game.ignite(other.a.pos, 3);
+    f.wait(2);
+
+    ASSERT_TRUE(f.any_monster());
+    EXPECT_LT(f.game.monsters()[0].a.hp, hp)
+        << "an ordinary creature standing in the trail took no fire damage";
+}

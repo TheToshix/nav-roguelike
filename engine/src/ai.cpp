@@ -408,6 +408,14 @@ void Game::monster_turn(std::size_t index) {
         --m.search_turns;
     }
 
+    // --- Огневик: the floor catches wherever it stands -------------------
+    //
+    // Пекло's tactical device, the way venom is Чернотопь's and the freeze is
+    // Кощеево царство's: it lights the cell under it at the start of every turn
+    // and then moves on, so it drags a burning trail across the room. It is
+    // deaf to its own fire; anything else that ends a turn in the trail is not.
+    if (std::strcmp(sp.key, "ognevik") == 0) ignite(m.a.pos, kEmberTurns);
+
     // --- Confusion overrides every other decision -------------------------
     if (m.a.has(Effect::Confusion)) {
         const Vec2 step = m.a.pos + directions8()[static_cast<std::size_t>(rng_.below(8))];

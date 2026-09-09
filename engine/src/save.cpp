@@ -25,9 +25,12 @@ constexpr const char* kMagic = "NAV";
 // (Вий's eyelids, Кощей's revivals) and the broken-needle flag. Version 4 adds
 // the guardians' halls: a floor now remembers where its arena is and whether
 // its doors have closed, and a save without that would reopen a sealed fight.
+// Version 5 adds the burning cells the Огневик trails behind it: a floor now
+// remembers where it is on fire and for how long, so a save taken mid-fight
+// resumes with the same hazard on the ground.
 // There is no migration: an older save is refused rather than loaded as
 // something it is not — see docs/TEST_CASES.md, "what stayed unchecked".
-constexpr int kFormatVersion = 4;
+constexpr int kFormatVersion = 5;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -257,6 +260,9 @@ std::string Game::save() const {
 
         w << lvl.items.size();
         for (const auto& it : lvl.items) write_item(w, it);
+
+        w << lvl.embers.size();
+        for (const auto& e : lvl.embers) w << e.pos.x << e.pos.y << e.turns;
     }
 
     return w.take();
@@ -405,6 +411,14 @@ bool Game::load(const std::string& blob) {
         lvl.items.resize(n);
         for (auto& it : lvl.items)
             if (!read_item(r, it)) return false;
+
+        if (!r.count(n, 4096)) return false;
+        lvl.embers.resize(n);
+        for (auto& e : lvl.embers) {
+            r >> e.pos.x >> e.pos.y >> e.turns;
+            if (!r.ok() || e.turns <= 0) return false;
+            if (e.pos.x < 0 || e.pos.y < 0 || e.pos.x >= w || e.pos.y >= h) return false;
+        }
     }
     if (!r.ok()) return false;
     if (g.levels_.size() <= static_cast<std::size_t>(g.depth_)) return false;

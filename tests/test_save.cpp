@@ -119,6 +119,30 @@ TEST(Save, PreservesMonsterPositionsAndHealth) {
     }
 }
 
+TEST(Save, PreservesBurningCells) {
+    // A save taken mid-fight has to resume with the same fire on the ground, or
+    // walking away from the Огневик and reloading would put it out for free.
+    GameConfig cfg;
+    cfg.seed = 4242;
+    Game original;
+    original.start(cfg);
+    leave_crossroads(original);
+
+    const Vec2 a = original.hero().a.pos + Vec2{2, 0};
+    const Vec2 b = original.hero().a.pos + Vec2{3, 0};
+    original.mutable_level().map.set(a, Tile::Floor);
+    original.mutable_level().map.set(b, Tile::Floor);
+    original.ignite(a, 3);
+    original.ignite(b, 2);
+    ASSERT_GT(original.ember_at(a), 0);
+
+    Game restored;
+    ASSERT_TRUE(restored.load(original.save()));
+    EXPECT_EQ(restored.ember_at(a), original.ember_at(a));
+    EXPECT_EQ(restored.ember_at(b), original.ember_at(b));
+    EXPECT_EQ(restored.level().embers.size(), original.level().embers.size());
+}
+
 TEST(Save, PreservesStatusEffects) {
     GameConfig cfg;
     cfg.seed = 88;

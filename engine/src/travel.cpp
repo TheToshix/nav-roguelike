@@ -44,7 +44,7 @@ Game::Situation Game::situation() const {
     w.foes = foe_in_view();
     const Tile t = map().at(hero_.a.pos);
     w.underfoot = t == Tile::StairsDown || t == Tile::StairsUp || t == Tile::Altar ||
-                  item_index_at(hero_.a.pos) >= 0;
+                  item_index_at(hero_.a.pos) >= 0 || ember_at(hero_.a.pos) > 0;
     return w;
 }
 

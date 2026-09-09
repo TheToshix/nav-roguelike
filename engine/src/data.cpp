@@ -97,6 +97,11 @@ const std::vector<Species>& bestiary() {
          AiMelee, Effect::Confusion, 40, 5,
          Text{"Лесной великан. Затанцует до смерти.", "A forest giant. He will dance you to death."}},
 
+        {"ognevik",   Text{"Огневик", "Cinderling"},              'v', "#f26a2a", 22,  9,  2, 135, 8,  40, 13, 16,  8,
+         AiMelee | AiErratic, Effect::Burn, 30, 3,
+         Text{"Мелкая огненная нечисть. Где прошла — там и горит, ещё несколько ходов.",
+              "A small fiery vermin. Where it passes the floor keeps burning for a few turns."}},
+
         // --- Мини-стражи: один на середину каждого пояса ---------------------
         //
         // Weaker than a belt's master and shorter of phase, but built the same

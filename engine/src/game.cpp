@@ -708,6 +708,7 @@ void Game::advance_until_hero_turn() {
             if (state_ != RunState::Playing) break;
         }
 
+        tick_embers();
         for (auto& m : mutable_level().monsters)
             if (m.a.alive) tick_effects(m.a, false);
         tick_effects(hero_.a, true);
@@ -763,6 +764,60 @@ void Game::tick_hero_upkeep() {
 
     // Саван mends on its own, three times as fast as flesh does.
     if (hero_has(GpRegen) && turn_ % 4 == 0 && hero_.a.hp < hero_.a.max_hp) hero_.a.heal(1);
+}
+
+namespace {
+/// How many embers a single floor will hold before `ignite` stops adding more —
+/// a ceiling so a long fight cannot pave the whole room with fire.
+constexpr int kEmberCeiling = 64;
+}  // namespace
+
+void Game::ignite(Vec2 p, int turns) {
+    if (turns <= 0) return;
+    // Fire only takes on bare floor: not on water, not on the stairs, not in a
+    // chasm, and not on the shrine.
+    if (map().at(p) != Tile::Floor) return;
+
+    for (auto& e : mutable_level().embers) {
+        if (e.pos == p) { e.turns = std::max(e.turns, turns); return; }
+    }
+    if (static_cast<int>(level().embers.size()) >= kEmberCeiling) return;
+    mutable_level().embers.push_back(Ember{p, turns});
+}
+
+int Game::ember_at(Vec2 p) const {
+    for (const auto& e : level().embers)
+        if (e.pos == p && e.turns > 0) return e.turns;
+    return 0;
+}
+
+void Game::tick_embers() {
+    Level& lvl = mutable_level();
+    if (lvl.embers.empty()) return;
+
+    const int burn = 2 + depth_ / 4;
+    for (auto& e : lvl.embers) {
+        if (e.turns <= 0) continue;
+        if (e.pos == hero_.a.pos && hero_.a.alive) {
+            damage_hero(burn, Text{"горящий пол", "the burning floor"});
+            if (hero_.a.alive && !hero_resists(Effect::Burn))
+                hero_.a.add_effect(Effect::Burn, 2, 2);
+        }
+        for (auto& m : lvl.monsters) {
+            if (!m.a.alive || m.a.pos != e.pos) continue;
+            // The Огневик walks its own fire unharmed — that is the whole point
+            // of it. Everything else on Пекло's floors burns, which is what
+            // makes leading a чёрт across the trail a real tactic.
+            const std::size_t si = static_cast<std::size_t>(m.species);
+            if (si < bestiary().size() && std::strcmp(bestiary()[si].key, "ognevik") == 0)
+                continue;
+            damage_monster(m, burn, Text{"горящий пол", "the burning floor"});
+        }
+        --e.turns;
+    }
+    lvl.embers.erase(std::remove_if(lvl.embers.begin(), lvl.embers.end(),
+                                    [](const Ember& e) { return e.turns <= 0; }),
+                     lvl.embers.end());
 }
 
 void Game::reap_dead() {
@@ -948,6 +1003,8 @@ const char* item_sprite_key(ItemKind kind) {
     return "item_gold";
 }
 
+const char* ember_sprite_key() { return "fire"; }
+
 const char* tile_sprite_key(Tile t) {
     switch (t) {
         case Tile::Wall:       return "wall";
@@ -1031,6 +1088,14 @@ RenderCell Game::render_at(Vec2 p) const {
     }
 
     if (!cell.visible) return cell;  // remembered terrain only
+
+    // Fire sits on the floor, under whatever is standing in it: an item, a
+    // monster or the hero all still draw on top.
+    if (ember_at(p) > 0) {
+        cell.glyph = '^';
+        cell.color = "#ff7a2a";
+        cell.entity = ember_sprite_key();
+    }
 
     const int item = item_index_at(p);
     if (item >= 0) {
