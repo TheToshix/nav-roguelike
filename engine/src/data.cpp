@@ -150,7 +150,7 @@ const std::vector<Species>& bestiary() {
         // It never strikes first; pass it by without crowding or hitting it and
         // it leaves you a blessing. Hit it and it is a plain brute for the rest
         // of its short life.
-        {"domovoy",   Text{"Домовой", "Domovoy"},                 'd', "#a8895f", 26,  9,  4,  90, 7,  16,  2, 12,  3,
+        {"domovoy",   Text{"Домовой", "Domovoy"},                 'd', "#a8895f", 26,  9,  4,  90, 7,  16,  2, 12,  0,
          AiNeutral, Effect::Poison, 0, 0,
          Text{"Хозяин дома. Не тронешь — не тронет, а за уважение и отблагодарит.",
               "The keeper of the house. Leave it be and it leaves you be — and a little courtesy it repays."}},
@@ -164,6 +164,15 @@ const std::vector<Species>& bestiary() {
          AiRanged | AiBoss | AiMiniBoss, Effect::Sleep, 20, 2,
          Text{"Говорящий кот на железном столбе. Заводит песню — и слушающий засыпает.",
               "A speaking cat on an iron post. It begins a song, and the one who hears it sleeps."}, /*phases=*/2},
+
+        // --- Не бой ------------------------------------------------------
+        //
+        // Never fights, always flees, bolts the instant it is touched. Corner
+        // it or outrun it and it leaves a feather behind.
+        {"zharptica", Text{"Жар-птица", "Firebird"},              'r', "#ffb020", 30,  1,  4, 130,  9,  25,  3, 14,  0,
+         AiSkittish, Effect::Poison, 0, 0,
+         Text{"Птица из огня и света. В руки не даётся — но кто изловчится, тому перо.",
+              "A bird of fire and light. It will not be held — but a feather to whoever is quick enough."}},
     };
     return table;
 }
@@ -178,11 +187,11 @@ int species_index(const char* key) {
 int spawn_weight(const Species& s, int depth) {
     if (s.weight <= 0) return 0;                       // bosses never roll
     if (depth < s.min_depth || depth > s.max_depth) return 0;
-    // A guardian's floor is "something waits here", not "someone keeps house
-    // here": the Домовой and anything else not hostile by default stays off it.
-    // Keeping their weight out of those tables also leaves the guardian-floor
-    // spawn rolls exactly as they were before the neutral was added.
-    if ((s.ai & AiNeutral) && boss_for_depth(depth) != nullptr) return 0;
+    // The Домовой, the Жар-птица and Кот Баюн are all weight 0 above and never
+    // roll here — they are placed by hand off their own random stream, so the
+    // main dungeon sequence (and every floor below) is untouched by their
+    // existence. This block is left as a guard in case one ever gains a weight.
+    if ((s.ai & (AiNeutral | AiSkittish)) && boss_for_depth(depth) != nullptr) return 0;
     // Species are commonest in the middle of their depth window and taper off
     // towards its edges, so floors feel distinct instead of uniformly random.
     const int span = s.max_depth - s.min_depth;
@@ -485,6 +494,7 @@ const std::vector<Text>& scroll_appearances() {
 char item_glyph(const Item& it) {
     switch (it.kind) {
         case ItemKind::Needle: return '/';
+        case ItemKind::Feather: return '{';
         case ItemKind::Potion: return '!';
         case ItemKind::Scroll: return '?';
         case ItemKind::Food:   return '%';
@@ -520,6 +530,8 @@ Text item_name(const Item& it, const Identification& ident) {
     switch (it.kind) {
         case ItemKind::Needle:
             return Text{"Игла Кощеева", "Koschei's Needle"};
+        case ItemKind::Feather:
+            return Text{"Перо Жар-птицы", "Firebird's Feather"};
         case ItemKind::Gold:
             return format(Text{"золото ({})", "gold ({})"}, num(it.count));
         case ItemKind::Food:
@@ -559,6 +571,9 @@ Text item_note(const Item& it, const Identification& ident) {
         case ItemKind::Needle:
             return Text{"Сломай её — и Кощей станет смертен.",
                         "Break it, and Koschei becomes mortal."};
+        case ItemKind::Feather:
+            return Text{"Один раз удержит на этом свете. Само.",
+                        "It will hold you in this world once. On its own."};
         case ItemKind::Food: return Text{"Утоляет голод.", "Staves off hunger."};
         case ItemKind::Gold: return Text{"", ""};
         case ItemKind::Potion: {

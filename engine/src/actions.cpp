@@ -61,6 +61,24 @@ void Game::damage_hero(int amount, const Text& source) {
 
     if (hero_.a.alive) return;
 
+    // Перо Жар-птицы: one death undone, then the feather is spent. It acts on
+    // its own — there is no key for it — which is the whole point of a thing you
+    // cannot decide to waste.
+    for (std::size_t i = 0; i < hero_.inv.items.size(); ++i) {
+        if (hero_.inv.items[i].kind != ItemKind::Feather) continue;
+        hero_.inv.take(static_cast<int>(i), 1);
+        hero_.a.alive = true;
+        hero_.a.hp = std::max(1, hero_.a.max_hp * 2 / 5);
+        hero_.a.clear_effect(Effect::Poison);
+        hero_.a.clear_effect(Effect::Burn);
+        hero_.a.clear_effect(Effect::Sleep);
+        hero_.a.clear_effect(Effect::Freeze);
+        message(Text{"Перо Жар-птицы вспыхивает и рассыпается — ты снова дышишь.",
+                     "The firebird's feather flares and crumbles — and you draw breath again."},
+                Severity::Critical);
+        return;
+    }
+
     state_ = RunState::Dead;
     message(format(Text{"Ты погиб. Причина: {}.", "You died. Cause: {}."}, source),
             Severity::Critical);
@@ -93,6 +111,19 @@ void Game::damage_monster(Monster& m, int amount, const Text& source) {
     m.a.damage(amount);
     m.awake = true;
     update_boss_phase(m);
+
+    // A skittish thing spooks at the first touch: it is gone, and there is no
+    // corpse, no experience and no feather — the feather is the reward for
+    // catching it without hurting it.
+    if (m.a.alive && idx < beasts_all.size() && (beasts_all[idx].ai & AiSkittish)) {
+        m.a.alive = false;
+        if (map().visible(m.a.pos))
+            message(format(Text{"{} вспыхивает и уходит ввысь — ты её спугнул.",
+                                "{} flares and is gone into the dark — you startled it."},
+                           monster_name(m)),
+                    Severity::Bad);
+        return;
+    }
 
     // A struck Домовой stops being a bystander. From here it is an ordinary
     // brute; `m.revives` is the latch the AI reads, reusing the field Кощей uses
@@ -567,6 +598,12 @@ bool Game::act_use_item(int index) {
         case ItemKind::Armor:
         case ItemKind::Amulet:
             return act_equip(index);
+        case ItemKind::Feather:
+            // Nothing to do by hand: it acts on its own, once, when the blow
+            // that would kill the hero lands.
+            message(Text{"Перо само знает, когда понадобится.",
+                         "The feather knows for itself when it will be needed."});
+            return false;
         case ItemKind::Gold:
             return false;
     }

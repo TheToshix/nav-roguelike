@@ -315,6 +315,10 @@ private:
     /// with Кот Баюн and his charm inside, reached by one closed door. Only ever
     /// carves into solid wall, so it can strand nothing that already existed.
     void build_secret_room(Level& lvl, int depth);
+    /// Maybe drops a Домовой or a Жар-птица onto a non-guardian floor. Uses its
+    /// own random stream so the main dungeon sequence is identical with or
+    /// without them.
+    void place_wanderers(Level& lvl, int depth);
     /// Closes the doors behind the hero, or announces the threshold.
     void update_arena();
     void enter_level(int depth, bool descending);

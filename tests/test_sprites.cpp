@@ -80,7 +80,7 @@ TEST(Sprites, EveryTileHasOne) {
 }
 
 TEST(Sprites, EveryItemKindHasOne) {
-    for (int k = 0; k <= static_cast<int>(ItemKind::Needle); ++k)
+    for (int k = 0; k <= static_cast<int>(ItemKind::Feather); ++k)
         expect_drawn(item_sprite_key(static_cast<ItemKind>(k)), "an item kind");
 }
 
@@ -107,7 +107,7 @@ TEST(Sprites, NoSpriteIsDrawnThatNothingCanShow) {
     const Tile tiles[] = {Tile::Wall,  Tile::Floor, Tile::StairsDown, Tile::StairsUp, Tile::Door,
                           Tile::OpenDoor, Tile::Water, Tile::Chasm,   Tile::Altar};
     for (Tile t : tiles) reachable.insert(tile_sprite_key(t));
-    for (int k = 0; k <= static_cast<int>(ItemKind::Needle); ++k)
+    for (int k = 0; k <= static_cast<int>(ItemKind::Feather); ++k)
         reachable.insert(item_sprite_key(static_cast<ItemKind>(k)));
     for (int c = 0; c < static_cast<int>(HeroClass::Count); ++c)
         reachable.insert(hero_sprite_key(static_cast<HeroClass>(c)));

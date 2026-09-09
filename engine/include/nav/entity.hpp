@@ -87,6 +87,7 @@ enum AiFlag : std::uint32_t {
     AiBoss      = 1u << 6,  ///< Never sleeps, immune to instant effects.
     AiMiniBoss  = 1u << 7,  ///< A belt's mid-floor guardian: a boss, but not its master.
     AiNeutral   = 1u << 8,  ///< Not hostile: never initiates, and turns on the hero only if struck.
+    AiSkittish  = 1u << 9,  ///< Never fights; flees the hero on sight, and bolts the instant it is touched or hurt.
 };
 
 /// A monster species — one row of the bestiary.

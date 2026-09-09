@@ -459,6 +459,43 @@ void Game::monster_turn(std::size_t index) {
         return;   // it stays where it lives
     }
 
+    // --- Жар-птица: catch it, do not fight it ---------------------------
+    //
+    // It never attacks. On sight it puts a cell between itself and the hero
+    // every turn. Two ways to still catch it: out-pace it (Haste, the swift
+    // charms) so the hero ends a turn adjacent, or drive it into a dead end so
+    // it has nowhere left to back away to. Either way it gives up its feather
+    // and is gone. A blow spooks it the same way — but without the feather,
+    // handled in damage_monster.
+    if (sp.ai & AiSkittish) {
+        m.awake = true;
+        if (sees_hero) {
+            Vec2 best = m.a.pos;
+            int best_d = distance;
+            for (Vec2 d : directions8()) {
+                const Vec2 step = m.a.pos + d;
+                if (blocked_for_monster(step, m.a.pos)) continue;
+                const int nd = chebyshev(step, hero_.a.pos);
+                if (nd > best_d) { best_d = nd; best = step; }
+            }
+            if (distance <= 1 || best == m.a.pos) {
+                Item feather{};
+                feather.kind = ItemKind::Feather;
+                feather.identified = true;
+                feather.pos = m.a.pos;
+                mutable_level().items.push_back(feather);
+                if (lvl.map.visible(m.a.pos))
+                    message(Text{"Ты дотягиваешься до Жар-птицы — она роняет перо и уходит ввысь.",
+                                 "You reach the Firebird — it drops a feather and is gone into the light."},
+                            Severity::Good);
+                m.a.alive = false;
+                return;
+            }
+            m.a.pos = best;
+        }
+        return;
+    }
+
     // --- Waking up --------------------------------------------------------
     if (!m.awake) {
         // Sleeping monsters notice the hero by sight, or by noise when close.

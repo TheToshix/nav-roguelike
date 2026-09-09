@@ -160,6 +160,52 @@ void Game::ensure_level(int depth) {
     }
 
     build_secret_room(lvl, depth);
+    place_wanderers(lvl, depth);
+}
+
+void Game::place_wanderers(Level& lvl, int depth) {
+    // Not on a guardian's floor — that is "something waits here", not a place
+    // anyone keeps house or a bird drifts through.
+    if (boss_for_depth(depth) != nullptr) return;
+
+    Rng r(cfg_.seed ^ (0xD1B54A32D192ED03ULL * static_cast<std::uint64_t>(depth + 1)));
+
+    const auto place = [&](const char* key, int chance) {
+        if (!r.chance(chance)) return;
+        const int idx = species_index(key);
+        if (idx < 0) return;
+        const Species& sp = bestiary()[static_cast<std::size_t>(idx)];
+        if (depth < sp.min_depth || depth > sp.max_depth) return;
+
+        const auto cells = lvl.map.walkable_cells();
+        if (cells.empty()) return;
+        for (int attempt = 0; attempt < 60; ++attempt) {
+            const Vec2 p = cells[static_cast<std::size_t>(r.below(static_cast<int>(cells.size())))];
+            if (chebyshev(p, lvl.entrance) < 7) continue;
+            if (p == lvl.exit) continue;
+            if (lvl.arena.exists && lvl.arena.contains(p)) continue;
+            bool taken = false;
+            for (const auto& m : lvl.monsters)
+                if (m.a.alive && m.a.pos == p) { taken = true; break; }
+            for (const auto& it : lvl.items)
+                if (it.pos == p) { taken = true; break; }
+            if (taken) continue;
+
+            Monster m{};
+            m.species = idx;
+            m.a.pos = p;
+            m.a.hp = m.a.max_hp = sp.hp;
+            m.a.attack = sp.attack;
+            m.a.defence = sp.defence;
+            m.a.speed = sp.speed;
+            m.awake = false;
+            lvl.monsters.push_back(m);
+            return;
+        }
+    };
+
+    place("domovoy", 30);
+    place("zharptica", 22);
 }
 
 void Game::build_secret_room(Level& lvl, int depth) {
@@ -1124,6 +1170,7 @@ const char* item_sprite_key(ItemKind kind) {
         case ItemKind::Food:   return "item_food";
         case ItemKind::Gold:   return "item_gold";
         case ItemKind::Needle: return "item_needle";
+        case ItemKind::Feather: return "item_feather";
     }
     return "item_gold";
 }

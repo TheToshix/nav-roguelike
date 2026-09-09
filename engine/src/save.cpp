@@ -184,7 +184,7 @@ void write_item(Writer& w, const Item& it) {
 bool read_item(Reader& r, Item& it) {
     int kind = 0, ident = 0;
     r >> kind >> it.subtype >> it.power >> it.enchant >> it.count >> ident >> it.pos.x >> it.pos.y;
-    if (!r.ok() || kind < 0 || kind > static_cast<int>(ItemKind::Needle)) return false;
+    if (!r.ok() || kind < 0 || kind > static_cast<int>(ItemKind::Feather)) return false;
     if (it.count < 0 || it.count > 1000000) return false;
     it.kind = static_cast<ItemKind>(kind);
     it.identified = ident != 0;

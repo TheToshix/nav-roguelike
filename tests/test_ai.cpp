@@ -566,3 +566,48 @@ TEST(Ai, TheCatsEyeCharmKeepsTheSongOut) {
 
     EXPECT_FALSE(f.game.hero().a.has(Effect::Sleep)) << "the charm let the song in";
 }
+
+// ---------------------------------------------------------------------------
+// Жар-птица — not a fight. Catch it, do not swing at it.
+// ---------------------------------------------------------------------------
+
+TEST(Ai, TheFirebirdFleesAndNeverAttacks) {
+    Field f;
+    Hero& h = f.game.mutable_hero();
+    h.a.max_hp = h.a.hp = 200;
+    Monster& m = f.spawn("zharptica", {24, 15});
+    const int gap_before = chebyshev(m.a.pos, f.game.hero().a.pos);
+
+    f.wait(4);
+
+    ASSERT_TRUE(f.any_monster()) << "it left without being caught or struck";
+    EXPECT_GT(chebyshev(f.game.monsters()[0].a.pos, f.game.hero().a.pos), gap_before)
+        << "the Firebird did not back away";
+    EXPECT_EQ(f.game.hero().a.hp, 200) << "the Firebird attacked";
+}
+
+TEST(Ai, CatchingUpToTheFirebirdEarnsAFeather) {
+    Field f;
+    f.spawn("zharptica", {22, 15});   // two cells ahead of the hero
+
+    // One step closes the gap to one; on its next turn the bird gives up.
+    f.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});
+
+    EXPECT_FALSE(f.any_monster()) << "the Firebird stayed after being caught";
+    bool feather = false;
+    for (const Item& it : f.game.floor_items())
+        if (it.kind == ItemKind::Feather) feather = true;
+    EXPECT_TRUE(feather) << "catching it left no feather";
+    EXPECT_EQ(f.game.hero().kills, 0) << "catching it is not a kill";
+}
+
+TEST(Ai, SwingingAtTheFirebirdScaresItOffWithNothing) {
+    Field f;
+    f.spawn("zharptica", {21, 15});   // right next to the hero
+    f.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});   // a blow, not a catch
+
+    EXPECT_FALSE(f.any_monster());
+    for (const Item& it : f.game.floor_items())
+        EXPECT_NE(it.kind, ItemKind::Feather) << "a struck Firebird still dropped a feather";
+    EXPECT_EQ(f.game.hero().kills, 0);
+}

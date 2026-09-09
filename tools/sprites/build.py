@@ -34,7 +34,7 @@ GROUPS = [
     ('Terrain', ['wall', 'floor', 'water', 'chasm', 'door', 'door_open',
                  'stairs_down', 'stairs_up', 'altar', 'fire']),
     ('Items', ['item_weapon', 'item_armor', 'item_amulet', 'item_potion',
-               'item_scroll', 'item_food', 'item_gold', 'item_needle']),
+               'item_scroll', 'item_food', 'item_gold', 'item_needle', 'item_feather']),
     ('Heroes', ['hero_vityaz', 'hero_vedun', 'hero_tat', 'hero_znahar',
                 'hero_kuznets', 'hero_bogatyr']),
     ('Pogost', ['anchutka', 'upyr', 'kikimora', 'bolotnik']),
@@ -43,6 +43,7 @@ GROUPS = [
     ('Peklo', ['chert', 'chugaister', 'ognevik']),
     ('Not always an enemy', ['domovoy']),
     ('Hidden room', ['kot_bayun']),
+    ('Not a fight', ['zharptica']),
     ('Guardians 32x32', ['mara', 'viy', 'vodyanoy', 'babayaga',
                          'morozko', 'koschei', 'polozh', 'gorynych']),
 ]

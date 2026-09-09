@@ -654,3 +654,32 @@ TEST(Shrine, AnOfferingWithoutEnoughGoldIsRefused) {
     EXPECT_FALSE(a.game.perform(Action{ActionType::Pray, {}, -1, {}}));
     EXPECT_EQ(a.game.map().at(a.game.hero().a.pos), Tile::Altar) << "a refusal must not consume it";
 }
+
+TEST(Combat, TheFirebirdsFeatherUndoesTheFatalBlow) {
+    TestFloor a;
+    Hero& h = a.game.mutable_hero();
+    h.a.max_hp = 100;
+    h.a.hp = 100;
+    h.a.add_effect(Effect::Poison, 10, 3);   // cleared by the feather
+
+    Item feather{};
+    feather.kind = ItemKind::Feather;
+    feather.identified = true;
+    ASSERT_TRUE(h.inv.add(feather));
+
+    a.game.damage_hero(9999, Text{"проверка", "the test"});
+
+    EXPECT_EQ(a.game.state(), RunState::Playing) << "the feather did not stop the death";
+    EXPECT_GT(a.game.hero().a.hp, 0);
+    EXPECT_LE(a.game.hero().a.hp, a.game.hero().a.max_hp);
+    EXPECT_FALSE(a.game.hero().a.has(Effect::Poison)) << "the feather should also clear the rot";
+
+    bool still_carried = false;
+    for (const Item& it : a.game.hero().inv.items)
+        if (it.kind == ItemKind::Feather) still_carried = true;
+    EXPECT_FALSE(still_carried) << "the feather is spent after it fires";
+
+    // A second fatal blow, with no feather left, is final.
+    a.game.damage_hero(9999, Text{"проверка", "the test"});
+    EXPECT_EQ(a.game.state(), RunState::Dead);
+}

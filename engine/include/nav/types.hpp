@@ -105,7 +105,7 @@ struct ActiveEffect {
 // ---------------------------------------------------------------------------
 
 /// Appended, never reordered — the value goes into save files.
-enum class ItemKind : std::uint8_t { Weapon, Armor, Amulet, Potion, Scroll, Food, Gold, Needle };
+enum class ItemKind : std::uint8_t { Weapon, Armor, Amulet, Potion, Scroll, Food, Gold, Needle, Feather };
 
 enum class PotionKind : std::uint8_t {
     Heal, GreaterHeal, Mana, Might, Haste, Regen, Poison, Confusion, Count
