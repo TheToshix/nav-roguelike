@@ -35,6 +35,8 @@ enum class Command : std::uint8_t {
     Help,
     Menu,        ///< Everything above, for a player who knows no shortcuts.
     Quit,
+    Codex,       ///< The bestiary of what has been met so far. Appended last so
+                 ///< the numeric values the frontends mirror do not shift.
     Count
 };
 

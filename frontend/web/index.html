@@ -812,7 +812,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       finalScore: 'Очков', finalDepth: 'Глубина', finalKills: 'Убито', finalTurns: 'Ходов',
       helpTitle: 'Как играть', helpSub: 'Шестнадцать этажей вниз, восемь стражей. Смерть окончательна.',
       legendTitle: 'Знаки',
-      bestTitle: 'Бестиарий', bestSub: 'Кто живёт в Нави и на какой глубине.',
+      bestTitle: 'Бестиарий', bestSub: 'Открывается по мере встреч', bestLocked: '— не встречен —',
       bossTag: 'страж', depthTag: 'гл.',
       mapTitle: 'Этаж', mapFound: 'Лестница вниз отмечена светлым — ты её уже нашёл.',
       mapLost: 'Лестница вниз ещё не найдена.',
@@ -875,7 +875,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       finalScore: 'Score', finalDepth: 'Depth', finalKills: 'Kills', finalTurns: 'Turns',
       helpTitle: 'How to play', helpSub: 'Sixteen floors down, eight guardians. Death is final.',
       legendTitle: 'Glyphs',
-      bestTitle: 'Bestiary', bestSub: 'What lives in Nav, and how deep.',
+      bestTitle: 'Bestiary', bestSub: 'Fills in as you meet them', bestLocked: '— not yet met —',
       bossTag: 'guardian', depthTag: 'depth',
       mapTitle: 'Floor', mapFound: 'The way down is marked pale — you have found it.',
       mapLost: 'The way down has not been found yet.',
@@ -1040,7 +1040,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   var CMD = {
     None: 0, Move: 1, Run: 2, Wait: 3, PickUp: 4, Inventory: 5, Drop: 6, Cast: 7,
     Descend: 8, Ascend: 9, Pray: 10, Map: 11, Explore: 12, Save: 13, Load: 14,
-    Lang: 15, Help: 16, Menu: 17, Quit: 18
+    Lang: 15, Help: 16, Menu: 17, Quit: 18, Codex: 19
   };
 
   var SCHEME_KEY = 'nav.scheme.v1';
@@ -1793,15 +1793,28 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
   }
 
   function showBestiary() {
-    var rows = statics.bestiary.map(function (b) {
+    // A row unlocks the first time the hero has seen that creature. Outside a
+    // run (title screen) there is no codex yet, so everything reads as unmet.
+    var codex = (state && typeof state.codex === 'string') ? state.codex : '';
+    var known = 0;
+    var rows = statics.bestiary.map(function (b, i) {
+      var seen = codex.charAt(i) === '1';
+      if (seen) known++;
+      var band = b.boss ? (t('bossTag') + ' ' + b.minDepth)
+                        : (t('depthTag') + ' ' + b.minDepth + '–' + b.maxDepth);
+      if (!seen) {
+        return '<div class="beast" style="opacity:.5">' +
+          '<span class="g" style="color:var(--ink-faint)">?</span>' +
+          '<span class="b"><b>' + esc(t('bestLocked')) + '</b></span>' +
+          '<span class="d">' + band + '</span></div>';
+      }
       return '<div class="beast">' + creatureIcon(b) +
         '<span class="b"><b>' + esc(b.name) + '</b><small>' +
-        esc(b.desc) + '</small></span><span class="d">' +
-        (b.boss ? t('bossTag') + ' ' + b.minDepth
-                : t('depthTag') + ' ' + b.minDepth + '–' + b.maxDepth) + '</span></div>';
+        esc(b.desc) + '</small></span><span class="d">' + band + '</span></div>';
     }).join('');
+    var count = known + ' / ' + statics.bestiary.length;
     openModal(
-      '<h2>' + t('bestTitle') + '</h2><p class="sub">' + t('bestSub') + '</p>' + rows +
+      '<h2>' + t('bestTitle') + '</h2><p class="sub">' + t('bestSub') + ' — ' + count + '</p>' + rows +
       '<div style="margin-top:14px"><button id="mClose">' + t('close') + '</button></div>',
       function (overlay) { overlay.querySelector('#mClose').addEventListener('click', closeModal); });
   }
@@ -2026,6 +2039,7 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
       case CMD.Ascend:    act(ACT.Ascend); break;
       case CMD.Pray:      act(ACT_PRAY); break;
       case CMD.Map:       showFloorMap(); break;
+      case CMD.Codex:     showBestiary(); break;
       case CMD.Save:      doSave(); break;
       case CMD.Load:      doLoad(); break;
       case CMD.Lang:      toggleLanguage(); break;

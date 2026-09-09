@@ -27,10 +27,12 @@ constexpr const char* kMagic = "NAV";
 // its doors have closed, and a save without that would reopen a sealed fight.
 // Version 5 adds the burning cells the Огневик trails behind it: a floor now
 // remembers where it is on fire and for how long, so a save taken mid-fight
-// resumes with the same hazard on the ground.
+// resumes with the same hazard on the ground. Version 6 adds the codex: which
+// bestiary rows the hero has unlocked by sight, so the screen's progress
+// survives a reload.
 // There is no migration: an older save is refused rather than loaded as
 // something it is not — see docs/TEST_CASES.md, "what stayed unchecked".
-constexpr int kFormatVersion = 5;
+constexpr int kFormatVersion = 6;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -230,6 +232,9 @@ std::string Game::save() const {
     w.rle(ident_.potion_known);
     w.rle(ident_.scroll_known);
 
+    // --- Codex -----------------------------------------------------------
+    w.rle(codex_seen_);
+
     // --- Levels ------------------------------------------------------------
     w << levels_.size();
     for (const auto& lvl : levels_) {
@@ -340,6 +345,9 @@ bool Game::load(const std::string& blob) {
     r.rle(g.ident_.potion_known, 64);
     r.rle(g.ident_.scroll_known, 64);
     if (!r.ok()) return false;
+
+    r.rle(g.codex_seen_, bestiary().size());
+    if (!r.ok() || g.codex_seen_.size() != bestiary().size()) return false;
 
     if (!r.count(n, static_cast<std::size_t>(kMaxDepth) + 1)) return false;
     g.levels_.assign(n, Level{});

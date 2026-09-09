@@ -175,6 +175,15 @@ public:
     int depth() const { return depth_; }
     int turn() const { return turn_; }
     RunState state() const { return state_; }
+
+    /// One byte per species, 1 once the hero has laid eyes on it: the codex.
+    /// Kept in the save so a run's progress through the bestiary survives a
+    /// reload. Always as long as `bestiary()`.
+    const std::vector<std::uint8_t>& codex_seen() const { return codex_seen_; }
+    bool codex_knows(int species) const {
+        const std::size_t i = static_cast<std::size_t>(species);
+        return i < codex_seen_.size() && codex_seen_[i] != 0;
+    }
     /// Final score: gold, depth, kills and hero level rolled into one number.
     int score() const;
 
@@ -298,6 +307,7 @@ public:
     Hero& mutable_hero() { return hero_; }
     Level& mutable_level() { return levels_[static_cast<std::size_t>(depth_)]; }
     Rng& rng() { return rng_; }
+    std::vector<std::uint8_t>& mutable_codex_seen() { return codex_seen_; }
 
 private:
     // --- Level management (game.cpp) --------------------------------------
@@ -406,6 +416,7 @@ private:
     std::vector<Level> levels_;
     DijkstraMap to_hero_;
     std::vector<LogEntry> log_;
+    std::vector<std::uint8_t> codex_seen_;  ///< The bestiary, filled in as creatures are met.
     int depth_{1};
     int turn_{0};
     RunState state_{RunState::Playing};

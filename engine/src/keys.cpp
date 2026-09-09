@@ -78,6 +78,8 @@ const ActionKey* action_table(std::size_t& count) {
          Text{"Карта этажа", "The whole floor"}},
         {Command::Explore,   "o",   "o",    "o",         "o",
          Text{"Дойти до неизведанного", "Walk to what is unseen"}},
+        {Command::Codex,     "v",   "v",    "v",         "v",
+         Text{"Бестиарий встреченного", "Bestiary of what you have met"}},
         {Command::Save,      "S",   "",     Text{"Shift+S"}, Text{"через меню", "from the menu"},
          Text{"Сохранить", "Save"}},
         {Command::Load,      "R",   "",     Text{"Shift+R"}, Text{"через меню", "from the menu"},

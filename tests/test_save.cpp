@@ -143,6 +143,28 @@ TEST(Save, PreservesBurningCells) {
     EXPECT_EQ(restored.level().embers.size(), original.level().embers.size());
 }
 
+TEST(Save, PreservesTheCodex) {
+    // Which bestiary rows the hero has unlocked by sight is run progress, and
+    // has to come back on load.
+    GameConfig cfg;
+    cfg.seed = 5150;
+    Game original;
+    original.start(cfg);
+    leave_crossroads(original);
+
+    // Force a couple of rows open by hand, plus whatever the walk revealed.
+    original.mutable_codex_seen()[static_cast<std::size_t>(species_index("upyr"))] = 1;
+    original.mutable_codex_seen()[static_cast<std::size_t>(species_index("aspid"))] = 1;
+
+    Game restored;
+    ASSERT_TRUE(restored.load(original.save()));
+    ASSERT_EQ(restored.codex_seen().size(), original.codex_seen().size());
+    for (std::size_t i = 0; i < original.codex_seen().size(); ++i)
+        EXPECT_EQ(restored.codex_seen()[i], original.codex_seen()[i]) << "row " << i;
+    EXPECT_TRUE(restored.codex_knows(species_index("upyr")));
+    EXPECT_TRUE(restored.codex_knows(species_index("aspid")));
+}
+
 TEST(Save, PreservesStatusEffects) {
     GameConfig cfg;
     cfg.seed = 88;

@@ -22,6 +22,7 @@ void Game::start(const GameConfig& cfg) {
     turn_ = 0;
     depth_ = 1;
     state_ = RunState::Playing;
+    codex_seen_.assign(bestiary().size(), 0);
 
     // Scramble consumable appearances for this run.
     ident_.reset(static_cast<std::size_t>(PotionKind::Count),
@@ -1029,6 +1030,15 @@ void Game::reap_dead() {
 void Game::recompute_fov() {
     Level& lvl = mutable_level();
     compute_fov(lvl.map, hero_.a.pos, hero_sight());
+
+    // The codex fills in as creatures are laid eyes on. A row unlocks the first
+    // time the hero can see that species — Соловей on the crossroads included.
+    if (codex_seen_.size() != bestiary().size()) codex_seen_.assign(bestiary().size(), 0);
+    for (const Monster& m : lvl.monsters) {
+        if (!m.a.alive || !lvl.map.visible(m.a.pos)) continue;
+        const std::size_t si = static_cast<std::size_t>(m.species);
+        if (si < codex_seen_.size()) codex_seen_[si] = 1;
+    }
 }
 
 // ---------------------------------------------------------------------------

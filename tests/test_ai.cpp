@@ -611,3 +611,27 @@ TEST(Ai, SwingingAtTheFirebirdScaresItOffWithNothing) {
         EXPECT_NE(it.kind, ItemKind::Feather) << "a struck Firebird still dropped a feather";
     EXPECT_EQ(f.game.hero().kills, 0);
 }
+
+// ---------------------------------------------------------------------------
+// The codex — a bestiary row unlocks the first time the creature is in sight.
+// ---------------------------------------------------------------------------
+
+TEST(Ai, TheCodexUnlocksARowOnFirstSight) {
+    Field f;
+    const int upyr = species_index("upyr");
+    const int aspid = species_index("aspid");
+    ASSERT_FALSE(f.game.codex_knows(upyr)) << "the row was open before the creature was seen";
+
+    f.spawn("upyr", {24, 15});   // spawn() calls refresh_view()
+    EXPECT_TRUE(f.game.codex_knows(upyr)) << "seeing an upyr did not unlock its row";
+    EXPECT_FALSE(f.game.codex_knows(aspid)) << "an unrelated row opened itself";
+}
+
+TEST(Ai, TheCodexIgnoresCreaturesOutOfSight) {
+    Field f;
+    const int volkolak = species_index("volkolak");
+    // Spawned far across the floor, well outside the hero's sight radius.
+    f.spawn("volkolak", {66, 31});
+    EXPECT_FALSE(f.game.codex_knows(volkolak))
+        << "a creature the hero cannot see unlocked its row";
+}

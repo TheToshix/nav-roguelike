@@ -186,6 +186,14 @@ std::string build_state_json() {
     // The belt the hero is in — the frontends show its name beside the depth.
     append_field(out, "zone", zone_theme_for_depth(g.depth()).name.get(g_lang), first);
     append_field(out, "needleIntact", g.needle_intact() ? 1 : 0, first);
+    // The codex: one character per bestiary row, '1' once the hero has laid
+    // eyes on that species. Same order as nav_static_json's "bestiary".
+    {
+        std::string seen;
+        seen.reserve(g.codex_seen().size());
+        for (std::uint8_t v : g.codex_seen()) seen += v ? '1' : '0';
+        append_field(out, "codex", seen, first);
+    }
     // The belt's three colours. The sprite renderer tints one neutral set of
     // stones with these, which is why the crypts, the mire and the frozen
     // kingdom do not need three copies of every tile.

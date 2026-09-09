@@ -459,6 +459,48 @@ struct Ui {
         std::fflush(stdout);
         read_key_decoded();
     }
+
+    /// The bestiary, as far as the hero has met it. A row is a name, a depth
+    /// band and a line of flavour once the creature has been laid eyes on;
+    /// before that it is a dash and "не встречен".
+    void codex_screen(const Game& g) const {
+        clear();
+        const auto& beasts = bestiary();
+        int known = 0;
+        for (std::uint8_t v : g.codex_seen()) known += v ? 1 : 0;
+
+        std::string out = "\x1b[1m";
+        out += lang == Lang::Ru ? "Бестиарий" : "Bestiary";
+        out += "\x1b[0m  \x1b[38;5;244m" + std::to_string(known) + " / " +
+               std::to_string(beasts.size()) + "\x1b[0m\n\n";
+
+        for (std::size_t i = 0; i < beasts.size(); ++i) {
+            const Species& sp = beasts[i];
+            const bool seen = g.codex_knows(static_cast<int>(i));
+            std::string band;
+            if (sp.max_depth <= 0)
+                band = lang == Lang::Ru ? "распутье" : "crossroads";
+            else if (sp.weight == 0)
+                band = (lang == Lang::Ru ? "страж, гл. " : "guardian, d.") + std::to_string(sp.min_depth);
+            else
+                band = (lang == Lang::Ru ? "гл. " : "d.") + std::to_string(sp.min_depth) + "–" +
+                       std::to_string(sp.max_depth);
+
+            if (seen) {
+                out += "  " + ansi_from_hex(sp.color) + std::string(1, sp.glyph) + "\x1b[0m ";
+                out += "\x1b[1m" + pad_to(t(sp.name), 22) + "\x1b[0m";
+                out += "\x1b[38;5;244m" + pad_to(band, 16) + t(sp.description) + "\x1b[0m\n";
+            } else {
+                out += "  \x1b[38;5;238m? " + pad_to(lang == Lang::Ru ? "— не встречен —"
+                                                                     : "— not yet met —", 22);
+                out += pad_to(band, 16) + "\x1b[0m\n";
+            }
+        }
+        std::fputs(out.c_str(), stdout);
+        std::fputs(lang == Lang::Ru ? "\n[любая клавиша]" : "\n[any key]", stdout);
+        std::fflush(stdout);
+        read_key_decoded();
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -763,6 +805,7 @@ bool game_menu(Game& g, Ui& ui) {
             ui.lang == Lang::Ru ? "Сохранить"         : "Save",
             ui.lang == Lang::Ru ? "Загрузить"         : "Load",
             ui.lang == Lang::Ru ? "Карта этажа"       : "The whole floor",
+            ui.lang == Lang::Ru ? "Бестиарий"         : "Bestiary",
             std::string(ui.lang == Lang::Ru ? "Управление: " : "Controls: ") +
                 key_scheme_name(ui.scheme).get(ui.lang),
             ui.lang == Lang::Ru ? "Язык: русский / English" : "Language: Русский / English",
@@ -776,17 +819,18 @@ bool game_menu(Game& g, Ui& ui) {
             case 1: do_save(g, ui); break;
             case 2: do_load(g, ui); return false;
             case 3: ui.map_screen(g); break;
-            case 4:
+            case 4: ui.codex_screen(g); break;
+            case 5:
                 ui.scheme = ui.scheme == KeyScheme::Classic ? KeyScheme::Wasd : KeyScheme::Classic;
                 write_preferences(Preferences{ui.lang, ui.scheme});
                 ui.notice(help_text(ui.lang, ui.scheme));
                 break;
-            case 5:
+            case 6:
                 ui.lang = ui.lang == Lang::Ru ? Lang::En : Lang::Ru;
                 write_preferences(Preferences{ui.lang, ui.scheme});
                 break;
-            case 6: ui.notice(help_text(ui.lang, ui.scheme)); break;
-            case 7: return true;
+            case 7: ui.notice(help_text(ui.lang, ui.scheme)); break;
+            case 8: return true;
             default: break;
         }
     }
@@ -1188,6 +1232,10 @@ int main(int argc, char** argv) {
                     break;
                 case Command::Map:
                     ui.map_screen(game);
+                    ui.clear();
+                    break;
+                case Command::Codex:
+                    ui.codex_screen(game);
                     ui.clear();
                     break;
                 case Command::Save:
