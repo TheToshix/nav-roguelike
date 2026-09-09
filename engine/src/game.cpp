@@ -634,6 +634,18 @@ void Game::populate(Level& lvl, int depth) {
 bool Game::perform(const Action& action) {
     if (state_ != RunState::Playing) return false;
 
+    // A hero who cannot act has no turn to give: whatever the frontend asked for
+    // — a step, a held key, a run — is dropped and the world moves on without
+    // them. Freeze was always meant to do this ("your legs will not move"), but
+    // nothing ever enforced it on the hero's side; see docs/BUG_REPORTS.md,
+    // NAV-020.
+    if (hero_.a.has(Effect::Freeze)) {
+        message(Text{"Тело не слушается — ход потерян.",
+                     "Your body will not answer — the turn is lost."},
+                Severity::Bad);
+        return perform_single(Action{ActionType::Wait, {}, -1, {}});
+    }
+
     // The travel commands are loops over `perform_single`, so they are peeled
     // off here rather than inside the switch: they consume many turns, not one.
     if (action.type == ActionType::Run) return act_run(action.dir);

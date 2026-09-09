@@ -120,6 +120,24 @@ TEST(Ai, AMeleeMonsterEventuallyReachesAndStrikes) {
     EXPECT_LT(f.game.hero().a.hp, hp_before) << "the monster never landed a blow";
 }
 
+TEST(Ai, AFrozenHeroLosesTheTurn) {
+    // NAV-020: Морозко's freeze says "your legs will not move", and now they do
+    // not. Every action the frontend submits while the hero is frozen is dropped
+    // and the turn passes.
+    Field f;
+    const Vec2 start = f.game.hero().a.pos;
+    f.game.mutable_hero().a.add_effect(Effect::Freeze, 3, 1);
+
+    for (int i = 0; i < 3; ++i)
+        f.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});
+    EXPECT_EQ(f.game.hero().a.pos, start) << "a frozen hero walked anyway";
+
+    // ... but the freeze does wear off.
+    f.game.perform(Action{ActionType::Move, {1, 0}, -1, {}});
+    EXPECT_EQ(f.game.hero().a.pos, (Vec2{start.x + 1, start.y}))
+        << "the freeze never wore off";
+}
+
 TEST(Ai, AFrozenMonsterDoesNotMoveOrStrike) {
     Field f;
     Monster& m = f.spawn("upyr", {22, 15});
