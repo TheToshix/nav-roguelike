@@ -307,6 +307,7 @@ const std::vector<GearTemplate>& gear_table() {
         {"sekira",    Text{"Секира", "Great Axe"},          ItemKind::Weapon, ')', 11, 7,  5, Text{"Тяжела, но страшна.", "Heavy, and terrible."}},
         {"posokh",    Text{"Посох ведуна", "Sorcerer's Staff"}, ItemKind::Weapon, ')', 3, 1, 6, Text{"+5 к запасу сил.", "+5 to your reserve of power."}},
         {"kladenets", Text{"Меч-кладенец", "Sword Kladenets"}, ItemKind::Weapon, ')', 15, 10, 3, Text{"Сказочный клинок.", "A blade out of legend."}},
+        {"volchiy_klyk", Text{"Волчий клык", "Wolf's Fang"},  ItemKind::Weapon, ')', 6, 6, 0, Text{"Половина «Волчьей снасти».", "Half of the Wolf's Rig."}},
 
         // --- Armour ----------------------------------------------------------
         {"rubaha",    Text{"Рубаха", "Shirt"},              ItemKind::Armor, '[',  1, 1, 10, Text{"Почти ничего.", "Barely anything."}},
@@ -314,6 +315,7 @@ const std::vector<GearTemplate>& gear_table() {
         {"kolchuga",  Text{"Кольчуга", "Chainmail"},        ItemKind::Armor, '[',  5, 4,  7, Text{"Держит удар.", "Holds against a blow."}},
         {"zertsalo",  Text{"Зерцало", "Plate Armour"},      ItemKind::Armor, '[',  8, 7,  5, Text{"Доспех воеводы.", "A warlord's plate."}},
         {"mantiya",   Text{"Мантия ведуна", "Sorcerer's Robe"}, ItemKind::Armor, '[', 2, 1, 6, Text{"+5 к запасу сил.", "+5 to your reserve of power."}},
+        {"volchya_shkura", Text{"Волчья шкура", "Wolfskin"},    ItemKind::Armor, '[', 4, 6, 0, Text{"Половина «Волчьей снасти».", "Half of the Wolf's Rig."}},
 
         // --- Amulets ---------------------------------------------------------
         {"ob_zhizni", Text{"Оберег жизни", "Charm of Life"},   ItemKind::Amulet, '"', 12, 2, 6, Text{"+12 к здоровью.", "+12 maximum health."}},
@@ -405,6 +407,20 @@ const GearSetInfo& gear_set_info(GearSet set) {
     return gear_set_table()[0];
 }
 
+const std::vector<GearPair>& gear_pair_table() {
+    static const std::vector<GearPair> table = {
+        // Волчья снасть — a hunter's kit. Клык in one hand, шкура on the back;
+        // each is a plain, honest piece alone, and the two together let the
+        // slain feed you.
+        {"volchiy_klyk", "volchya_shkura",
+         Text{"Волчья снасть", "The Wolf's Rig"},
+         Text{"Клык и шкура вместе: убитый отдаёт немного здоровья.",
+              "Fang and hide together: the slain give up a little health."},
+         GpLifesteal},
+    };
+    return table;
+}
+
 Slot item_slot(const Item& it) {
     switch (it.kind) {
         case ItemKind::Weapon: return Slot::Weapon;
@@ -470,6 +486,7 @@ const std::vector<Text>& scroll_names() {
         Text{"Свиток прозрения", "Scroll of Magic Mapping"},
         Text{"Свиток познания", "Scroll of Identify"},
         Text{"Свиток зова", "Scroll of Summoning"},
+        Text{"Свиток снятия проклятья", "Scroll of Remove Curse"},
     };
     return t;
 }
@@ -484,6 +501,7 @@ const std::vector<Text>& scroll_notes() {
         Text{"Открывает карту этажа.", "Reveals the map of this floor."},
         Text{"Опознаёт все вещи в котомке.", "Identifies everything in your pack."},
         Text{"Созывает нечисть. Не читайте это.", "Calls the unclean. Do not read this."},
+        Text{"Снимает проклятье с надетых вещей.", "Lifts the curse from what you are wearing."},
     };
     return t;
 }
@@ -498,6 +516,7 @@ const std::vector<Text>& scroll_appearances() {
         Text{"свиток, шитый нитью", "thread-bound scroll"},
         Text{"свиток с печатью", "sealed scroll"},
         Text{"безымянный свиток", "nameless scroll"},
+        Text{"свиток в чёрной ленте", "black-ribboned scroll"},
     };
     return t;
 }
@@ -569,10 +588,15 @@ Text item_name(const Item& it, const Identification& ident) {
             const auto& gear = gear_table();
             const std::size_t i = static_cast<std::size_t>(it.subtype);
             if (i >= gear.size()) return Text{"вещь", "item"};
-            if (it.enchant == 0) return gear[i].name;
-            const std::string sign = it.enchant > 0 ? "+" : "";
-            return format(Text{"{} ({}{})", "{} ({}{})"},
-                          gear[i].name, Text(sign), num(it.enchant));
+            Text name = gear[i].name;
+            if (it.enchant != 0) {
+                const std::string sign = it.enchant > 0 ? "+" : "";
+                name = format(Text{"{} ({}{})", "{} ({}{})"}, name, Text(sign), num(it.enchant));
+            }
+            // A curse only shows once it has been felt — that is, once the piece
+            // has been worn and refused to come off.
+            if (it.cursed && it.identified) name = name + Text{" — проклято", " — cursed"};
+            return name;
         }
     }
 }
@@ -602,6 +626,9 @@ Text item_note(const Item& it, const Identification& ident) {
         default: {
             const auto& gear = gear_table();
             const std::size_t i = static_cast<std::size_t>(it.subtype);
+            if (it.cursed && it.identified)
+                return Text{"Проклято. Снимается только свитком снятия проклятья.",
+                            "Cursed. Only a Scroll of Remove Curse takes it off."};
             return i < gear.size() ? gear[i].note : Text{"", ""};
         }
     }

@@ -229,7 +229,13 @@ TEST(Phases, BabaYagaRaisesAFreshHutWhenSheIsNearlyDone) {
 
     a.wound_to("babayaga", 0.25);
     ASSERT_EQ(a.find("babayaga")->phase, 3);
+    EXPECT_EQ(huts(), 0) << "she raises the hut on her own turn, not the instant she is hurt";
+
+    a.wait(1);
     EXPECT_EQ(huts(), 1) << "the third phase should put a hut back between her and the hero";
+
+    a.wait(3);
+    EXPECT_EQ(huts(), 1) << "and only the one — the hut is raised once, not every turn";
 }
 
 TEST(Phases, TheFieryPolozStopsKeepingItsDistance) {

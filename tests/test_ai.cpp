@@ -225,6 +225,28 @@ TEST(Ai, ASummonerNeverCallsSomethingStrongerThanItself) {
     }
 }
 
+TEST(Ai, ASummonerSurvivesItsOwnReinforcements) {
+    // NAV-021: monster_summon read from its `Monster&` after spawn_species had
+    // pushed onto the monster vector, and a push that reallocates leaves that
+    // reference dangling. Left the summoner alive next to the hero long enough
+    // for the vector to grow through several doublings — a heap-use-after-free
+    // on every one of them under the sanitisers before the fix.
+    Field f;
+    Monster& m = f.spawn("koldun", {25, 15});
+    m.awake = true;
+
+    f.wait(240);
+
+    const Monster* summoner = nullptr;
+    for (const auto& monster : f.game.monsters())
+        if (std::strcmp(bestiary()[static_cast<std::size_t>(monster.species)].key, "koldun") == 0)
+            summoner = &monster;
+    ASSERT_NE(summoner, nullptr) << "the summoner vanished from its own roster";
+    EXPECT_GT(f.game.monsters().size(), 3u) << "no reallocation was ever forced";
+    for (const auto& monster : f.game.monsters())
+        EXPECT_TRUE(f.game.level().map.in_bounds(monster.a.pos)) << "a summon landed off the map";
+}
+
 TEST(Ai, MonstersNeverEndUpSharingACell) {
     Field f;
     // A crowd funnelling towards one hero is where collision bugs surface.

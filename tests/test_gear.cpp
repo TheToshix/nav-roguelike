@@ -352,3 +352,87 @@ TEST(Gear, TheCatsEyeGrantsSleepImmunityAndFartherSight) {
     EXPECT_TRUE(cat.game.hero_has(GpSight));
     EXPECT_EQ(cat.game.hero_sight(), sight_before + 3) << "the charm did not widen the view";
 }
+
+// ---------------------------------------------------------------------------
+// Curses, and the two-piece pair.
+// ---------------------------------------------------------------------------
+
+namespace {
+/// Puts an item of `key` (optionally cursed) into the pack and returns its index.
+int give(Game& g, const char* key, bool cursed = false) {
+    const int idx = gear_index(key);
+    EXPECT_GE(idx, 0) << key;
+    const GearTemplate& t = gear_table()[static_cast<std::size_t>(idx)];
+    Item it{};
+    it.kind = t.kind;
+    it.subtype = idx;
+    it.power = t.power;
+    it.identified = !cursed;
+    it.cursed = cursed;
+    if (cursed) it.enchant = -1;
+    EXPECT_TRUE(g.mutable_hero().inv.add(it));
+    return static_cast<int>(g.mutable_hero().inv.items.size()) - 1;
+}
+}  // namespace
+
+TEST(Gear, ACursedPieceGoesOnButWillNotComeOff) {
+    Wardrobe w;
+    const int idx = give(w.game, "mech", /*cursed=*/true);
+
+    ASSERT_TRUE(w.game.perform(Action{ActionType::EquipItem, {}, idx, {}}));
+    EXPECT_TRUE(w.game.hero().inv.is_equipped(idx)) << "the cursed sword did not go on";
+    EXPECT_TRUE(w.game.hero().inv.items[static_cast<std::size_t>(idx)].identified)
+        << "wearing it should have revealed the curse";
+
+    // Trying to take it off does nothing and costs no turn.
+    const int turn_before = w.game.turn();
+    EXPECT_FALSE(w.game.perform(Action{ActionType::EquipItem, {}, idx, {}}));
+    EXPECT_TRUE(w.game.hero().inv.is_equipped(idx)) << "a cursed piece came off anyway";
+    EXPECT_EQ(w.game.turn(), turn_before);
+}
+
+TEST(Gear, ACursedWornPieceCannotBeDroppedOrSwapped) {
+    Wardrobe w;
+    const int cursed = give(w.game, "kozha", /*cursed=*/true);
+    const int other = give(w.game, "kolchuga");
+    ASSERT_TRUE(w.game.perform(Action{ActionType::EquipItem, {}, cursed, {}}));
+
+    EXPECT_FALSE(w.game.perform(Action{ActionType::DropItem, {}, cursed, {}}))
+        << "a cursed worn piece was dropped";
+    EXPECT_TRUE(w.game.hero().inv.is_equipped(cursed));
+
+    EXPECT_FALSE(w.game.perform(Action{ActionType::EquipItem, {}, other, {}}))
+        << "the cursed armour let another piece take the slot";
+    EXPECT_TRUE(w.game.hero().inv.is_equipped(cursed));
+}
+
+TEST(Gear, RemoveCurseFreesTheSlot) {
+    Wardrobe w;
+    const int idx = give(w.game, "mech", /*cursed=*/true);
+    ASSERT_TRUE(w.game.perform(Action{ActionType::EquipItem, {}, idx, {}}));
+
+    Item scroll{};
+    scroll.kind = ItemKind::Scroll;
+    scroll.subtype = static_cast<int>(ScrollKind::Uncurse);
+    scroll.identified = true;
+    ASSERT_TRUE(w.game.mutable_hero().inv.add(scroll));
+    const int si = static_cast<int>(w.game.hero().inv.items.size()) - 1;
+    ASSERT_TRUE(w.game.perform(Action{ActionType::UseItem, {}, si, {}}));
+
+    EXPECT_FALSE(w.game.hero().inv.items[static_cast<std::size_t>(idx)].cursed)
+        << "the scroll did not lift the curse";
+    ASSERT_TRUE(w.game.perform(Action{ActionType::EquipItem, {}, idx, {}}));
+    EXPECT_FALSE(w.game.hero().inv.is_equipped(idx)) << "the freed piece still would not come off";
+}
+
+TEST(Gear, TheWolfsRigPaysOutOnlyWithBothHalves) {
+    Wardrobe w;
+    w.wear("volchiy_klyk");
+    EXPECT_EQ(w.game.hero_pair(), nullptr) << "one half is not the pair";
+    EXPECT_FALSE(w.game.hero_has(GpLifesteal));
+
+    w.wear("volchya_shkura");
+    ASSERT_NE(w.game.hero_pair(), nullptr) << "both halves and still no pair";
+    EXPECT_FALSE(w.game.hero_pair()->name.ru.empty());
+    EXPECT_TRUE(w.game.hero_has(GpLifesteal)) << "the completed pair grants nothing";
+}

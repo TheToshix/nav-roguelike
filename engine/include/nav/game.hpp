@@ -214,6 +214,8 @@ public:
     /// A set needs all three of its pieces worn at once, which is every slot
     /// the hero has — so this is never a happy accident.
     GearSet hero_set() const;
+    /// The two-piece pair the hero has completed, or nullptr.
+    const GearPair* hero_pair() const;
     bool hero_has(GearPower p) const { return (hero_powers() & p) != 0; }
 
     /// The boss of this floor while it still lives, or nullptr. The frontends
@@ -334,10 +336,12 @@ private:
     /// with Кот Баюн and his charm inside, reached by one closed door. Only ever
     /// carves into solid wall, so it can strand nothing that already existed.
     void build_secret_room(Level& lvl, int depth);
-    /// Maybe drops a Домовой or a Жар-птица onto a non-guardian floor. Uses its
-    /// own random stream so the main dungeon sequence is identical with or
-    /// without them.
+    /// Maybe drops a Домовой, a Жар-птица or a Wolf's Rig half onto a
+    /// non-guardian floor. Uses its own random stream so the main dungeon
+    /// sequence is identical with or without them.
     void place_wanderers(Level& lvl, int depth);
+    /// Marks a fraction of a floor's gear cursed, off a private stream.
+    void curse_some_gear(Level& lvl, int depth);
     /// Closes the doors behind the hero, or announces the threshold.
     void update_arena();
     void enter_level(int depth, bool descending);

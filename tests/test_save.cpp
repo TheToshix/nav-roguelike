@@ -165,6 +165,29 @@ TEST(Save, PreservesTheCodex) {
     EXPECT_TRUE(restored.codex_knows(species_index("aspid")));
 }
 
+TEST(Save, PreservesTheCursedFlagOnItems) {
+    GameConfig cfg;
+    cfg.seed = 771;
+    Game original;
+    original.start(cfg);
+    leave_crossroads(original);
+
+    Item hex{};
+    hex.kind = ItemKind::Armor;
+    hex.subtype = 0;
+    hex.cursed = true;
+    hex.identified = true;
+    hex.enchant = -2;
+    ASSERT_TRUE(original.mutable_hero().inv.add(hex));
+
+    Game restored;
+    ASSERT_TRUE(restored.load(original.save()));
+    ASSERT_FALSE(restored.hero().inv.items.empty());
+    const Item& back = restored.hero().inv.items.back();
+    EXPECT_TRUE(back.cursed) << "a cursed item came back clean";
+    EXPECT_EQ(back.enchant, -2);
+}
+
 TEST(Save, PreservesStatusEffects) {
     GameConfig cfg;
     cfg.seed = 88;

@@ -295,6 +295,10 @@ std::string build_state_json() {
         append_field(out, "setName", info.name.get(g_lang), hero_first);
         append_field(out, "setNote", info.note.get(g_lang), hero_first);
     }
+    if (const GearPair* pair = g.hero_pair()) {
+        append_field(out, "pairName", pair->name.get(g_lang), hero_first);
+        append_field(out, "pairNote", pair->note.get(g_lang), hero_first);
+    }
     out += ",\"effects\":[";
     bool effect_first = true;
     for (const auto& e : h.a.effects) {
@@ -348,6 +352,7 @@ std::string build_state_json() {
         out += ",\"count\":" + std::to_string(it.count);
         out += ",\"equipped\":" + std::string(h.inv.is_equipped(static_cast<int>(i)) ? "true" : "false");
         out += ",\"wearable\":" + std::string(item_slot(it) != Slot::None ? "true" : "false");
+        out += ",\"cursed\":" + std::string((it.cursed && it.identified) ? "true" : "false");
         // What wearing it would change. The engine works it out by trying the
         // item on and asking the character sheet, so the page never has to
         // reimplement — or mispredict — the rules it is previewing.

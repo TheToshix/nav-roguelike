@@ -8,7 +8,7 @@ The game core is written in C++ and builds for both a terminal and the browser, 
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-419-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-426-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -241,9 +241,9 @@ of them is accepted.
 | | |
 |---|---|
 | **Classes** | Six, and three of them carry a mechanic rather than a stat spread (see below) |
-| **Bestiary** | 20 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement, trailing fire across the floor; one that is not always an enemy |
-| **Bosses** | Viy (depth 4), Baba Yaga (depth 8), Koschei the Deathless (depth 12) — each with its own mechanic |
-| **Items** | 18 pieces of gear, 8 potions, 8 scrolls; consumables are unlabelled until you try them |
+| **Bestiary** | 22 species with distinct behaviour: pursuit, ranged attacks, fleeing when wounded, summoning, erratic movement, trailing fire across the floor; one that is not always an enemy |
+| **Bosses** | Eight: four belt lords and four lesser guardians, each with its own mechanic and two or three phases |
+| **Items** | 33 pieces of gear (four 3-piece sets and a 2-piece pair with a both-worn bonus; some finds are cursed and will not come off without a scroll), 8 potions, 9 scrolls; consumables are unlabelled until you try them |
 | **Magic** | 6 spells, aimed along the line of sight |
 | **Effects** | Poison, burning, freezing, confusion, blindness, haste, slow, regeneration, might, ward, sleep |
 | **Codex** | A bestiary screen (`v`, or the menu): a row unlocks the first time you see the creature, and the progress lives in the save |
@@ -349,7 +349,7 @@ Built and tested on Linux, macOS and Windows.
 ### Tests
 
 ```bash
-ctest --test-dir build --output-on-failure    # 419 tests
+ctest --test-dir build --output-on-failure    # 426 tests
 ./build/nav --demo 20                         # 20 complete games, headless
 ./build/nav --sweep 4                         # the sweeper: reach the bottom, kill every guardian
 ```
@@ -419,7 +419,7 @@ reproduction steps and fixes.
 
 | | |
 |---|---|
-| Unit and integration tests | **419** across 51 suites |
+| Unit and integration tests | **426** across 51 suites |
 | Engine line coverage | **94%** |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build |
@@ -459,7 +459,7 @@ engine/          the core: game rules, no I/O
 frontend/
   terminal/      ANSI rendering, raw keyboard input and the run bot
   web/           the C binding layer for WebAssembly, the game page and the sprites
-tests/           419 GoogleTest cases
+tests/           426 GoogleTest cases
 docs/            how to run it, architecture, test plan, test cases, bug reports
 tools/           the web build script
   sprites/       the pixel art as text, and the generator that reads it

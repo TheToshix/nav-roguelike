@@ -461,6 +461,13 @@ bool Game::act_drop(int index) {
         message(Text{"Здесь уже что-то лежит.", "Something already lies here."}, Severity::Bad);
         return false;
     }
+    const Item& to_drop = hero_.inv.items[static_cast<std::size_t>(index)];
+    if (to_drop.cursed && hero_.inv.is_equipped(index)) {
+        message(Text{"Не бросить — проклятая вещь не отпускает.",
+                     "You cannot drop it — the curse will not let go."},
+                Severity::Bad);
+        return false;
+    }
 
     Item dropped = hero_.inv.take(index, hero_.inv.items[static_cast<std::size_t>(index)].count);
     dropped.pos = hero_.a.pos;
@@ -493,12 +500,33 @@ bool Game::act_equip(int index) {
 
     int& worn = hero_.inv.slot_ref(slot);
     if (worn == index) {
+        // Taking it off — unless it is cursed and clinging on.
+        if (it.cursed) {
+            message(Text{"Проклятая вещь не снимается. Нужен свиток снятия проклятья.",
+                         "The cursed piece will not come off. It wants a Scroll of Remove Curse."},
+                    Severity::Bad);
+            return false;
+        }
         worn = -1;
         message(format(Text{"Ты снял: {}.", "You take off: {}."}, item_name(it, ident_)));
     } else {
+        // The slot may already hold a cursed piece that will not make room.
+        if (worn >= 0 && worn < static_cast<int>(hero_.inv.items.size()) &&
+            hero_.inv.items[static_cast<std::size_t>(worn)].cursed) {
+            message(Text{"Прежняя вещь не отпускает — она проклята.",
+                         "What you are wearing will not let go — it is cursed."},
+                    Severity::Bad);
+            return false;
+        }
         worn = index;
         message(format(Text{"Ты надел: {}.", "You equip: {}."}, item_name(it, ident_)),
                 Severity::Good);
+        if (it.cursed) {
+            it.identified = true;   // now the curse is known
+            message(Text{"Вещь прирастает к телу. Она проклята.",
+                         "It grips you and will not let go. It is cursed."},
+                    Severity::Critical);
+        }
     }
 
     hero_.a.max_hp = derived_max_hp();
@@ -754,6 +782,19 @@ void Game::read_scroll(const Item& it) {
                 const int pick = rng_.weighted(weights);
                 if (pick >= 0) spawn_species(mutable_level(), pick, hero_.a.pos, 4);
             }
+            break;
+        }
+        case ScrollKind::Uncurse: {
+            int freed = 0;
+            for (Item& item : hero_.inv.items)
+                if (item.cursed) { item.cursed = false; item.identified = true; ++freed; }
+            message(freed > 0
+                        ? format(Text{"Проклятье спадает — {} вещей снова твои.",
+                                      "The curse lifts — {} things are yours again."},
+                                 num(freed))
+                        : Text{"Ничего не спадает — проклятого ты не носишь.",
+                               "Nothing lifts — you carry nothing cursed."},
+                    Severity::Good);
             break;
         }
         case ScrollKind::Count:

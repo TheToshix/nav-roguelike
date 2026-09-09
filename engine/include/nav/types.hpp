@@ -112,7 +112,7 @@ enum class PotionKind : std::uint8_t {
 };
 
 enum class ScrollKind : std::uint8_t {
-    Fireball, Lightning, Frost, Blind, Teleport, MagicMap, Identify, Summon, Count
+    Fireball, Lightning, Frost, Blind, Teleport, MagicMap, Identify, Summon, Uncurse, Count
 };
 
 // ---------------------------------------------------------------------------

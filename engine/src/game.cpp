@@ -24,9 +24,12 @@ void Game::start(const GameConfig& cfg) {
     state_ = RunState::Playing;
     codex_seen_.assign(bestiary().size(), 0);
 
-    // Scramble consumable appearances for this run.
+    // Scramble consumable appearances for this run. Remove Curse (the last
+    // scroll) is deliberately left out: it is never a random find, so it does
+    // not join the shuffle — and keeping the shuffle the same width keeps the
+    // whole run's random sequence where it was.
     ident_.reset(static_cast<std::size_t>(PotionKind::Count),
-                 static_cast<std::size_t>(ScrollKind::Count));
+                 static_cast<std::size_t>(ScrollKind::Uncurse));
     rng_.shuffle(ident_.potion_look);
     rng_.shuffle(ident_.scroll_look);
 
@@ -165,6 +168,7 @@ void Game::ensure_level(int depth) {
 
     build_secret_room(lvl, depth);
     place_wanderers(lvl, depth);
+    curse_some_gear(lvl, depth);
 }
 
 void Game::place_wanderers(Level& lvl, int depth) {
@@ -210,6 +214,76 @@ void Game::place_wanderers(Level& lvl, int depth) {
 
     place("domovoy", 30);
     place("zharptica", 22);
+
+    // A half of the Wolf's Rig, now and then. Weight 0 in the gear table, so it
+    // never rolls in the loot pass and never disturbs the main sequence.
+    const auto drop_gear = [&](const char* key, int chance) {
+        if (!r.chance(chance)) return;
+        const auto& gear = gear_table();
+        int gi = -1;
+        for (std::size_t i = 0; i < gear.size(); ++i)
+            if (std::strcmp(gear[i].key, key) == 0) gi = static_cast<int>(i);
+        if (gi < 0 || depth < gear[static_cast<std::size_t>(gi)].min_depth) return;
+        const auto cells = lvl.map.walkable_cells();
+        if (cells.empty()) return;
+        for (int attempt = 0; attempt < 40; ++attempt) {
+            const Vec2 p = cells[static_cast<std::size_t>(r.below(static_cast<int>(cells.size())))];
+            if (chebyshev(p, lvl.entrance) < 6 || p == lvl.exit) continue;
+            if (lvl.arena.exists && lvl.arena.contains(p)) continue;
+            bool taken = false;
+            for (const auto& it : lvl.items) if (it.pos == p) taken = true;
+            if (taken) continue;
+            Item it{};
+            it.kind = gear[static_cast<std::size_t>(gi)].kind;
+            it.subtype = gi;
+            it.power = gear[static_cast<std::size_t>(gi)].power;
+            it.identified = true;
+            it.pos = p;
+            lvl.items.push_back(it);
+            return;
+        }
+    };
+    drop_gear("volchiy_klyk", 22);
+    drop_gear("volchya_shkura", 22);
+}
+
+/// Marks a fraction of a floor's gear cursed, from a private stream — so the
+/// item generation in `populate` stays byte-for-byte what it was before curses
+/// existed, and a shifted draw here cannot reach the next floor.
+void Game::curse_some_gear(Level& lvl, int depth) {
+    if (depth < 3) return;
+    Rng r(cfg_.seed ^ (0xC2B2AE3D27D4EB4FULL * static_cast<std::uint64_t>(depth + 1)) ^ 0x51ED270B);
+    int cursed = 0;
+    for (Item& it : lvl.items) {
+        if (!it.is_gear() || it.cursed) continue;
+        if (it.enchant > 0) continue;   // a blessed piece is not the trap
+        if (!r.chance(16)) continue;
+        it.cursed = true;
+        it.identified = false;
+        it.enchant = -(1 + r.below(2));
+        ++cursed;
+    }
+
+    // Where there are curses there is usually the cure. The Remove Curse scroll
+    // is placed here so it never has to compete in the random loot roll.
+    if (r.chance(cursed > 0 ? 75 : 25)) {
+        const auto cells = lvl.map.walkable_cells();
+        for (int attempt = 0; attempt < 40 && !cells.empty(); ++attempt) {
+            const Vec2 p = cells[static_cast<std::size_t>(r.below(static_cast<int>(cells.size())))];
+            if (chebyshev(p, lvl.entrance) < 6 || p == lvl.exit) continue;
+            if (lvl.arena.exists && lvl.arena.contains(p)) continue;
+            bool taken = false;
+            for (const auto& it : lvl.items) if (it.pos == p) taken = true;
+            if (taken) continue;
+            Item scroll{};
+            scroll.kind = ItemKind::Scroll;
+            scroll.subtype = static_cast<int>(ScrollKind::Uncurse);
+            scroll.identified = true;   // a hand-placed helper, not a mystery
+            scroll.pos = p;
+            lvl.items.push_back(scroll);
+            return;
+        }
+    }
 }
 
 void Game::build_secret_room(Level& lvl, int depth) {
@@ -786,12 +860,17 @@ void Game::populate(Level& lvl, int depth) {
             it.power = gear[static_cast<std::size_t>(pick)].power;
             it.identified = true;
             if (depth >= 4 && rng_.chance(20)) it.enchant = 1 + rng_.below(depth / 4);
+            // Curses are applied in a second pass off a private stream (see
+            // curse_some_gear), so the main loot sequence is untouched.
         } else if (roll < 60) {  // potion
             it.kind = ItemKind::Potion;
             it.subtype = rng_.below(static_cast<int>(PotionKind::Count));
         } else if (roll < 82) {  // scroll
             it.kind = ItemKind::Scroll;
-            it.subtype = rng_.below(static_cast<int>(ScrollKind::Count));
+            // Remove Curse (the last scroll) is never a random drop — it is
+            // placed off a private stream by curse_some_gear, which also keeps
+            // this roll the same width it always was.
+            it.subtype = rng_.below(static_cast<int>(ScrollKind::Uncurse));
         } else if (roll < 92) {  // food
             it.kind = ItemKind::Food;
             it.identified = true;
@@ -1065,7 +1144,23 @@ std::uint32_t Game::hero_powers() const {
     std::uint32_t bits = 0;
     for (int slot : {inv.weapon, inv.armor, inv.amulet})
         if (const GearTemplate* g = worn(inv, slot)) bits |= g->powers;
+    // Two-piece pairs add their power only while both halves are worn.
+    if (const GearPair* p = hero_pair()) bits |= p->powers;
     return bits;
+}
+
+const GearPair* Game::hero_pair() const {
+    const Inventory& inv = hero_.inv;
+    for (const GearPair& p : gear_pair_table()) {
+        bool a = false, b = false;
+        for (int slot : {inv.weapon, inv.armor, inv.amulet})
+            if (const GearTemplate* g = worn(inv, slot)) {
+                if (std::strcmp(g->key, p.key_a) == 0) a = true;
+                if (std::strcmp(g->key, p.key_b) == 0) b = true;
+            }
+        if (a && b) return &p;
+    }
+    return nullptr;
 }
 
 GearSet Game::hero_set() const {

@@ -1466,8 +1466,9 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     $('vXp').textContent = h.xp + '/' + h.xpNext;
     $('barXp').style.width = pct(h.xp, h.xpNext) + '%';
 
-    $('tClass').textContent = h.setName ? h.className + ' · ' + h.setName : h.className;
-    $('tClass').title = h.setNote || '';
+    var kit = h.setName || h.pairName;
+    $('tClass').textContent = kit ? h.className + ' · ' + kit : h.className;
+    $('tClass').title = h.setNote || h.pairNote || '';
     $('tLevel').textContent = h.level;
     $('tAtk').textContent = h.attack;
     $('tDef').textContent = h.defence;
@@ -1598,7 +1599,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
     var rows = state.inventory.map(function (it, i) {
       return '<button class="row-item" data-index="' + it.i + '">' +
         '<span class="key">' + letterFor(i) + '</span>' +
-        '<span class="body"><b>' + esc(it.glyph) + ' ' + esc(it.name) +
+        '<span class="body"><b' + (it.cursed ? ' style="color:var(--bad)"' : '') + '>' +
+        esc(it.glyph) + ' ' + esc(it.name) +
         (it.count > 1 ? ' &times;' + it.count : '') + '</b>' +
         (it.note ? '<small>' + esc(it.note) + '</small>' : '') + '</span>' +
         deltaHtml(it.delta) +

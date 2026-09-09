@@ -61,6 +61,18 @@ struct GearSetInfo {
 const std::vector<GearSetInfo>& gear_set_table();
 const GearSetInfo& gear_set_info(GearSet s);
 
+/// A two-piece matched pair: a lighter commitment than a full set. One power for
+/// wearing both halves; each half is an ordinary stat item on its own.
+struct GearPair {
+    const char* key_a;
+    const char* key_b;
+    Text name;
+    Text note;
+    std::uint32_t powers;   ///< GearPower bits, granted only while both are worn.
+};
+
+const std::vector<GearPair>& gear_pair_table();
+
 /// One item, either on the floor or in the pack.
 struct Item {
     ItemKind kind{ItemKind::Gold};
@@ -69,6 +81,10 @@ struct Item {
     int enchant{0};      ///< +N from altars; adds to power for gear.
     int count{1};        ///< Stack size; only gold and consumables stack.
     bool identified{false};
+    /// A cursed piece of gear cannot be taken off, dropped or swapped out once
+    /// worn — only a Scroll of Remove Curse frees the slot. Unknown until it is
+    /// put on for the first time.
+    bool cursed{false};
     Vec2 pos{-1, -1};    ///< Valid only while the item lies on the floor.
 
     bool is_gear() const {

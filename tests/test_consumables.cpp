@@ -166,13 +166,22 @@ TEST(Potions, BewildermentConfusesTheDrinker) {
 // --- Scrolls ---------------------------------------------------------------
 
 TEST(Scrolls, EveryKindCanBeReadAndIdentifiesItself) {
-    for (int kind = 0; kind < static_cast<int>(ScrollKind::Count); ++kind) {
+    // The shuffled scrolls learn their name the first time they are read. Remove
+    // Curse is the exception: it is never a random find and is placed already
+    // identified, so it is checked on its own below.
+    for (int kind = 0; kind < static_cast<int>(ScrollKind::Uncurse); ++kind) {
         Lab lab;
         lab.spawn("upyr", {22, 15}, 300);  // give the offensive scrolls a target
         EXPECT_TRUE(lab.consume(ItemKind::Scroll, kind)) << "scroll " << kind << " was refused";
         EXPECT_TRUE(lab.game.identification().knows(ItemKind::Scroll, kind))
             << "scroll " << kind << " stayed unidentified after being read";
     }
+}
+
+TEST(Scrolls, RemoveCurseCanBeRead) {
+    Lab lab;
+    EXPECT_TRUE(lab.consume(ItemKind::Scroll, static_cast<int>(ScrollKind::Uncurse)))
+        << "the Remove Curse scroll was refused";
 }
 
 TEST(Scrolls, FireballAndLightningDamageNearbyCreatures) {

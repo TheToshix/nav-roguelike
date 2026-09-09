@@ -8,7 +8,7 @@
 [![CI](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/ci.yml)
 [![Pages](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml/badge.svg)](https://github.com/TheToshix/nav-roguelike/actions/workflows/pages.yml)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white)](CMakeLists.txt)
-[![Tests](https://img.shields.io/badge/tests-419-4c9a5a)](tests/)
+[![Tests](https://img.shields.io/badge/tests-426-4c9a5a)](tests/)
 [![Coverage](https://img.shields.io/badge/coverage-94%25-4c9a5a)](docs/TEST_PLAN.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -255,7 +255,7 @@ beast('volkolak', {'1': '#4a3520', '2': '#6f4f2d', '3': '#8f6b40', 'w': '#e8e0d0
 | **Классы** | Шесть, и у трёх из них не разброс характеристик, а своя механика (см. ниже) |
 | **Бестиарий** | 22 вида с разными повадками: погоня, стрельба, бегство при ранении, призыв подмоги, хаотичное движение, поджог пола под собой; один — не всегда враг |
 | **Боссы** | Восемь: четыре хозяина поясов и четыре меньших стража. У каждого своя механика и две-три фазы |
-| **Предметы** | 31 вид снаряжения (12 из них — четыре набора со своими механиками), 8 зелий, 8 свитков; зелья и свитки не подписаны, пока их не испробуешь |
+| **Предметы** | 33 вида снаряжения (четыре набора из трёх частей и одна пара из двух — бонус за обе сразу; часть находок проклята и не снимается без свитка), 8 зелий, 9 свитков; зелья и свитки не подписаны, пока их не испробуешь |
 | **Магия** | 6 заклятий с наведением по линии видимости |
 | **Эффекты** | Яд, горение, оковы, морок, слепота, спешка, замедление, регенерация, ярость, оберег, сон |
 | **Бестиарий-кодекс** | Экран (`v` или меню) со списком нечисти: строка открывается при первой встрече, прогресс лежит в сохранении |
@@ -380,7 +380,7 @@ cmake --build build -j
 ### Тесты
 
 ```bash
-ctest --test-dir build --output-on-failure    # 419 тест
+ctest --test-dir build --output-on-failure    # 426 тест
 ./build/nav --demo 20                         # 20 полных партий без экрана
 ./build/nav --sweep 4                         # обходчик: дойти до дна и убить всех стражей
 ```
@@ -450,7 +450,7 @@ WASD не работает (см. [NAV-016](docs/BUG_REPORTS.md)).
 
 | | |
 |---|---|
-| Юнит- и интеграционных тестов | **419** в 51 наборе |
+| Юнит- и интеграционных тестов | **426** в 51 наборе |
 | Покрытие движка по строкам | **94%** |
 | Платформы в CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
 | Дополнительно в CI | ASan + UBSan, `-Werror`, отчёт покрытия, 20 полных партий без экрана, обходчик до 16 этажа, сборка WebAssembly |
@@ -492,7 +492,7 @@ engine/          ядро: правила игры, без ввода-вывод
 frontend/
   terminal/      ANSI-рендер, сырой ввод с клавиатуры и бот для прогонов
   web/           C-обёртка для WebAssembly, страница игры и спрайты
-tests/           419 тест на GoogleTest
+tests/           426 тест на GoogleTest
 docs/            как запустить, архитектура, тест-план, тест-кейсы, багрепорты
 tools/           сборка веб-версии
   sprites/       пиксель-графика как текст и генератор из неё

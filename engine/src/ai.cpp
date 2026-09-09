@@ -80,14 +80,10 @@ void Game::update_boss_phase(Monster& m) {
     m.charge = 0;
     m.summon_cooldown = 0;
 
-    // Баба-Яга calls a hut back when she is nearly done. It is the one phase
-    // change in the game that restores a boss's defence, and it is announced a
-    // line earlier, so the player knows to knock it down again rather than
-    // wondering why their damage stopped landing.
-    if (std::strcmp(sp.key, "babayaga") == 0 && m.phase == 3) {
-        const int hut = species_index("izbushka");
-        if (hut >= 0) spawn_species(mutable_level(), hut, m.a.pos, 3);
-    }
+    // Баба-Яга calls a hut back when she is nearly done — but that is done on
+    // her own turn (see boss_turn), not here: this runs inside damage_monster,
+    // and a spawn here can move the monster vector out from under the reference
+    // that function is still holding (docs/BUG_REPORTS.md, NAV-021).
 }
 
 /// A jet of fire along the line towards `target`, up to `length` cells.
@@ -177,6 +173,18 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
     // unwilling to stand still for a trade.
     if (std::strcmp(sp.key, "babayaga") == 0 && m.phase >= 2) m.a.speed = 145;
 
+    // Her third phase raises a fresh hut. Done here, on her turn, rather than
+    // in update_boss_phase: that runs inside damage_monster, which holds a
+    // reference to her that a spawn's vector growth would invalidate (NAV-021).
+    // `m.revives` — unused by her otherwise — latches it to once.
+    if (std::strcmp(sp.key, "babayaga") == 0 && m.phase >= 3 && m.revives == 0) {
+        m.revives = 1;
+        const int hut = species_index("izbushka");
+        const Vec2 origin = m.a.pos;
+        if (hut >= 0) spawn_species(mutable_level(), hut, origin, 3);
+        return true;
+    }
+
     if (std::strcmp(sp.key, "babayaga") == 0 && huts_standing()) {
         if (m.summon_cooldown > 0) --m.summon_cooldown;
         else if (sees_hero && rng_.chance(50)) { monster_summon(m); return true; }
@@ -206,7 +214,9 @@ bool Game::boss_turn(Monster& m, const Species& sp, bool sees_hero, int distance
         }
         if (m.phase >= 3) {
             if (m.summon_cooldown > 0) --m.summon_cooldown;
-            else if (sees_hero && rng_.chance(45)) { monster_summon(m); m.summon_cooldown = 4; return true; }
+            // monster_summon sets its own cooldown; touching `m` after it
+            // returns would be a use-after-free (NAV-021).
+            else if (sees_hero && rng_.chance(45)) { monster_summon(m); return true; }
         }
     }
 
@@ -743,15 +753,22 @@ void Game::monster_summon(Monster& m) {
     const int pick = rng_.weighted(weights);
     if (pick < 0) return;
 
+    // Everything read from `m` is taken now: spawn_species pushes onto the
+    // monster vector, which can reallocate and leave `m` dangling — a
+    // heap-use-after-free the sanitisers caught on a deep sweep
+    // (docs/BUG_REPORTS.md, NAV-021).
     const int wanted = 1 + rng_.below(2);
+    m.summon_cooldown = 6 + rng_.below(6);
+    const Vec2 origin = m.a.pos;
+    const Text who = monster_name(m);
+    const bool seen = map().visible(origin);
+
     int spawned = 0;
     for (int i = 0; i < wanted; ++i)
-        if (spawn_species(mutable_level(), pick, m.a.pos, 3)) ++spawned;
+        if (spawn_species(mutable_level(), pick, origin, 3)) ++spawned;
 
-    m.summon_cooldown = 6 + rng_.below(6);
-    if (spawned > 0 && map().visible(m.a.pos))
-        message(format(Text{"{} зовёт подмогу!", "{} calls for help!"}, monster_name(m)),
-                Severity::Critical);
+    if (spawned > 0 && seen)
+        message(format(Text{"{} зовёт подмогу!", "{} calls for help!"}, who), Severity::Critical);
 }
 
 }  // namespace nav

@@ -31,10 +31,11 @@ constexpr const char* kMagic = "NAV";
 // bestiary rows the hero has unlocked by sight. Version 7 adds the achievement
 // watchers — whether the run has used run or auto-explore, whether it has taken
 // damage, and how deep it got before it did — so a resumed run keeps its shot
-// at "no damage" and "on foot".
+// at "no damage" and "on foot". Version 8 adds the cursed flag on every item
+// and a ninth scroll (Remove Curse).
 // There is no migration: an older save is refused rather than loaded as
 // something it is not — see docs/TEST_CASES.md, "what stayed unchecked".
-constexpr int kFormatVersion = 7;
+constexpr int kFormatVersion = 8;
 
 /// Escapes a string into a single whitespace-free token.
 std::string encode_string(const std::string& s) {
@@ -182,16 +183,18 @@ bool read_actor(Reader& r, Actor& a) {
 
 void write_item(Writer& w, const Item& it) {
     w << static_cast<int>(it.kind) << it.subtype << it.power << it.enchant << it.count
-      << (it.identified ? 1 : 0) << it.pos.x << it.pos.y;
+      << (it.identified ? 1 : 0) << it.pos.x << it.pos.y << (it.cursed ? 1 : 0);
 }
 
 bool read_item(Reader& r, Item& it) {
-    int kind = 0, ident = 0;
-    r >> kind >> it.subtype >> it.power >> it.enchant >> it.count >> ident >> it.pos.x >> it.pos.y;
+    int kind = 0, ident = 0, cursed = 0;
+    r >> kind >> it.subtype >> it.power >> it.enchant >> it.count >> ident >> it.pos.x >>
+        it.pos.y >> cursed;
     if (!r.ok() || kind < 0 || kind > static_cast<int>(ItemKind::Feather)) return false;
     if (it.count < 0 || it.count > 1000000) return false;
     it.kind = static_cast<ItemKind>(kind);
     it.identified = ident != 0;
+    it.cursed = cursed != 0;
     return true;
 }
 
