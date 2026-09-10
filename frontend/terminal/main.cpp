@@ -345,7 +345,7 @@ struct Ui {
         out += "\x1b[38;5;180m";
         out += lang == Lang::Ru ? "  НАВЬ  " : "   NAV  ";
         out += "\x1b[0m\x1b[38;5;244m";
-        out += lang == Lang::Ru ? "— спуск в двенадцать кругов" : "— a descent through twelve circles";
+        out += lang == Lang::Ru ? "— спуск в шестнадцать кругов" : "— a descent through sixteen circles";
         out += "\x1b[0m\x1b[K\n";
 
         // --- Map + sidebar --------------------------------------------------
@@ -1022,8 +1022,8 @@ bool title_screen(Ui& ui, GameConfig& cfg) {
 )";
         out += "\x1b[0m\n";
         out += ui.lang == Lang::Ru
-                   ? "        \x1b[38;5;244mСпуск в двенадцать кругов подземного мира.\x1b[0m\n\n"
-                   : "        \x1b[38;5;244mA descent through twelve circles of the underworld.\x1b[0m\n\n";
+                   ? "        \x1b[38;5;244mСпуск в шестнадцать кругов подземного мира.\x1b[0m\n\n"
+                   : "        \x1b[38;5;244mA descent through sixteen circles of the underworld.\x1b[0m\n\n";
 
         const auto& classes = class_table();
         for (std::size_t i = 0; i < classes.size(); ++i) {

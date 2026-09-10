@@ -5,8 +5,8 @@
   var LANG = 'ru';
   var T = {
     ru: {
-      tagline: 'Спуск в двенадцать кругов подземного мира.',
-      built: 'Игровое ядро на C++20, собрано в WebAssembly. Тот же код играется в терминале.',
+      tagline: 'Спуск в шестнадцать кругов подземного мира.',
+      built: 'Игровое ядро на C++17, собрано в WebAssembly. Тот же код играется в терминале.',
       lblClass: 'Кем спускаешься', lblSeed: 'Зерно (необязательно)', lblBelts: 'Четыре пояса, восемь стражей',
       seedHint: 'Одно и то же зерно всегда даёт одно и то же подземелье — так воспроизводится любая находка или баг.',
       start: 'Спуститься', daily: 'Ежедневный', dailyHint: 'Общий для всех сид дня', cont: 'Продолжить', help: 'Как играть', bestiary: 'Бестиарий',
@@ -70,8 +70,8 @@
       tips: 'Зелья и свитки не подписаны, пока их не испробуешь. Голод идёт всегда — ешь.'
     },
     en: {
-      tagline: 'A descent through twelve circles of the underworld.',
-      built: 'The game core is C++20, compiled to WebAssembly. The same code plays in a terminal.',
+      tagline: 'A descent through sixteen circles of the underworld.',
+      built: 'The game core is C++17, compiled to WebAssembly. The same code plays in a terminal.',
       lblClass: 'Who goes down', lblSeed: 'Seed (optional)', lblBelts: 'Four belts, eight guardians',
       seedHint: 'The same seed always builds the same dungeon — that is how any find, or any bug, is reproduced.',
       start: 'Descend', daily: 'Daily', dailyHint: "Everyone's shared seed for today", cont: 'Continue', help: 'How to play', bestiary: 'Bestiary',
