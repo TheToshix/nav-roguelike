@@ -198,9 +198,18 @@ here: `frontend/web/music.js` is a small Web Audio synth that builds a drone, a 
 motif out of oscillators and filtered noise, in modal minor scales, opening up as the fight
 gets worse.
 
-It is not checked by ear. Each theme is rendered through an `OfflineAudioContext` and measured:
-there is signal, the third phase is measurably louder than the first, and no phase change
-leaves a discontinuity big enough to be heard as a click.
+It is not checked by ear. `tests/web/music.test.mjs` drives a headless browser, renders each of
+the eight themes through an `OfflineAudioContext` and measures: every phase makes a sound, the
+third phase is at least 1.3x the first, the mix does not clip, and the waveform stays continuous
+across a phase change.
+
+That last one is a guardrail rather than a measurement, and it is worth saying why. A phase
+change is a gain ramp over oscillators that keep running underneath it, so this synth cannot
+produce a large discontinuity there whatever the crossfade does: at the normal 1.5 s crossfade
+the largest step across all eight themes is 6.9% of peak, and cutting the crossfade to half a
+millisecond raises it only to 10.0%. The test does not catch that, and no threshold that did
+would sit far enough from 6.9% to be stable. What it does catch is a transition rewritten to
+swap buffers or restart an oscillator — a real break.
 
 ## What is interesting about it, engineering-wise
 
@@ -425,7 +434,7 @@ reproduction steps and fixes.
 | Unit and integration tests | **457** across 59 suites |
 | Engine line coverage | measured by the `coverage` CI job, printed into the run summary |
 | Platforms in CI | Linux (GCC, Clang), macOS, Windows (MSVC) |
-| Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build, ESLint over the page code |
+| Also in CI | ASan + UBSan, `-Werror`, a coverage report, 20 headless games, a sweep to floor 16, the WebAssembly build, ESLint over the page code, the eight guardian themes measured in a headless browser |
 | Seed portability | fingerprints of all 16 floors are checked in, so the platforms are compared against each other rather than each against itself |
 
 Two approaches paid off more than anything else:

@@ -1,0 +1,12 @@
+{
+  "name": "nav-web-tests",
+  "private": true,
+  "type": "module",
+  "description": "Headless-browser tests for the browser frontend. Scoped to this directory on purpose: the C++ build never sees it.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "playwright": "1.56.0"
+  }
+}
