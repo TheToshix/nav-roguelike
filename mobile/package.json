@@ -1,0 +1,10 @@
+{
+  "name": "nav-mobile",
+  "private": true,
+  "description": "Android wrapper for the browser build. The android/ project is generated, never committed — see README.md in this directory.",
+  "devDependencies": {
+    "@capacitor/cli": "8.5.1",
+    "@capacitor/core": "8.5.1",
+    "@capacitor/android": "8.5.1"
+  }
+}

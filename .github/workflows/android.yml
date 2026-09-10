@@ -1,0 +1,158 @@
+name: Android bundle
+
+# Builds the Google Play upload bundle (.aab) and, for convenience, an .apk that
+# can be side-loaded onto a phone to try the thing before anyone uploads it.
+#
+# Run it by hand from the Actions tab, or let a tag build it. It is deliberately
+# not on every push: it takes several minutes and needs the signing key.
+#
+# -- Before the first run --
+#
+# Four repository secrets have to exist (Settings -> Secrets and variables ->
+# Actions). docs/ANDROID.md walks through making them; in short, the keystore is
+# generated once with keytool, base64-encoded, and pasted in. Lose it and you
+# can never update the app on Play again, so keep the original file somewhere
+# safe as well.
+#
+#   ANDROID_KEYSTORE_BASE64   the .jks file, base64-encoded
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version shown to players, e.g. 1.0.0'
+        required: true
+        default: '1.0.0'
+      version_code:
+        description: 'Version code — a whole number that must increase with every upload to Play'
+        required: true
+        default: '1'
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Build and sign
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- The game itself ------------------------------------------------
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+          actions-cache-folder: emsdk-cache
+
+      - name: Build the WebAssembly target
+        run: |
+          emcmake cmake -S . -B build-web \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNAV_BUILD_TESTS=OFF \
+            -DNAV_BUILD_TERMINAL=OFF
+          cmake --build build-web --parallel
+
+      # The same packaging the published page uses, into Capacitor's www. The
+      # app therefore ships exactly what the website serves — there is no second
+      # build of the frontend that could drift from the first.
+      - name: Assemble the web assets
+        run: |
+          python3 tools/inline_sprites.py mobile/www
+          cp build-web/nav.js mobile/www/nav.js
+          ls -la mobile/www
+
+      # --- The Android project --------------------------------------------
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Generate the Android project
+        working-directory: mobile
+        run: |
+          npm install --no-package-lock
+          npx cap add android
+          npx cap sync android
+
+      # Capacitor writes a default 1 / "1.0" into the generated Gradle file.
+      # Play refuses an upload whose versionCode it has seen before, so the
+      # number comes from the workflow input (or from the tag) instead.
+      - name: Stamp the version
+        working-directory: mobile
+        run: |
+          NAME="${{ github.event.inputs.version_name }}"
+          CODE="${{ github.event.inputs.version_code }}"
+          if [ -z "$NAME" ]; then NAME="${GITHUB_REF_NAME#v}"; fi
+          if [ -z "$CODE" ]; then CODE="${GITHUB_RUN_NUMBER}"; fi
+          echo "versionName=$NAME versionCode=$CODE"
+          sed -i "s/versionCode 1$/versionCode $CODE/"          android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"$NAME\"/" android/app/build.gradle
+          grep -nE 'versionCode|versionName' android/app/build.gradle
+
+      # The launcher icon, from the game's own pixel art rather than Capacitor's
+      # placeholder. Every density gets the same drawing scaled with
+      # nearest-neighbour, which is what keeps it a drawing and not a smudge.
+      - name: Install the launcher icon
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 tools/icons/android.py mobile/android/app/src/main/res
+
+      - name: Build the bundle and the apk
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease assembleRelease --no-daemon
+
+      # --- Signing ---------------------------------------------------------
+      #
+      # Play will not accept an unsigned upload. Signing the .aab with jarsigner
+      # rather than configuring Gradle keeps the key out of any file on disk
+      # that a later step could accidentally archive.
+      - name: Sign
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set — see docs/ANDROID.md"
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > /tmp/upload.jks
+          for artefact in \
+            mobile/android/app/build/outputs/bundle/release/app-release.aab \
+            mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          do
+            [ -f "$artefact" ] || continue
+            jarsigner -verbose:summary \
+              -keystore /tmp/upload.jks \
+              -storepass "$STORE_PASS" -keypass "$KEY_PASS" \
+              -sigalg SHA256withRSA -digestalg SHA-256 \
+              "$artefact" "$KEY_ALIAS" > /dev/null
+            jarsigner -verify "$artefact" | tail -1
+          done
+          rm -f /tmp/upload.jks
+
+      - name: Collect
+        run: |
+          mkdir -p out
+          find mobile/android/app/build/outputs -name '*.aab' -o -name '*.apk' | while read -r f; do
+            cp "$f" out/
+          done
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-bundle
+          path: out
+          retention-days: 14

@@ -1,0 +1,12 @@
+{
+  "appId": "com.thetoshix.nav",
+  "appName": "Навь",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#14110f"
+  }
+}
