@@ -1,0 +1,21 @@
+{
+  "name": "Навь",
+  "short_name": "Навь",
+  "description": "Пошаговый роглайк по мотивам славянской нечисти. Шестнадцать этажей вниз, смерть окончательна.",
+  "id": "/nav-roguelike/",
+  "start_url": ".",
+  "scope": ".",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#14110f",
+  "theme_color": "#14110f",
+  "lang": "ru",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-64.png",       "sizes": "64x64",   "type": "image/png" },
+    { "src": "icons/icon-192.png",      "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png",      "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -25,6 +25,17 @@ import sys
 INLINE_SCRIPTS = ('app.js', 'sprites.js', 'music.js')
 INLINE_STYLES = ('app.css',)
 
+# Shipped beside the page as their own files. See the note in main().
+COPIED = (
+    'privacy.html',
+    'manifest.webmanifest',
+    'favicon.png',
+    'icons/icon-64.png',
+    'icons/icon-192.png',
+    'icons/icon-512.png',
+    'icons/icon-maskable.png',
+)
+
 
 def main(argv):
     if len(argv) != 2:
@@ -51,6 +62,19 @@ def main(argv):
     out = dist / 'index.html'
     out.write_text(page, encoding='utf-8')
     print('%s (%.1f KB)' % (out, out.stat().st_size / 1024))
+
+    # Copied rather than folded in. A web app manifest has to be a URL the
+    # browser can fetch — it is what makes the game installable and what the
+    # phone reads its name and icon from — and the icons it points at are
+    # binaries. Folding these in was possible with data: URIs and not worth it:
+    # the manifest would stop being readable, and the whole point of keeping
+    # the art as text is that a person can read it.
+    for name in COPIED:
+        src = web / name
+        target = dist / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(src.read_bytes())
+        print('%s (%.1f KB)' % (target, target.stat().st_size / 1024))
 
 
 if __name__ == '__main__':

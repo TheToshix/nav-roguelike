@@ -33,8 +33,9 @@ mkdir -p "$dist"
 
 # The pixel art is authored as text and generated into sprites.js first. The
 # inliner then folds the stylesheet, the page script and both generated files
-# into index.html, which keeps dist/ at two files and keeps the published page
-# from needing four more requests before it can draw anything.
+# into index.html, which keeps the published page from needing four more
+# requests before it can draw anything. The manifest, the icons and the privacy
+# policy are copied beside it instead: those have to be addressable.
 python3 "$root/tools/sprites/build.py" >/dev/null
 python3 "$root/tools/inline_sprites.py" "$dist" >/dev/null
 cp "$build/nav.js" "$dist/nav.js"
