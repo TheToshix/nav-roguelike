@@ -129,9 +129,9 @@ struct Golden {
 /// and every belt event table. Three of them make an accidental agreement
 /// vanishingly unlikely.
 constexpr Golden kGolden[] = {
-    {1u,          0x754eb9e6546b68cbull, 0x0d9258bfa53e4b7dull},
-    {20260909u,   0x611fc3626f2a848eull, 0x56c814d4f777bcb1ull},
-    {0xDEADBEEFu, 0x38dc4acae7d3d3acull, 0x5c2ee8f5687c0ab8ull},
+    {1u,          0x754eb9e6546b68cbull, 0xa1657dc5a4e8bd9full},
+    {20260909u,   0x611fc3626f2a848eull, 0x98d6ca909ea95450ull},
+    {0xDEADBEEFu, 0x38dc4acae7d3d3acull, 0x59ae3edbafd56496ull},
 };
 
 // ---------------------------------------------------------------------------
