@@ -8,7 +8,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include <utility>
 
 #include "nav/game.hpp"
 
@@ -399,16 +398,20 @@ TEST(Save, RejectsAHeroStandingOffTheMap) {
     // Out of bounds is not a crash — Map reports wall outside its grid — which
     // is exactly why it has to be refused here. Loaded, it would be a run in a
     // corner of nothing that no monster can reach and no stair can end.
-    for (const auto& spot : {std::pair<const char*, const char*>{"9999", "-9999"},
-                             {"-1", "5"},
-                             {"5", "-1"},
-                             {"72", "5"}}) {
+    // Spelt out as a plain array rather than a braced initialiser list. Deducing
+    // `auto` from a list whose first element carries the type and whose rest are
+    // bare braces is legal, and MSVC does not accept it.
+    struct Spot { const char* x; const char* y; };
+    static const Spot kOffTheMap[] = {
+        {"9999", "-9999"}, {"-1", "5"}, {"5", "-1"}, {"72", "5"},
+    };
+    for (const Spot& spot : kOffTheMap) {
         std::vector<std::string> doctored = tokens;
-        doctored[kHeroPosX] = spot.first;
-        doctored[kHeroPosY] = spot.second;
+        doctored[kHeroPosX] = spot.x;
+        doctored[kHeroPosY] = spot.y;
         Game restored;
         EXPECT_FALSE(restored.load(rejoin(doctored)))
-            << "accepted a hero at " << spot.first << "," << spot.second;
+            << "accepted a hero at " << spot.x << "," << spot.y;
     }
 
     // The untouched save still loads, so the check rejects the doctoring and
