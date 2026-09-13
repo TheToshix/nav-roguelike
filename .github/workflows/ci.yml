@@ -44,8 +44,20 @@ jobs:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
 
+      # Compiler errors are echoed into the job's annotations, not just left in
+      # the log. Logs need a signed-in account even on a public repository;
+      # annotations do not. Without this, a failure on a platform you do not
+      # own is a red cross with no text next to it — which is exactly how the
+      # first Windows failure here was met.
       - name: Build
-        run: cmake --build build --config Release --parallel
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! cmake --build build --config Release --parallel 2>&1 | tee build.log; then
+            grep -iE "error [A-Z]+[0-9]+|error:|fatal error" build.log | head -20 |
+              while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
 
       - name: Run unit tests
         run: ctest --test-dir build --build-config Release --output-on-failure
