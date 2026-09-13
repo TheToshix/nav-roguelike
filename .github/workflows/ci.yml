@@ -146,10 +146,34 @@ jobs:
         run: python3 -m pip install --quiet pillow
       - name: Regenerate
         run: python3 tools/sprites/build.py
-      - name: Fail if the checked-in artwork is stale
+      # sprites.js is what ships, it is text, and it regenerates byte for byte
+      # anywhere — so it is compared exactly.
+      - name: Fail if the shipped artwork is stale
         run: |
-          git diff --exit-code -- frontend/web/sprites.js docs/media/sprites.png \
+          git diff --exit-code -- frontend/web/sprites.js \
             || { echo "::error::run tools/sprites/build.py and commit the result"; exit 1; }
+
+      # The contact sheet is compared by pixels, not by bytes. It is a picture
+      # for human eyes rather than something the game loads, and PNG encoding
+      # is not reproducible across Pillow versions — the same drawing saved by
+      # a different Pillow is a different file. Comparing bytes made this job
+      # fail on Linux for a picture that had not changed at all.
+      - name: Fail if the contact sheet is stale
+        run: |
+          git show HEAD:docs/media/sprites.png > /tmp/committed.png
+          python3 - <<'EOF'
+          from PIL import Image
+          import sys
+          a = Image.open('/tmp/committed.png').convert('RGBA')
+          b = Image.open('docs/media/sprites.png').convert('RGBA')
+          if a.size != b.size:
+              sys.exit('::error::contact sheet changed size %s -> %s; '
+                       'run tools/sprites/build.py and commit the result' % (a.size, b.size))
+          if a.tobytes() != b.tobytes():
+              sys.exit('::error::contact sheet pixels differ; '
+                       'run tools/sprites/build.py and commit the result')
+          print('contact sheet matches, pixel for pixel')
+          EOF
 
   # ---------------------------------------------------------------------------
   # The engine is compiled with -Wall -Wextra -Wpedantic -Wshadow -Werror on four

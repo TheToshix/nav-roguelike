@@ -5,6 +5,8 @@
 // These tests exist mostly to pin that behaviour down.
 #include <gtest/gtest.h>
 
+#include <cstring>
+
 #include "nav/data.hpp"
 #include "nav/entity.hpp"
 #include "nav/item.hpp"
