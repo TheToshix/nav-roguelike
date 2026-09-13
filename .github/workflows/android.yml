@@ -4,9 +4,14 @@ name: Android bundle
 # can be side-loaded onto a phone to try the thing before anyone uploads it.
 #
 # Run it by hand from the Actions tab, or let a tag build it. It is deliberately
-# not on every push: it takes several minutes and needs the signing key.
+# not on every push: it takes several minutes.
 #
-# -- Before the first run --
+# It runs with no secrets at all. Without a signing key it still produces
+# app-debug.apk, which installs on any phone and is the fastest way to find out
+# whether the game feels right on a touchscreen; only the Play upload bundle
+# needs the key.
+#
+# -- Before uploading to Play --
 #
 # Four repository secrets have to exist (Settings -> Secrets and variables ->
 # Actions). docs/ANDROID.md walks through making them; in short, the keystore is
@@ -106,17 +111,27 @@ jobs:
           python3 -m pip install --quiet pillow
           python3 tools/icons/android.py mobile/android/app/src/main/res
 
-      - name: Build the bundle and the apk
+      # Debug is built alongside release on purpose, and it is the one to reach
+      # for first. Gradle signs a debug build with the throwaway key that ships
+      # with the SDK, so app-debug.apk installs on any phone with no developer
+      # account, no keystore and no Play at all — which makes "does this feel
+      # right under a thumb" a question you can answer today rather than after
+      # the paperwork. It is not uploadable to Play; that is what the bundle is.
+      - name: Build the bundle and both apks
         working-directory: mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew bundleRelease assembleRelease --no-daemon
+          ./gradlew bundleRelease assembleRelease assembleDebug --no-daemon
 
       # --- Signing ---------------------------------------------------------
       #
       # Play will not accept an unsigned upload. Signing the .aab with jarsigner
       # rather than configuring Gradle keeps the key out of any file on disk
       # that a later step could accidentally archive.
+      #
+      # Missing secrets are a warning, not a failure. The build above is the
+      # part most likely to be wrong and the part worth testing first; making
+      # the whole run red for a key nobody has generated yet would hide that.
       - name: Sign
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -125,8 +140,8 @@ jobs:
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_B64" ]; then
-            echo "::error::ANDROID_KEYSTORE_BASE64 is not set — see docs/ANDROID.md"
-            exit 1
+            echo "::warning::No signing key configured, so the bundle is unsigned and Play will refuse it. Install app-debug.apk on a phone to try the game; see docs/ANDROID.md to set the key up."
+            exit 0
           fi
           echo "$KEYSTORE_B64" | base64 -d > /tmp/upload.jks
           for artefact in \
@@ -146,10 +161,16 @@ jobs:
       - name: Collect
         run: |
           mkdir -p out
-          find mobile/android/app/build/outputs -name '*.aab' -o -name '*.apk' | while read -r f; do
+          find mobile/android/app/build/outputs \( -name '*.aab' -o -name '*.apk' \) -print | while read -r f; do
             cp "$f" out/
           done
           ls -la out
+          echo "### Android build" >> "$GITHUB_STEP_SUMMARY"
+          for f in out/*; do
+            echo "- \`$(basename "$f")\` — $(du -h "$f" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`app-debug.apk\` installs on any phone without a developer account." >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
