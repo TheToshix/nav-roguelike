@@ -47,6 +47,7 @@ add_executable(nav_tests
   test_clarity.cpp
   test_arena.cpp
   test_portability.cpp
+  test_realtime.cpp
   test_integration.cpp
 )
 

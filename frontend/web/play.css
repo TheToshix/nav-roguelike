@@ -1,0 +1,257 @@
+/* SPDX-License-Identifier: MIT */
+/* The real-time page. One full-bleed canvas, a HUD in the corners, and the
+   thumbs' controls on a phone. Everything the player reads during a fight sits
+   at the edges so the middle — where the fight is — is never covered. */
+
+:root {
+  --ground: #0b0908;
+  --ink: #e7ddcc;
+  --ink-soft: #b3a893;
+  --gold: #d7b46a;
+  --blood: #d8574a;
+  --steel: #8fb3d9;
+  --panel: rgba(12, 10, 9, 0.72);
+  --edge: rgba(215, 180, 106, 0.28);
+}
+
+* { box-sizing: border-box; }
+/* Anything that sets its own display — the fire button is a grid — would
+   otherwise ignore the hidden attribute and stay on screen. */
+[hidden] { display: none !important; }
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--ground);
+  color: var(--ink);
+  font: 15px/1.45 ui-monospace, "DejaVu Sans Mono", Menlo, Consolas, monospace;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
+#stage { position: fixed; inset: 0; }
+#view {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* --- HUD ---------------------------------------------------------------- */
+
+#hud {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  display: grid;
+  gap: 6px;
+  pointer-events: none;
+}
+.bars { display: grid; gap: 5px; }
+.bar {
+  position: relative;
+  width: clamp(150px, 22vw, 220px);
+  height: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bar i, .bar b {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  transform-origin: left;
+}
+/* The pale trail behind the bar is what lets a player read how much a hit
+   took, after the number has already changed. */
+.bar b { background: rgba(255, 255, 255, 0.35); transition: width 0.45s ease-out 0.12s; }
+.bar i { z-index: 1; transition: width 0.08s linear; }
+.bar.hp i { background: linear-gradient(#e86a5c, #a8372c); }
+.bar.sh i { background: linear-gradient(#b5cfe8, #6b8fb6); }
+.bar span {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+  font-variant-numeric: tabular-nums;
+}
+.bar.hurt { animation: hurt 0.3s; }
+@keyframes hurt { 30% { transform: translateX(-3px); } 60% { transform: translateX(3px); } }
+
+.meta {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-shadow: 0 1px 2px #000;
+  font-variant-numeric: tabular-nums;
+}
+#coins { color: var(--gold); }
+
+#pauseBtn {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--edge);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* --- Banner: floor names, doors slamming, rooms cleared ------------------- */
+
+#banner {
+  position: absolute;
+  left: 50%;
+  top: 18%;
+  transform: translate(-50%, -8px);
+  padding: 8px 18px;
+  font-size: clamp(16px, 2.6vw, 24px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--gold);
+  text-shadow: 0 2px 8px #000, 0 0 2px #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  white-space: nowrap;
+}
+#banner.show { opacity: 1; transform: translate(-50%, 0); }
+#banner.alarm { color: #f08a78; }
+#banner small { display: block; font-size: 0.6em; color: var(--ink-soft); letter-spacing: 0.12em; }
+
+/* --- Touch controls -------------------------------------------------------- */
+
+#stick {
+  position: absolute;
+  width: 128px;
+  height: 128px;
+  margin: -64px 0 0 -64px;
+  pointer-events: none;
+}
+#stick .base {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  background: radial-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+}
+#stick .knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: rgba(231, 221, 204, 0.32);
+  border: 2px solid rgba(231, 221, 204, 0.5);
+}
+
+#fireBtn {
+  position: absolute;
+  right: max(28px, env(safe-area-inset-right));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  border: 2px solid rgba(215, 180, 106, 0.6);
+  background: radial-gradient(rgba(215, 180, 106, 0.3), rgba(90, 64, 24, 0.35));
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  touch-action: none;
+}
+#fireBtn svg { width: 40px; height: 40px; }
+#fireBtn.down { transform: scale(0.93); background: radial-gradient(rgba(215, 180, 106, 0.55), rgba(90, 64, 24, 0.5)); }
+
+/* --- Overlay: the start, the pause, the end ------------------------------- */
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 5, 4, 0.78);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#overlay[hidden] { display: none; }
+.sheet {
+  max-width: 460px;
+  width: 100%;
+  padding: 26px 26px 20px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: rgba(20, 17, 15, 0.92);
+  text-align: center;
+}
+.sheet h1 {
+  margin: 0 0 6px;
+  font-size: 34px;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+}
+.sheet h2 { margin: 0 0 8px; font-size: 22px; color: var(--gold); }
+.sheet .sub { margin: 0 0 18px; color: var(--ink-soft); text-wrap: balance; }
+.sheet .stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.sheet .stats div { padding: 8px 4px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px; }
+.sheet .stats b { display: block; font-size: 20px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sheet .stats span { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.06em; }
+.how { display: grid; gap: 6px; margin: 0 0 20px; font-size: 13px; color: var(--ink-soft); }
+kbd {
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.go {
+  padding: 12px 34px;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: linear-gradient(#5a4018, #3a2810);
+  color: #f5e3bb;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.go:hover { background: linear-gradient(#6c4d1d, #453013); }
+.hint { margin: 14px 0 0; font-size: 12px; }
+.hint a { color: var(--ink-soft); }
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+/* Touch devices get the thumbs' controls and lose the keyboard help. */
+@media (hover: hover) and (pointer: fine) { .how .touch { display: none; } }
+@media (pointer: coarse) { .how div:not(.touch) { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .bar.hurt { animation: none; }
+  #banner, .bar i, .bar b { transition: none; }
+}

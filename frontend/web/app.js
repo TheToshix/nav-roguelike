@@ -6,6 +6,7 @@
   var T = {
     ru: {
       tagline: 'Спуск в шестнадцать кругов подземного мира.',
+      realtime: 'Попробовать в реальном времени — прототип',
       built: 'Игровое ядро на C++17, собрано в WebAssembly. Тот же код играется в терминале.',
       lblClass: 'Кем спускаешься', lblSeed: 'Зерно (необязательно)', lblBelts: 'Четыре пояса, восемь стражей',
       seedHint: 'Одно и то же зерно всегда даёт одно и то же подземелье — так воспроизводится любая находка или баг.',
@@ -71,6 +72,7 @@
     },
     en: {
       tagline: 'A descent through sixteen circles of the underworld.',
+      realtime: 'Try it in real time — a prototype',
       built: 'The game core is C++17, compiled to WebAssembly. The same code plays in a terminal.',
       lblClass: 'Who goes down', lblSeed: 'Seed (optional)', lblBelts: 'Four belts, eight guardians',
       seedHint: 'The same seed always builds the same dungeon — that is how any find, or any bug, is reproduced.',
@@ -1457,6 +1459,7 @@
     if (Api) Api.setLanguage(LANG);
 
     $('tagline').textContent = t('tagline');
+    $('realtimeLink').textContent = t('realtime');
     $('builtWith').textContent = t('built');
     $('lblClass').textContent = t('lblClass');
     $('lblBelts').textContent = t('lblBelts');

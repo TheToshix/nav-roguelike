@@ -288,21 +288,28 @@ jobs:
           python3 tools/inline_sprites.py dist
           cp build-web/nav.js dist/
           touch dist/.nojekyll
-      - name: The published page carries its own art
+      - name: The published pages carry their own code and art
         run: |
-          for name in app.js sprites.js music.js; do
-            if grep -q "script src=\"$name\"" dist/index.html; then
-              echo "::error::$name was not inlined into dist/index.html"; exit 1
-            fi
-            if [ -f "dist/$name" ]; then
-              echo "::error::dist/$name should not be published separately"; exit 1
+          # Each page folds in its scripts and stylesheet; none of them may be
+          # left as a reference, or published beside the page as a loose file.
+          for page in index.html play.html; do
+            for name in app.js play.js sprites.js music.js; do
+              if grep -q "script src=\"$name\"" "dist/$page"; then
+                echo "::error::$name was not inlined into dist/$page"; exit 1
+              fi
+            done
+            for css in app.css play.css; do
+              if grep -q "stylesheet\" href=\"$css\"" "dist/$page"; then
+                echo "::error::$css was not inlined into dist/$page"; exit 1
+              fi
+            done
+          done
+          for loose in app.js play.js sprites.js music.js app.css play.css; do
+            if [ -f "dist/$loose" ]; then
+              echo "::error::dist/$loose should not be published separately"; exit 1
             fi
           done
-          if grep -q 'stylesheet" href="app.css"' dist/index.html; then
-            echo "::error::app.css was not inlined into dist/index.html"; exit 1
-          fi
-          [ -f dist/app.css ] && { echo "::error::dist/app.css should not be published"; exit 1; }
-          echo "ok: dist/index.html is self-contained"
+          echo "ok: dist/index.html and dist/play.html are self-contained"
       - uses: actions/upload-artifact@v4
         with:
           name: web

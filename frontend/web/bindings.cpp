@@ -11,6 +11,7 @@
 // into roughly 300 KB of JSON — enough to be felt on a phone. Three strings
 // plus a small colour palette bring the same information down to a few
 // kilobytes.
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -19,6 +20,7 @@
 #include "nav/achievements.hpp"
 #include "nav/game.hpp"
 #include "nav/keys.hpp"
+#include "nav/rt.hpp"
 #include "nav/score.hpp"
 
 #ifdef __EMSCRIPTEN__
@@ -759,6 +761,163 @@ EMSCRIPTEN_KEEPALIVE const char* nav_version() { return "1.0.0"; }
 EMSCRIPTEN_KEEPALIVE char* nav_daily_seed(double day_index) {
     return to_c_string(nav::daily_seed_text(static_cast<long long>(day_index)));
 }
+
+// --- The real-time game ---------------------------------------------------
+//
+// A second, separate world. The page calls nav_rt_step once per frame with
+// however many fixed steps have come due, then reads a frame back. The floor
+// itself is sent only when it changes — a door slams, the hero sees further,
+// a new floor begins — which is what keeps sixty frames a second down to a
+// few hundred bytes each.
+
+}  // extern "C"
+
+namespace {
+
+nav::rt::World g_rt;
+
+/// Short, fixed-precision numbers: a frame is mostly coordinates, and
+/// std::to_string would spend six decimals on each one.
+std::string fnum(float v) {
+    char buf[32];
+    std::snprintf(buf, sizeof buf, "%.3f", static_cast<double>(v));
+    return buf;
+}
+
+std::string build_rt_map_json() {
+    const nav::Map& m = g_rt.map();
+    const nav::ZoneTheme& theme = nav::zone_theme_for_depth(g_rt.depth());
+    std::string terrain, vis;
+    terrain.reserve(static_cast<std::size_t>(m.width() * m.height()));
+    vis.reserve(terrain.capacity());
+    StringTable keys;
+    for (int y = 0; y < m.height(); ++y) {
+        for (int x = 0; x < m.width(); ++x) {
+            const nav::Vec2 c{x, y};
+            terrain += keys.index_of(nav::tile_sprite_key(m.at(c)));
+            vis += m.visible(c) ? '2' : (m.explored(c) ? '1' : '0');
+        }
+    }
+    std::string out = "{";
+    bool first = true;
+    append_field(out, "rev", g_rt.map_revision(), first);
+    append_field(out, "depth", g_rt.depth(), first);
+    append_field(out, "w", m.width(), first);
+    append_field(out, "h", m.height(), first);
+    append_field(out, "zone", theme.name.get(g_lang), first);
+    append_field(out, "tintWall", std::string(theme.wall_color), first);
+    append_field(out, "tintFloor", std::string(theme.floor_color), first);
+    append_field(out, "tintLiquid", std::string(theme.liquid_color), first);
+    append_field(out, "terrain", terrain, first);
+    append_field(out, "vis", vis, first);
+    out += ",\"terrainKeys\":" + keys.to_json();
+    out += ",\"exit\":[" + std::to_string(g_rt.exit().x) + "," + std::to_string(g_rt.exit().y) + "]}";
+    return out;
+}
+
+std::string build_rt_frame_json() {
+    using namespace nav::rt;
+    const nav::Map& m = g_rt.map();
+    const Hero& h = g_rt.hero();
+    const auto seen = [&m](V p) {
+        return m.visible({static_cast<int>(p.x), static_cast<int>(p.y)});
+    };
+
+    std::string out = "{\"t\":" + fnum(g_rt.time());
+    out += ",\"depth\":" + std::to_string(g_rt.depth());
+    out += ",\"rev\":" + std::to_string(g_rt.map_revision());
+    out += std::string(",\"dead\":") + (g_rt.dead() ? "true" : "false");
+    out += std::string(",\"won\":") + (g_rt.won() ? "true" : "false");
+    out += std::string(",\"locked\":") + (g_rt.in_locked_room() ? "true" : "false");
+
+    out += ",\"hero\":{\"x\":" + fnum(h.pos.x) + ",\"y\":" + fnum(h.pos.y);
+    out += ",\"fx\":" + fnum(h.facing.x) + ",\"ax\":" + fnum(h.aim.x) + ",\"ay\":" + fnum(h.aim.y);
+    out += ",\"hp\":" + std::to_string(h.hp) + ",\"maxHp\":" + std::to_string(h.max_hp);
+    out += ",\"sh\":" + std::to_string(h.shield) + ",\"maxSh\":" + std::to_string(h.max_shield);
+    out += ",\"coins\":" + std::to_string(h.coins) + ",\"kills\":" + std::to_string(h.kills);
+    out += std::string(",\"inv\":") + (h.invulnerable > 0 ? "1" : "0");
+    out += std::string(",\"mv\":") + (h.moving ? "1" : "0");
+    out += std::string(",\"fire\":") + (h.firing ? "1" : "0");
+    out += ",\"key\":";
+    append_json_string(out, nav::hero_sprite_key(h.cls));
+    out += "}";
+
+    out += ",\"enemies\":[";
+    bool first = true;
+    for (const Enemy& e : g_rt.enemies()) {
+        if (!seen(e.pos)) continue;
+        const nav::Species& sp = nav::bestiary()[static_cast<std::size_t>(e.species)];
+        if (!first) out += ',';
+        first = false;
+        out += "{\"id\":" + std::to_string(e.id) + ",\"key\":";
+        append_json_string(out, sp.key);
+        out += ",\"x\":" + fnum(e.pos.x) + ",\"y\":" + fnum(e.pos.y);
+        out += ",\"hp\":" + std::to_string(e.hp) + ",\"max\":" + std::to_string(e.max_hp);
+        out += std::string(",\"hurt\":") + (e.hurt > 0 ? "1" : "0");
+        out += std::string(",\"awake\":") + (e.awake ? "1" : "0");
+        out += ",\"fx\":" + fnum(e.facing.x);
+        out += ",\"color\":";
+        append_json_string(out, sp.color);
+        out += ",\"glyph\":";
+        append_json_string(out, std::string(1, sp.glyph));
+        out += "}";
+    }
+    out += "]";
+
+    out += ",\"bullets\":[";
+    first = true;
+    for (const Bullet& b : g_rt.bullets()) {
+        if (!seen(b.pos)) continue;
+        if (!first) out += ',';
+        first = false;
+        out += "[" + fnum(b.pos.x) + "," + fnum(b.pos.y) + "," + (b.hero ? "1" : "0") + "]";
+    }
+    out += "]";
+
+    out += ",\"pickups\":[";
+    first = true;
+    for (const Pickup& p : g_rt.pickups()) {
+        if (!seen(p.pos)) continue;
+        if (!first) out += ',';
+        first = false;
+        out += "[" + std::to_string(p.id) + "," + std::to_string(static_cast<int>(p.kind)) + "," +
+               fnum(p.pos.x) + "," + fnum(p.pos.y) + "]";
+    }
+    out += "]";
+
+    out += ",\"events\":[";
+    first = true;
+    for (const Event& e : g_rt.take_events()) {
+        if (!first) out += ',';
+        first = false;
+        out += "[" + std::to_string(static_cast<int>(e.kind)) + "," + fnum(e.x) + "," + fnum(e.y) +
+               "," + std::to_string(e.amount) + "," + std::to_string(e.ref) + "]";
+    }
+    out += "]}";
+    return out;
+}
+
+}  // namespace
+
+extern "C" {
+
+EMSCRIPTEN_KEEPALIVE void nav_rt_start(double seed, int hero_class) {
+    if (hero_class < 0 || hero_class >= static_cast<int>(nav::HeroClass::Count)) hero_class = 0;
+    g_rt.start(static_cast<std::uint64_t>(seed), static_cast<nav::HeroClass>(hero_class));
+}
+
+/// Runs `steps` fixed ticks with the same input. The page decides how many
+/// have come due; capped here too, so a tab woken after a minute in the
+/// background does not try to simulate the whole minute in one frame.
+EMSCRIPTEN_KEEPALIVE void nav_rt_step(float move_x, float move_y, int fire, int steps) {
+    const nav::rt::Input in{move_x, move_y, fire != 0};
+    if (steps > 8) steps = 8;
+    for (int i = 0; i < steps; ++i) g_rt.step(in);
+}
+
+EMSCRIPTEN_KEEPALIVE char* nav_rt_map_json() { return to_c_string(build_rt_map_json()); }
+
+EMSCRIPTEN_KEEPALIVE char* nav_rt_frame_json() { return to_c_string(build_rt_frame_json()); }
 
 }  // extern "C"
 

@@ -22,8 +22,13 @@ import sys
 
 # Folded in, in the place their tag stands. Order does not matter: each entry
 # replaces its own tag.
-INLINE_SCRIPTS = ('app.js', 'sprites.js', 'music.js')
-INLINE_STYLES = ('app.css',)
+# Each published page and what gets folded into it: its scripts, then its
+# stylesheets. play.html is the real-time game; it shares the pixel art with
+# the turn-based page and nothing else.
+PAGES = (
+    ('index.html', ('app.js', 'sprites.js', 'music.js'), ('app.css',)),
+    ('play.html', ('play.js', 'sprites.js'), ('play.css',)),
+)
 
 # Shipped beside the page as their own files. See the note in main().
 COPIED = (
@@ -45,23 +50,25 @@ def main(argv):
     dist.mkdir(parents=True, exist_ok=True)
 
     web = root / 'frontend' / 'web'
-    page = (web / 'index.html').read_text(encoding='utf-8')
 
-    def fold(name, tag, open_tag, close_tag):
-        nonlocal page
-        if page.count(tag) != 1:
-            raise SystemExit('the %s tag moved; fix tools/inline_sprites.py' % name)
-        body = (web / name).read_text(encoding='utf-8')
-        page = page.replace(tag, open_tag + '\n' + body + close_tag)
+    for page_name, scripts, styles in PAGES:
+        page = (web / page_name).read_text(encoding='utf-8')
 
-    for name in INLINE_SCRIPTS:
-        fold(name, '<script src="%s"></script>' % name, '<script>', '</script>')
-    for name in INLINE_STYLES:
-        fold(name, '<link rel="stylesheet" href="%s">' % name, '<style>', '</style>')
+        def fold(name, tag, open_tag, close_tag, page=page):
+            if page.count(tag) != 1:
+                raise SystemExit('the %s tag moved in %s; fix tools/inline_sprites.py'
+                                 % (name, page_name))
+            body = (web / name).read_text(encoding='utf-8')
+            return page.replace(tag, open_tag + '\n' + body + close_tag)
 
-    out = dist / 'index.html'
-    out.write_text(page, encoding='utf-8')
-    print('%s (%.1f KB)' % (out, out.stat().st_size / 1024))
+        for name in scripts:
+            page = fold(name, '<script src="%s"></script>' % name, '<script>', '</script>', page)
+        for name in styles:
+            page = fold(name, '<link rel="stylesheet" href="%s">' % name, '<style>', '</style>', page)
+
+        out = dist / page_name
+        out.write_text(page, encoding='utf-8')
+        print('%s (%.1f KB)' % (out, out.stat().st_size / 1024))
 
     # Copied rather than folded in. A web app manifest has to be a URL the
     # browser can fetch — it is what makes the game installable and what the

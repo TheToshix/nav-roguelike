@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0908">
+<title>Навь — в реальном времени</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="play.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="view" aria-label="Подземелье"></canvas>
+
+  <div id="hud" aria-live="polite" hidden>
+    <div class="bars">
+      <div class="bar hp" title="Здоровье"><i></i><b></b><span></span></div>
+      <div class="bar sh" title="Щит — возвращается сам, если не получать урон"><i></i><b></b><span></span></div>
+    </div>
+    <div class="meta">
+      <span id="floor"></span>
+      <span id="coins"></span>
+    </div>
+  </div>
+
+  <button id="pauseBtn" type="button" aria-label="Пауза" hidden>❚❚</button>
+
+  <div id="banner" aria-live="assertive"></div>
+
+  <div id="stick" hidden>
+    <div class="base"></div>
+    <div class="knob"></div>
+  </div>
+  <button id="fireBtn" type="button" hidden aria-label="Стрелять">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21 14 10M14 10l-3-1 5-6 1 3 3 1-6 5zM6 18l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+
+  <div id="overlay">
+    <div class="sheet">
+      <h1>Навь</h1>
+      <p class="sub">Шестнадцать этажей вниз. Войдёшь в комнату — двери захлопнутся, пока не перебьёшь всех.</p>
+      <div class="how">
+        <div><kbd>WASD</kbd> или стрелки — идти</div>
+        <div><kbd>Пробел</kbd>, <kbd>J</kbd> или мышь — стрелять, прицел сам</div>
+        <div><kbd>Esc</kbd> — пауза</div>
+        <div class="touch">На телефоне: левый палец ведёт, правый стреляет</div>
+      </div>
+      <button id="goBtn" type="button" class="go">Спуститься</button>
+      <p class="hint"><a href="index.html">Пошаговая версия</a></p>
+    </div>
+  </div>
+</div>
+<script src="sprites.js"></script>
+<script src="nav.js"></script>
+<script src="play.js"></script>
+</body>
+</html>

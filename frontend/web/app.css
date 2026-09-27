@@ -653,3 +653,8 @@ img.g { image-rendering: pixelated; flex-shrink: 0; }
 @media (max-width: 620px) and (orientation: portrait) {
   .rotate-hint.show { display: block; }
 }
+
+/* The way into the real-time prototype. Quiet on purpose: the page it leads
+   to is an experiment, and the title screen belongs to the game that ships. */
+.realtime-link { margin: 14px 0 0; font-size: 13px; text-align: center; }
+.realtime-link a { color: var(--gold, #c8a45c); text-underline-offset: 3px; }
