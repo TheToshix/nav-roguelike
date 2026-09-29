@@ -12,6 +12,7 @@
   --steel: #8fb3d9;
   --panel: rgba(12, 10, 9, 0.72);
   --edge: rgba(215, 180, 106, 0.28);
+  --power: #8fa8ff;
 }
 
 * { box-sizing: border-box; }
@@ -73,6 +74,23 @@ html, body {
 .bar i { z-index: 1; transition: width 0.08s linear; }
 .bar.hp i { background: linear-gradient(#e86a5c, #a8372c); }
 .bar.sh i { background: linear-gradient(#b5cfe8, #6b8fb6); }
+.bar.en { height: 12px; }
+.bar.en i { background: linear-gradient(#b8c8ff, #5e6fc4); }
+.bar.en span { font-size: 10px; }
+
+/* The two hands. The one in use is lit; the other waits for E or the small
+   button. */
+#arms { display: flex; gap: 6px; flex-wrap: wrap; }
+#arms .slot {
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-shadow: 0 1px 2px #000;
+}
+#arms .slot.active { color: #f5e3bb; border-color: var(--gold); }
 .bar span {
   position: absolute;
   inset: 0;
@@ -112,6 +130,60 @@ html, body {
   font-size: 13px;
   cursor: pointer;
 }
+
+/* --- The guardian's bar ------------------------------------------------------ */
+
+#bossBar {
+  position: absolute;
+  left: 50%;
+  top: max(12px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  /* Between the hero's bars on the left and the pause on the right, never
+     over either. */
+  width: min(460px, calc(100vw - 2 * (clamp(150px, 22vw, 220px) + 32px)));
+  pointer-events: none;
+  text-align: center;
+  text-shadow: 0 1px 3px #000;
+}
+#bossBar .name {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #f08a78;
+}
+#bossPhases { color: var(--gold); letter-spacing: 0.1em; }
+/* Too narrow for three things abreast: the guardian goes under the bars. */
+@media (max-width: 560px) {
+  #bossBar { top: calc(max(10px, env(safe-area-inset-top)) + 96px); width: calc(100vw - 32px); }
+}
+.bar.boss { width: 100%; height: 10px; }
+.bar.boss i { background: linear-gradient(#e8604f, #8e2a20); }
+/* Guarded: blows land at a fraction, and the bar says so in the shield's
+   colour rather than in words the player has no time to read. */
+.bar.boss.guarded i { background: linear-gradient(#b5cfe8, #5d7fa6); }
+#bossBar .note { margin-top: 4px; font-size: 11px; color: var(--ink-soft); min-height: 1em; }
+
+/* What E would take, shown while standing on it. */
+#prompt {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 13px;
+  color: #f5e3bb;
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#prompt small { display: block; font-size: 10px; color: var(--ink-soft); }
 
 /* --- Banner: floor names, doors slamming, rooms cleared ------------------- */
 
@@ -179,6 +251,23 @@ html, body {
   touch-action: none;
 }
 #fireBtn svg { width: 40px; height: 40px; }
+#actBtn {
+  position: absolute;
+  right: calc(max(28px, env(safe-area-inset-right)) + 104px);
+  bottom: max(34px, env(safe-area-inset-bottom));
+  min-width: 58px;
+  height: 58px;
+  padding: 0 10px;
+  border-radius: 29px;
+  border: 2px solid rgba(143, 168, 255, 0.55);
+  background: rgba(40, 48, 90, 0.45);
+  color: #dfe6ff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  touch-action: none;
+}
+#actBtn.down { transform: scale(0.93); }
 #fireBtn.down { transform: scale(0.93); background: radial-gradient(rgba(215, 180, 106, 0.55), rgba(90, 64, 24, 0.5)); }
 
 /* --- Overlay: the start, the pause, the end ------------------------------- */
@@ -195,7 +284,9 @@ html, body {
 }
 #overlay[hidden] { display: none; }
 .sheet {
-  max-width: 460px;
+  max-width: 640px;
+  max-height: 100%;
+  overflow-y: auto;
   width: 100%;
   padding: 26px 26px 20px;
   border: 1px solid var(--edge);
@@ -220,6 +311,45 @@ html, body {
 .sheet .stats div { padding: 8px 4px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 4px; }
 .sheet .stats b { display: block; font-size: 20px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .sheet .stats span { font-size: 11px; color: var(--ink-soft); letter-spacing: 0.06em; }
+/* --- Choosing a hero --------------------------------------------------------- */
+
+#heroes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin: 0 0 18px;
+  text-align: left;
+}
+.hero {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hero:hover { border-color: rgba(215, 180, 106, 0.45); }
+.hero.on { border-color: var(--gold); background: rgba(90, 64, 24, 0.35); }
+.hero canvas { width: 48px; height: 48px; image-rendering: pixelated; }
+.hero .about { display: grid; gap: 2px; align-content: start; min-width: 0; }
+.hero b { font-size: 14px; color: var(--gold); }
+.hero .nums { display: flex; gap: 8px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.hero .nums i { font-style: normal; }
+.hero .nums .hp { color: #e8857a; }
+.hero .nums .hp::before { content: "♥ "; }
+.hero .nums .sh { color: var(--steel); }
+.hero .nums .sh::before { content: "⛨ "; }
+.hero .nums .en { color: var(--power); }
+.hero .nums .en::before { content: "⚡"; }
+.hero .arm { font-size: 11px; color: #f5e3bb; }
+.hero .perk { font-size: 11px; line-height: 1.3; color: var(--ink-soft); }
+
 .how { display: grid; gap: 6px; margin: 0 0 20px; font-size: 13px; color: var(--ink-soft); }
 kbd {
   padding: 1px 6px;
@@ -250,6 +380,21 @@ kbd {
 /* Touch devices get the thumbs' controls and lose the keyboard help. */
 @media (hover: hover) and (pointer: fine) { .how .touch { display: none; } }
 @media (pointer: coarse) { .how div:not(.touch) { display: none; } }
+
+/* A phone on its side has a screen barely taller than two rows of cards:
+   the choice keeps the room, the reading matter gives it up. */
+@media (max-height: 520px) {
+  .sheet { padding: 14px 16px 12px; }
+  .sheet h1 { font-size: 22px; margin-bottom: 8px; }
+  .sheet .intro, .how { display: none; }
+  #heroes { grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+  .hero { grid-template-columns: 32px 1fr; gap: 6px; padding: 6px; }
+  .hero canvas { width: 32px; height: 32px; }
+  .hero .about { gap: 0; }
+  .hero .perk { font-size: 10px; line-height: 1.25; }
+  .go { padding: 8px 28px; font-size: 15px; }
+  .hint { margin-top: 6px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .bar.hurt { animation: none; }

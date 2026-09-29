@@ -18,8 +18,24 @@
   var EV = {
     Shot: 0, EnemyShot: 1, BulletWall: 2, EnemyHit: 3, EnemyDied: 4, HeroHit: 5,
     ShieldHit: 6, ShieldBroken: 7, Pickup: 8, RoomLocked: 9, RoomCleared: 10,
-    Descended: 11, HeroDied: 12, Victory: 13
+    Descended: 11, HeroDied: 12, Victory: 13, Swing: 14, NoEnergy: 15,
+    WeaponTaken: 16, WeaponSwapped: 17, BossAppears: 18, BossPhase: 19, BossDied: 20,
+    GazeHit: 21, GazeMissed: 22, Frozen: 23, Revived: 24, NeedleShown: 25,
+    NeedleBroken: 26, Burrowed: 27, Emerged: 28, HutFell: 29, Shielded: 30
   };
+  // rt::Role, rt::PickupKind and rt::TelegraphKind, likewise.
+  var ROLE = { Normal: 0, Boss: 1, Hut: 2, Needle: 3, Illusion: 4 };
+  var PICK = { Coin: 0, Potion: 1, Energy: 2, Weapon: 3 };
+  var TG = { Ring: 0, Line: 1, Spot: 2, Cone: 3 };
+
+  // Per-viewer memory: the last hero chosen. Storage can be missing or refuse
+  // (a private window), and the page must play the same without it.
+  function remember(key, value) {
+    try { window.localStorage.setItem('nav.rt.' + key, String(value)); } catch (e) { /* no storage */ }
+  }
+  function recall(key) {
+    try { return window.localStorage.getItem('nav.rt.' + key); } catch (e) { return null; }
+  }
 
   var $ = function (id) { return document.getElementById(id); };
   var canvas = $('view');
@@ -103,10 +119,14 @@
     NavModule().then(function (m) {
       Api = {
         start: function (seed, cls) { m._nav_rt_start(seed, cls); },
-        step: function (mx, my, fire, n) { m._nav_rt_step(mx, my, fire ? 1 : 0, n); },
+        step: function (mx, my, fire, act, n) { m._nav_rt_step(mx, my, fire ? 1 : 0, act ? 1 : 0, n); },
+        floor: function (d, atBoss) { m._nav_rt_floor(d, atBoss ? 1 : 0); },
         map: function () { return JSON.parse(read(m, m._nav_rt_map_json())); },
-        frame: function () { return JSON.parse(read(m, m._nav_rt_frame_json())); }
+        frame: function () { return JSON.parse(read(m, m._nav_rt_frame_json())); },
+        catalog: function () { return JSON.parse(read(m, m._nav_rt_catalog_json())); }
       };
+      catalog = Api.catalog();
+      buildHeroPicker();
     });
   }
 
@@ -117,6 +137,10 @@
   var prevPos = {};      // id -> [x, y] one step before `cur`, for interpolation
   var lastEnemies = {};  // id -> enemy, to colour a death after it is gone
   var running = false, paused = false, over = false;
+  var catalog = null;    // weapons and heroes, read once
+  var chosen = 0;        // the hero class to start with
+  var choosing = true;   // the choosing screen is up
+  var slashes = [];      // melee swings being drawn
 
   // Camera, in cells, and the pixel size of a cell on this screen.
   var cam = { x: 0, y: 0 };
@@ -212,6 +236,7 @@
   var keys = {};
   var stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
   var fireTouch = null, mouseFire = false;
+  var actPending = false;   // a press of "take / swap", held until a step consumes it
 
   function moveVector() {
     if (stick.id !== null) return [stick.x, stick.y];
@@ -229,7 +254,9 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.code === 'Escape' || e.code === 'KeyP') { togglePause(); e.preventDefault(); return; }
-    if (e.code === 'Enter' && !running) { begin(); e.preventDefault(); return; }
+    if (choosing && e.code === 'Enter') { begin(); e.preventDefault(); return; }
+    if (choosing && /^Digit[1-6]$/.test(e.code)) { pickHero(Number(e.code.slice(5)) - 1); return; }
+    if ((e.code === 'KeyE' || e.code === 'KeyQ') && !e.repeat) actPending = true;
     keys[e.code] = true;
     if (e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault();
   });
@@ -307,6 +334,15 @@
   fireBtn.addEventListener('pointerup', releasePointer);
   fireBtn.addEventListener('pointercancel', releasePointer);
 
+  var actBtn = $('actBtn');
+  actBtn.addEventListener('pointerdown', function (e) {
+    actPending = true;
+    actBtn.classList.add('down');
+    e.preventDefault();
+  });
+  actBtn.addEventListener('pointerup', function () { actBtn.classList.remove('down'); });
+  actBtn.addEventListener('pointercancel', function () { actBtn.classList.remove('down'); });
+
   $('pauseBtn').addEventListener('click', togglePause);
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && running && !paused && !over) togglePause();
@@ -343,7 +379,24 @@
     el.classList.add('hurt');
   }
 
-  function handleEvents(events) {
+  function weaponName(i) {
+    return catalog && catalog.weapons[i] ? catalog.weapons[i].name : '';
+  }
+
+  // One line under a guardian's name: what the fight is asking of the player
+  // right now. Shown only while it is true, so it teaches without nagging.
+  var NOTE = {
+    babayaga: 'Пока стоят избы, по Яге почти не попасть',
+    koschei: 'Смерть Кощея — в игле',
+    viy: 'Встань за стену, когда поднимут веки',
+    morozko: 'Выйди из круга до выдоха',
+    polozh: 'Уходи с места, где дрожит земля',
+    gorynych: 'Уходи из-под пламени вбок',
+    vodyanoy: 'В воде он лечится',
+    mara: 'Ищи просвет в кольце'
+  };
+
+  function handleEvents(events, f) {
     for (var i = 0; i < events.length; i++) {
       var e = events[i], kind = e[0], x = e[1], y = e[2], amount = e[3], ref = e[4];
       switch (kind) {
@@ -383,10 +436,12 @@
         case EV.ShieldBroken:
           burst(x, y, '#a9c8ea', 10, 2.6, 0.35);
           break;
-        case EV.Pickup:
-          floater(x, y, '+' + amount, ref === 0 ? '#e8c46a' : '#7fd88a');
-          burst(x, y, ref === 0 ? '#e8c46a' : '#7fd88a', 6, 1.6, 0.25);
+        case EV.Pickup: {
+          var pc = ref === PICK.Coin ? '#e8c46a' : (ref === PICK.Energy ? '#8fa8ff' : '#7fd88a');
+          floater(x, y, '+' + amount, pc);
+          burst(x, y, pc, 6, 1.6, 0.25);
           break;
+        }
         case EV.RoomLocked:
           banner('Двери захлопнулись', true);
           kick(0.22);
@@ -404,6 +459,79 @@
           break;
         case EV.Victory:
           setTimeout(showVictory, 600);
+          break;
+        case EV.Swing:
+          slashes.push({ aim: e[5], arc: e[6], reach: amount / 100, t: 0, dur: 0.16 });
+          break;
+        case EV.NoEnergy:
+          floater(x, y - 0.3, 'нет силы', '#8fa8ff');
+          break;
+        case EV.WeaponTaken:
+        case EV.WeaponSwapped:
+          floater(x, y - 0.3, weaponName(ref), '#f3d58c');
+          burst(x, y, '#f3d58c', 5, 1.4, 0.2);
+          break;
+        case EV.BossAppears: {
+          var who = f.boss ? f.boss.name : 'Страж';
+          banner(who + '<small>' + (f.boss && NOTE[f.boss.key] ? NOTE[f.boss.key] : 'страж этажа') + '</small>', true);
+          kick(0.35);
+          screenFlash('#40100a', 0.35);
+          break;
+        }
+        case EV.BossPhase:
+          banner('Ярость крепнет<small>фаза ' + amount + '</small>', true);
+          burst(x, y, '#ff8f6a', 18, 3.5, 0.5);
+          kick(0.3);
+          break;
+        case EV.BossDied:
+          banner('Страж повержен<small>лестница открыта</small>');
+          burst(x, y, '#ffe7a6', 40, 5, 0.9);
+          burst(x, y, '#ffffff', 12, 2.5, 0.5);
+          screenFlash('#fff4d6', 0.45);
+          kick(0.6);
+          break;
+        case EV.GazeHit:
+          screenFlash('#f4e27a', 0.5);
+          floater(x, y, 'ослеп', '#f4e27a');
+          kick(0.3);
+          break;
+        case EV.GazeMissed:
+          floater(x, y, 'укрылся', '#cfe2a0');
+          break;
+        case EV.Frozen:
+          floater(x, y, 'скован', '#9fd8ff');
+          burst(x, y, '#d8f0ff', 14, 2.4, 0.5);
+          screenFlash('#9fd8ff', 0.25);
+          break;
+        case EV.Revived:
+          banner('Кощей встаёт снова<small>где-то здесь его игла</small>', true);
+          burst(x, y, '#9ad26a', 20, 3, 0.6);
+          kick(0.3);
+          break;
+        case EV.NeedleShown:
+          banner('Игла показалась');
+          burst(x, y, '#f3d58c', 16, 2.5, 0.6);
+          break;
+        case EV.NeedleBroken:
+          banner('Игла сломана<small>теперь он смертен</small>');
+          burst(x, y, '#ffffff', 20, 3, 0.5);
+          kick(0.35);
+          break;
+        case EV.Burrowed:
+          burst(x, y, '#8a6a42', 16, 2.6, 0.5);
+          break;
+        case EV.Emerged:
+          burst(x, y, '#8a6a42', 26, 4, 0.6);
+          kick(0.4);
+          break;
+        case EV.HutFell:
+          banner('Изба пала<small>' + (amount > 0 ? 'осталось: ' + amount : 'Яга без защиты') + '</small>');
+          burst(x, y, '#b06a3a', 24, 3.2, 0.6);
+          kick(0.3);
+          break;
+        case EV.Shielded:
+          floater(x, y, String(amount), '#8fb3d9');
+          burst(x, y, '#8fb3d9', 3, 1.6, 0.15);
           break;
       }
     }
@@ -433,7 +561,7 @@
         banner('Этаж ' + map.depth + '<small>' + map.zone + '</small>');
       }
     }
-    handleEvents(f.events);
+    handleEvents(f.events, f);
     cur = f;
   }
 
@@ -494,20 +622,53 @@
       ctx.fillRect(px(map.exit[0]) - scale * 2, py(map.exit[1]) - scale * 2, cellPx + scale * 4, cellPx + scale * 4);
     }
 
+    // Ground on fire, under everything that stands on it.
+    for (var z = 0; z < f.hazards.length; z++) {
+      var hz = f.hazards[z];
+      var flick = 0.75 + 0.25 * Math.sin(f.t * 17 + hz[0] * 7);
+      ctx.globalAlpha = Math.min(1, hz[3] / 0.6) * 0.5 * flick;
+      ctx.fillStyle = '#ff6a1c';
+      circle(px(hz[0]), py(hz[1]), hz[2] * cellPx);
+      ctx.globalAlpha = Math.min(1, hz[3] / 0.6) * 0.8;
+      var fire = Sprites.get('fire', null), fs = cellPx * 0.8;
+      if (fire) ctx.drawImage(fire, px(hz[0]) - fs / 2, py(hz[1]) - fs * 0.6, fs, fs);
+      ctx.globalAlpha = 1;
+    }
+
+    // Warnings on the ground, drawn before the bodies so a guardian stands on
+    // its own circle. They fill as the blow comes: an empty outline is time
+    // to spare, a full one is now.
+    for (var g = 0; g < f.telegraphs.length; g++) telegraph(f.telegraphs[g], f, px, py);
+
     // Pickups, bobbing.
     for (var p = 0; p < f.pickups.length; p++) {
       var pk = f.pickups[p];
       var bob = Math.sin(f.t * 5 + pk[0]) * 0.06;
-      var bmp = Sprites.get(pk[1] === 0 ? 'item_gold' : 'item_potion', null);
-      var sz = cellPx * 0.7;
-      if (bmp) ctx.drawImage(bmp, px(pk[2]) - sz / 2, py(pk[3] + bob) - sz / 2, sz, sz);
+      var pxx = px(pk[2]), pyy = py(pk[3] + bob);
+      if (pk[1] === PICK.Energy) {
+        crystal(pxx, pyy, cellPx * 0.16);
+        continue;
+      }
+      var bmp = Sprites.get(pk[1] === PICK.Coin ? 'item_gold' : (pk[1] === PICK.Potion ? 'item_potion' : 'item_weapon'), null);
+      var sz = cellPx * (pk[1] === PICK.Weapon ? 0.85 : 0.7);
+      if (pk[1] === PICK.Weapon) {
+        // A weapon on the floor glows and says what it is, because the only
+        // way to know whether to take it is to read it.
+        ctx.fillStyle = 'rgba(243,213,140,' + (0.18 + 0.1 * Math.sin(f.t * 4)).toFixed(3) + ')';
+        circle(pxx, pyy, cellPx * 0.5);
+        var near = Math.hypot(pk[2] - f.hero.x, pk[3] - f.hero.y) < 2.5;
+        if (near) label(pxx, pyy - cellPx * 0.62, weaponName(pk[4]), '#f3d58c');
+      }
+      if (bmp) ctx.drawImage(bmp, pxx - sz / 2, pyy - sz / 2, sz, sz);
     }
 
     // Shadows first, so no creature's shadow lands on another creature.
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     for (var s = 0; s < f.enemies.length; s++) {
+      if (f.enemies[s].hid) continue;
       var se = lerpPos(f.enemies[s].id, f.enemies[s].x, f.enemies[s].y, alpha);
-      shadow(px(se[0]), py(se[1] + 0.36), cellPx * 0.32);
+      var sk = bodyScale(f.enemies[s]);
+      shadow(px(se[0]), py(se[1] + 0.36 * sk), cellPx * 0.32 * sk);
     }
     shadow(px(hp[0]), py(hp[1] + 0.36), cellPx * 0.3);
 
@@ -515,10 +676,29 @@
     for (var k = 0; k < f.enemies.length; k++) {
       var e = f.enemies[k];
       var ep = lerpPos(e.id, e.x, e.y, alpha);
-      var walk = e.awake ? Math.abs(Math.sin(f.t * 10 + e.id)) * 0.06 : 0;
-      creature(e.hurt ? Sprites.white(e.key) : Sprites.get(e.key, null),
-               ep[0], ep[1] - walk, e.fx < 0, px, py, e.glyph, e.color);
-      if (e.hp < e.max) healthPip(px(ep[0]), py(ep[1] - 0.62), e.hp / e.max);
+      if (e.hid) { mound(px(ep[0]), py(ep[1]), f.t); continue; }
+      var big = bodyScale(e);
+      var still = e.role === ROLE.Hut || e.role === ROLE.Needle;
+      var walk = e.awake && !still ? Math.abs(Math.sin(f.t * 10 + e.id)) * 0.06 * big : 0;
+      if (e.guarded) {
+        // Blows land on this one at a fraction: a cold ring says so.
+        ctx.strokeStyle = 'rgba(143,179,217,' + (0.45 + 0.2 * Math.sin(f.t * 6)).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(2, scale);
+        ctx.beginPath();
+        ctx.arc(px(ep[0]), py(ep[1]), cellPx * 0.55 * big, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (e.role === ROLE.Needle) {
+        ctx.fillStyle = 'rgba(243,213,140,' + (0.25 + 0.15 * Math.sin(f.t * 6)).toFixed(3) + ')';
+        circle(px(ep[0]), py(ep[1]), cellPx * 0.5);
+      }
+      var key = e.role === ROLE.Needle ? 'item_needle' : e.key;
+      if (e.role === ROLE.Illusion) ctx.globalAlpha = 0.82 + 0.12 * Math.sin(f.t * 9 + e.id);
+      creature(e.hurt ? Sprites.white(key) : Sprites.get(key, null),
+               ep[0], ep[1] - walk, e.fx < 0, px, py, e.glyph, e.color, big);
+      ctx.globalAlpha = 1;
+      // The guardian's health is on the bar at the top; a pip would repeat it.
+      if (e.hp < e.max && e.role !== ROLE.Boss) healthPip(px(ep[0]), py(ep[1] - 0.62 * big), e.hp / e.max);
     }
 
     // The hero: blinking while nothing can hurt them, bobbing while walking.
@@ -526,18 +706,36 @@
     if (!blink && !f.dead) {
       var hb = f.hero.mv ? Math.abs(Math.sin(f.t * 12)) * 0.07 : Math.sin(f.t * 2.5) * 0.015;
       var aimLeft = (f.hero.fire ? f.hero.ax : f.hero.fx) < 0;
+      if (f.hero.frozen > 0) hb = 0;
       creature(Sprites.get(f.hero.key, null), hp[0], hp[1] - hb, aimLeft, px, py, '@', '#e7ddcc');
-      weapon(px(hp[0]), py(hp[1] + 0.05 - hb), f.hero.ax, f.hero.ay, f.hero.fire);
+      heldWeapon(px(hp[0]), py(hp[1] + 0.05 - hb), f.hero, dt);
+      if (f.hero.frozen > 0) {
+        ctx.fillStyle = 'rgba(159,216,255,0.42)';
+        ctx.fillRect(px(hp[0]) - cellPx * 0.4, py(hp[1]) - cellPx * 0.5, cellPx * 0.8, cellPx);
+      }
+      if (f.hero.burning > 0 && Math.random() < 0.5)
+        burst(hp[0] + (Math.random() - 0.5) * 0.4, hp[1] - 0.1, Math.random() < 0.5 ? '#ff9a3c' : '#ffd36a', 1, 0.8, 0.3);
+    }
+    for (var sl = slashes.length - 1; sl >= 0; sl--) {
+      var sw = slashes[sl];
+      sw.t += dt;
+      if (sw.t > sw.dur) { slashes.splice(sl, 1); continue; }
+      slash(px(hp[0]), py(hp[1]), sw);
     }
 
     // Bullets: a hot core and a soft glow, with a streak behind the fast ones.
     for (var b = 0; b < f.bullets.length; b++) {
-      var bl = f.bullets[b], bx = px(bl[0]), by = py(bl[1]);
-      if (bl[2]) {
+      var bl = f.bullets[b], bx = px(bl[0]), by = py(bl[1]), br = bl[3] || 0.12;
+      if (bl[4]) {
+        ctx.fillStyle = 'rgba(255,120,30,0.35)';
+        circle(bx, by, cellPx * br * 2.2);
+        ctx.fillStyle = '#ffd36a';
+        circle(bx, by, cellPx * br * 0.9);
+      } else if (bl[2]) {
         ctx.fillStyle = 'rgba(255,221,140,0.28)';
-        circle(bx, by, cellPx * 0.2);
+        circle(bx, by, cellPx * br * 1.7);
         ctx.fillStyle = '#fff3cf';
-        circle(bx, by, cellPx * 0.08);
+        circle(bx, by, cellPx * br * 0.7);
       } else {
         ctx.fillStyle = 'rgba(255,110,70,0.3)';
         circle(bx, by, cellPx * 0.24);
@@ -583,6 +781,16 @@
     ctx.globalAlpha = 1;
 
     if (vignette) ctx.drawImage(vignette, 0, 0);
+    if (f.hero.blind > 0) {
+      // Вий's gaze: the world shrinks to what is at arm's length.
+      var bx0 = px(hp[0]), by0 = py(hp[1]);
+      var fade = Math.min(1, f.hero.blind / 0.4);
+      var dark = ctx.createRadialGradient(bx0, by0, cellPx * 1.2, bx0, by0, cellPx * 3.2);
+      dark.addColorStop(0, 'rgba(0,0,0,0)');
+      dark.addColorStop(1, 'rgba(0,0,0,' + (0.92 * fade).toFixed(3) + ')');
+      ctx.fillStyle = dark;
+      ctx.fillRect(0, 0, W, H);
+    }
 
     if (flash && flash.alpha > 0.01) {
       ctx.globalAlpha = flash.alpha;
@@ -610,11 +818,17 @@
     ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  function creature(bmp, x, y, flip, px, py, glyph, color) {
-    var cx = px(x), cy = py(y);
+  // Drawn size follows the body the engine gives it: a guardian is half as
+  // big again as what it leads, and the art is still whole pixels.
+  function bodyScale(e) {
+    if (e.role === ROLE.Needle) return 0.8;
+    return Math.max(1, Math.round((e.r || 0.34) / 0.34 * 2) / 2);
+  }
+  function creature(bmp, x, y, flip, px, py, glyph, color, big) {
+    var cx = px(x), cy = py(y), size = cellPx * (big || 1);
     if (!bmp) {
       ctx.fillStyle = color;
-      ctx.font = '700 ' + Math.round(cellPx * 0.8) + 'px ui-monospace, Menlo, monospace';
+      ctx.font = '700 ' + Math.round(size * 0.8) + 'px ui-monospace, Menlo, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(glyph, cx, cy);
@@ -623,21 +837,161 @@
     ctx.save();
     ctx.translate(cx, cy);
     if (flip) ctx.scale(-1, 1);
-    ctx.drawImage(bmp, -cellPx / 2, -cellPx / 2, cellPx, cellPx);
+    ctx.drawImage(bmp, -size / 2, -size / 2, size, size);
     ctx.restore();
   }
-  function weapon(x, y, ax, ay, hot) {
-    // A crossbow, as a short bar from the hero's hand along the aim. It is the
-    // one thing on screen that says where the automatic aim has settled.
-    var len = cellPx * 0.42;
+  function mound(x, y, t) {
+    // Something under the floor: the earth heaves where it passes.
+    var r = cellPx * (0.38 + 0.05 * Math.sin(t * 14));
+    ctx.fillStyle = 'rgba(70,52,32,0.85)';
+    ctx.beginPath();
+    ctx.ellipse(x, y + cellPx * 0.15, r, r * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(138,106,66,0.9)';
+    for (var i = 0; i < 4; i++) {
+      var a = t * 3 + i * 1.7;
+      ctx.fillRect(x + Math.cos(a) * r * 0.7, y + cellPx * 0.1 + Math.sin(a) * r * 0.25, scale * 2, scale * 2);
+    }
+  }
+  function crystal(x, y, r) {
+    ctx.fillStyle = 'rgba(143,168,255,0.3)';
+    circle(x, y, r * 2);
+    ctx.fillStyle = '#b8c8ff';
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 1.4);
+    ctx.lineTo(x + r, y);
+    ctx.lineTo(x, y + r * 1.4);
+    ctx.lineTo(x - r, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  function label(x, y, text, color) {
+    ctx.font = '700 ' + Math.max(11, Math.round(cellPx * 0.22)) + 'px ui-monospace, Menlo, Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = Math.max(3, scale);
+    ctx.strokeStyle = '#000';
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+  }
+
+  // Warnings take the colour of the guardian that draws them: frost is
+  // Морозко's, the pale yellow is Вий's eyes, and everything else burns.
+  function warnColour(f) {
+    var key = f.boss ? f.boss.key : '';
+    if (key === 'morozko') return [159, 216, 255];
+    if (key === 'viy') return [244, 226, 122];
+    return [255, 90, 60];
+  }
+  function telegraph(t, f, px, py) {
+    var c = warnColour(f), rgb = c[0] + ',' + c[1] + ',' + c[2];
+    var kind = t[0], x = t[1], y = t[2], a = t[3], b = t[4], p = t[5];
+    ctx.lineWidth = Math.max(2, scale);
+    if (kind === TG.Ring || kind === TG.Spot) {
+      var r = a * cellPx;
+      ctx.fillStyle = 'rgba(' + rgb + ',' + (0.1 + 0.12 * p).toFixed(3) + ')';
+      circle(px(x), py(y), r);
+      ctx.fillStyle = 'rgba(' + rgb + ',0.35)';
+      circle(px(x), py(y), r * p);
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.55 + 0.4 * p).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(px(x), py(y), r, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (kind === TG.Line) {
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.25 + 0.6 * p).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(2, cellPx * (0.08 + 0.3 * p));
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(px(x), py(y));
+      ctx.lineTo(px(a), py(b));
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    } else if (kind === TG.Cone) {
+      var len = 8 * cellPx;
+      ctx.fillStyle = 'rgba(' + rgb + ',' + (0.12 + 0.2 * p).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.moveTo(px(x), py(y));
+      ctx.arc(px(x), py(y), len, a - b, a + b);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(' + rgb + ',0.3)';
+      ctx.beginPath();
+      ctx.moveTo(px(x), py(y));
+      ctx.arc(px(x), py(y), len * p, a - b, a + b);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  // The weapon in hand, pointed along the aim. It is the one thing on screen
+  // that says where the automatic aim has settled, so every weapon has a
+  // shape of its own; a blade in mid-swing sweeps through its arc instead.
+  function heldWeapon(x, y, hero, dt) {
+    var w = catalog && hero.w[hero.hand] >= 0 ? catalog.weapons[hero.w[hero.hand]] : null;
+    var key = w ? w.key : 'crossbow';
+    var ang = Math.atan2(hero.ay, hero.ax);
+    if (slashes.length) {
+      var sw = slashes[slashes.length - 1], k = Math.min(1, sw.t / sw.dur);
+      ang = sw.aim - sw.arc / 2 + sw.arc * k;
+    }
+    var u = scale, hot = hero.fire;
     ctx.save();
-    ctx.translate(x + ax * cellPx * 0.18, y + ay * cellPx * 0.18);
-    ctx.rotate(Math.atan2(ay, ax));
-    ctx.fillStyle = '#5b3c1c';
-    ctx.fillRect(0, -scale, len, scale * 2);
-    ctx.fillStyle = hot ? '#ffe7a6' : '#c8a45c';
-    ctx.fillRect(len - scale * 2, -scale * 2, scale * 2, scale * 4);
+    ctx.translate(x + Math.cos(ang) * cellPx * 0.16, y + Math.sin(ang) * cellPx * 0.16);
+    ctx.rotate(ang);
+    var wood = '#5b3c1c', iron = '#b9b4aa';
+    switch (key) {
+      case 'bow':
+        ctx.strokeStyle = wood; ctx.lineWidth = u * 2;
+        ctx.beginPath(); ctx.arc(-u * 2, 0, u * 6, -1.2, 1.2); ctx.stroke();
+        ctx.strokeStyle = '#e7ddcc'; ctx.lineWidth = Math.max(1, u / 2);
+        ctx.beginPath(); ctx.moveTo(u * 0.2, -u * 5.6); ctx.lineTo(u * 0.2, u * 5.6); ctx.stroke();
+        break;
+      case 'sling':
+        ctx.fillStyle = wood; ctx.fillRect(0, -u / 2, u * 5, u);
+        ctx.fillStyle = '#8d8a82'; ctx.fillRect(u * 5, -u * 1.5, u * 3, u * 3);
+        break;
+      case 'staff':
+      case 'ember':
+        ctx.fillStyle = wood; ctx.fillRect(-u * 2, -u, u * 10, u * 2);
+        ctx.fillStyle = key === 'ember' ? '#ff9a3c' : '#b58cff';
+        ctx.fillRect(u * 8, -u * 2, u * 3, u * 4);
+        if (hot) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(u * 9, -u, u, u * 2); }
+        break;
+      case 'sword':
+        ctx.fillStyle = wood; ctx.fillRect(-u, -u, u * 3, u * 2);
+        ctx.fillStyle = '#c8a45c'; ctx.fillRect(u * 2, -u * 2.5, u, u * 5);
+        ctx.fillStyle = iron; ctx.fillRect(u * 3, -u, u * 8, u * 2);
+        ctx.fillRect(u * 11, -u / 2, u, u);
+        break;
+      case 'axe':
+        ctx.fillStyle = wood; ctx.fillRect(-u, -u, u * 10, u * 2);
+        ctx.fillStyle = iron; ctx.fillRect(u * 6, -u * 4, u * 3, u * 5);
+        ctx.fillRect(u * 9, -u * 4, u, u * 2);
+        break;
+      case 'flail':
+        ctx.fillStyle = wood; ctx.fillRect(-u, -u, u * 5, u * 2);
+        ctx.fillStyle = '#8d8a82';
+        for (var i = 0; i < 3; i++) ctx.fillRect(u * (5 + i * 2), -u / 2, u, u);
+        ctx.fillStyle = iron; ctx.fillRect(u * 11, -u * 2, u * 4, u * 4);
+        break;
+      default:   // the crossbows
+        ctx.fillStyle = wood; ctx.fillRect(0, -u, cellPx * 0.42, u * 2);
+        ctx.fillStyle = key === 'thunder' ? (hot ? '#e2f2ff' : '#8fc4ff') : (hot ? '#ffe7a6' : '#c8a45c');
+        ctx.fillRect(cellPx * 0.42 - u * 2, -u * 2.5, u * 2, u * 5);
+    }
     ctx.restore();
+  }
+  function slash(x, y, sw) {
+    // The sweep of a blade, as a band that fades behind the edge.
+    var k = Math.min(1, sw.t / sw.dur);
+    var from = sw.aim - sw.arc / 2, to = from + sw.arc * k;
+    var r1 = cellPx * 0.35, r2 = cellPx * sw.reach;
+    ctx.fillStyle = 'rgba(255,244,214,' + (0.45 * (1 - k * 0.6)).toFixed(3) + ')';
+    ctx.beginPath();
+    ctx.arc(x, y, r2, from, to);
+    ctx.arc(x, y, r1, to, from, true);
+    ctx.closePath();
+    ctx.fill();
   }
   function healthPip(x, y, frac) {
     var w = cellPx * 0.7, h = Math.max(2, scale);
@@ -659,9 +1013,70 @@
     el.querySelector('b').style.width = pct + '%';
     el.querySelector('span').textContent = value + ' / ' + max;
   }
+  function once(key, value, apply) {
+    if (hudCache[key] === value) return;
+    hudCache[key] = value;
+    apply(value);
+  }
+  function slotText(i) {
+    var w = catalog && i >= 0 ? catalog.weapons[i] : null;
+    if (!w) return '';
+    return w.name + (w.energy ? ' · ' + w.energy + '⚡' : '');
+  }
   function hud(f) {
-    setBar('hp', f.hero.hp, f.hero.maxHp);
-    setBar('sh', f.hero.sh, f.hero.maxSh);
+    var h = f.hero;
+    setBar('hp', h.hp, h.maxHp);
+    setBar('sh', h.sh, h.maxSh);
+    setBar('en', h.en, h.maxEn);
+    // Two hands: the one in use bright, the other waiting.
+    once('arms', h.w[0] + ',' + h.w[1] + ',' + h.hand, function () {
+      for (var i = 0; i < 2; i++) {
+        var el = $('slot' + i);
+        el.textContent = slotText(h.w[i]);
+        el.hidden = h.w[i] < 0;
+        el.classList.toggle('active', i === h.hand);
+      }
+    });
+
+    // What the small button, and E, would do right now.
+    var act = h.under >= 0 ? 'take' : (h.w[1 - h.hand] >= 0 ? 'swap' : '');
+    once('act', act + h.under + ',' + h.w[1 - h.hand], function () {
+      actBtn.hidden = !TOUCH || !act;
+      actBtn.textContent = act === 'take' ? 'Взять' : '⇄';
+      actBtn.setAttribute('aria-label', act === 'take' ? 'Взять ' + weaponName(h.under) : 'Сменить оружие');
+    });
+    once('prompt', h.under >= 0 ? weaponName(h.under) : '', function (name) {
+      var el = $('prompt');
+      el.hidden = !name;
+      if (name) el.innerHTML = (TOUCH ? '' : '<kbd>E</kbd> ') + 'взять: ' + name +
+        (h.w[1] >= 0 ? '<small>выпадет: ' + weaponName(h.w[h.hand]) + '</small>' : '');
+    });
+
+    // The guardian's bar, with a pip for each phase and a line about the
+    // one thing its fight asks, shown while that is what stands in the way.
+    var b = f.boss;
+    once('bossOn', b ? b.id : 0, function () {
+      $('bossBar').hidden = !b;
+      if (b) $('bossName').textContent = b.name;
+    });
+    if (b) {
+      var pct = Math.max(0, Math.min(100, b.hp * 100 / b.max));
+      once('bossHp', pct, function () {
+        var bar = document.querySelector('.bar.boss');
+        bar.querySelector('i').style.width = pct + '%';
+        bar.querySelector('b').style.width = pct + '%';
+      });
+      once('bossPh', b.phase + '/' + b.phases, function () {
+        var pips = '';
+        for (var i = 1; i <= b.phases; i++) pips += i <= b.phase ? '◆' : '◇';
+        $('bossPhases').textContent = b.phases > 1 ? pips : '';
+      });
+      once('bossGuard', b.guarded + b.key, function () {
+        document.querySelector('.bar.boss').classList.toggle('guarded', !!b.guarded);
+        $('bossNote').textContent = b.guarded || b.key === 'koschei' ? (NOTE[b.key] || '') : '';
+      });
+    }
+
     var floor = 'Этаж ' + f.depth + (map ? ' · ' + map.zone : '');
     if (hudCache.floor !== floor) { hudCache.floor = floor; $('floor').textContent = floor; }
     var coins = '◆ ' + f.hero.coins;
@@ -683,7 +1098,8 @@
     if (steps > 0) {
       acc -= steps * STEP;
       var mv = moveVector();
-      Api.step(mv[0], mv[1], firing(), Math.min(steps, 8));
+      Api.step(mv[0], mv[1], firing(), actPending, Math.min(steps, 8));
+      actPending = false;
       takeFrame();
     }
     draw(Math.min(1, acc / STEP), dt);
@@ -694,7 +1110,7 @@
   var overlay = $('overlay');
 
   function begin() {
-    if (!Api) return;
+    if (!Api || !catalog) return;
     over = false;
     paused = false;
     map = null;
@@ -706,7 +1122,14 @@
     hudCache = {};
     // A fresh dungeon each descent. The seed is not shown yet: there is no
     // way in this build to type one in, so naming it would promise nothing.
-    Api.start(Math.floor(Math.random() * 4294967295), 0);
+    choosing = false;
+    Api.start(Math.floor(Math.random() * 4294967295), catalog.heroes[chosen].cls);
+    slashes = [];
+    actPending = false;
+    // ?floor=N starts further down, and ?floor=N&boss beside that floor's
+    // guardian: ways to playtest the deep end without playing down to it.
+    var jump = /[?&]floor=(\d+)/.exec(window.location.search);
+    if (jump) Api.floor(Number(jump[1]), /[?&]boss\b/.test(window.location.search));
     takeFrame();
     cam.x = cur.hero.x; cam.y = cur.hero.y;
     overlay.hidden = true;
@@ -746,14 +1169,79 @@
       '<div><b>' + f.hero.kills + '</b><span>убито</span></div>' +
       '<div><b>' + f.hero.coins + '</b><span>монет</span></div></div>' +
       '<button type="button" class="go" id="againBtn">Ещё раз</button>' +
+      '<p class="hint"><a href="#" id="chooseBtn">Выбрать другого героя</a></p>' +
       '<p class="hint"><a href="index.html">Пошаговая версия</a></p></div>';
     overlay.hidden = false;
     fireBtn.hidden = true;
+    actBtn.hidden = true;
+    $('bossBar').hidden = true;
+    $('prompt').hidden = true;
     $('againBtn').addEventListener('click', begin);
+    $('chooseBtn').addEventListener('click', function (e) { e.preventDefault(); showChooser(); });
     $('againBtn').focus();
   }
-  function showDeath() { endScreen('Ты пал', 'Навь забрала ещё одного. Смерть здесь окончательна.'); }
+  function showDeath() {
+    var by = cur && cur.boss ? ' Тебя остановил страж: ' + cur.boss.name + '.' : '';
+    endScreen('Ты пал', 'Навь забрала ещё одного.' + by + ' Смерть здесь окончательна.');
+  }
   function showVictory() { endScreen('Ты прошёл Навь', 'Шестнадцать этажей позади.'); }
+
+  // --------------------------------------------------------- hero choice --
+  //
+  // Six cards: the hero as they are drawn in the game, the three bars in
+  // numbers, the weapon they start with and the one thing that is theirs.
+  function buildHeroPicker() {
+    var box = $('heroes');
+    box.innerHTML = '';
+    var saved = Number(recall('hero'));
+    chosen = saved >= 0 && saved < catalog.heroes.length ? saved : 0;
+    catalog.heroes.forEach(function (h, i) {
+      var card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'hero';
+      card.setAttribute('role', 'radio');
+      var pic = document.createElement('canvas');
+      pic.width = pic.height = 48;
+      var g = pic.getContext('2d');
+      g.imageSmoothingEnabled = false;
+      var bmp = Sprites.get(h.key, null);
+      if (bmp) g.drawImage(bmp, 0, 0, 48, 48);
+      card.appendChild(pic);
+      var w = catalog.weapons[h.weapon];
+      var text = document.createElement('span');
+      text.className = 'about';
+      text.innerHTML = '<b>' + h.name + '</b>' +
+        '<span class="nums"><i class="hp">' + h.hp + '</i><i class="sh">' + h.shield + '</i><i class="en">' + h.energy + '</i></span>' +
+        '<span class="arm">' + (w ? w.name : '') + '</span>' +
+        '<span class="perk">' + h.perk + '</span>';
+      card.appendChild(text);
+      card.addEventListener('click', function () { pickHero(i); });
+      card.addEventListener('dblclick', function () { pickHero(i); begin(); });
+      box.appendChild(card);
+    });
+    pickHero(chosen);
+  }
+  function pickHero(i) {
+    if (!catalog || i < 0 || i >= catalog.heroes.length) return;
+    chosen = i;
+    remember('hero', i);
+    var cards = $('heroes').children;
+    for (var k = 0; k < cards.length; k++) {
+      cards[k].classList.toggle('on', k === i);
+      cards[k].setAttribute('aria-checked', k === i ? 'true' : 'false');
+    }
+  }
+
+  // The first screen is kept as it was written, to come back to after a run.
+  var chooserHtml = overlay.innerHTML;
+  function showChooser() {
+    overlay.innerHTML = chooserHtml;
+    overlay.hidden = false;
+    choosing = true;
+    $('goBtn').addEventListener('click', begin);
+    if (catalog) buildHeroPicker();
+    $('goBtn').focus();
+  }
 
   $('goBtn').addEventListener('click', begin);
 

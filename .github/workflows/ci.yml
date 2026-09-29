@@ -279,6 +279,29 @@ jobs:
               console.log('wasm ok: turn ' + s.turn + ', save ' + blob.length + ' bytes');
             }).catch(e => { console.error(e); process.exit(1); });
           "
+      - name: Load the real-time game and fight a guardian under Node
+        run: |
+          node -e "
+            const Mod = require('./build-web/nav.js');
+            const read = (m, p) => { const s = m.UTF8ToString(p); m._nav_free_cstr(p); return JSON.parse(s); };
+            Mod().then(m => {
+              const cat = read(m, m._nav_rt_catalog_json());
+              if (cat.heroes.length !== 6 || cat.weapons.length < 9) throw new Error('bad catalog');
+              m._nav_rt_start(7, cat.heroes[5].cls);
+              m._nav_rt_floor(4, 1);
+              let boss = null;
+              for (let i = 0; i < 300 && !boss; i++) {
+                m._nav_rt_step(0, 0, 1, i === 0 ? 1 : 0, 4);
+                const f = read(m, m._nav_rt_frame_json());
+                if (!Array.isArray(f.telegraphs) || !Array.isArray(f.hazards)) throw new Error('bad frame');
+                boss = f.boss || null;
+              }
+              if (!boss || !boss.name) throw new Error('the guardian of floor 4 never woke');
+              const map = read(m, m._nav_rt_map_json());
+              if (map.terrain.length !== map.w * map.h) throw new Error('bad map payload');
+              console.log('real-time ok: ' + boss.name + ' ' + boss.hp + '/' + boss.max);
+            }).catch(e => { console.error(e); process.exit(1); });
+          "
       # Packaged exactly the way pages.yml packages it. Publishing folds the
       # generated art and music into the page, and that fold is a script with
       # its own way to fail; building the artifact any other way here would

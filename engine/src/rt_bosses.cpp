@@ -69,7 +69,10 @@ Enemy& World::add_boss(int species, V pos, int room) {
     boss.max_hp = boss.hp = boss_health(sp.key, sp.hp);
     boss.phases = std::max(1, sp.phases);
     boss.radius = 0.55f;
-    boss.damage = std::max(3, sp.attack / 2);
+    // A third of the bestiary's attack, kept between 3 and 8: the frailest
+    // hero, the ведун, has 26 of health and shield together, and a guardian
+    // should take a handful of mistakes to kill one, not three.
+    boss.damage = std::clamp(sp.attack / 3, 3, 8);
     boss.timer = 1.5f;   // a beat before the first attack, to see what it is
     boss.timer2 = 4.0f;
     const int id = boss.id;
@@ -634,10 +637,15 @@ void World::think_boss(Enemy& e, float d, bool sees) {
         walk(steer(e), 0.9f);
     }
 
-    // Touching any guardian hurts.
+    // Touching a guardian is a bump, not a grind: half a blow, and the hero
+    // is thrown clear. Without the throw a blade — whose whole reach is
+    // barely past a guardian's body — stood in contact and lost a full blow
+    // every second, and no guardian could be fought up close at all.
     if (!e.hidden && d < hero_.radius + e.radius + 0.08f && e.attack_cd <= 0) {
-        e.attack_cd = 1.0f;
-        hurt_hero(e.damage);
+        e.attack_cd = 1.2f;
+        hurt_hero(std::max(2, e.damage / 2));
+        const V away = d > 1e-3f ? normalized(hero_.pos - e.pos) : V{1, 0};
+        move_circle(hero_.pos, away * 0.7f, hero_.radius);
     }
 }
 

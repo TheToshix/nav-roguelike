@@ -77,7 +77,7 @@ if(EMSCRIPTEN)
     "-sSINGLE_FILE=1"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','UTF8ToString','stringToUTF8','lengthBytesUTF8']"
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_nav_new_game','_nav_perform','_nav_set_language','_nav_set_palette','_nav_state_json','_nav_static_json','_nav_save','_nav_load','_nav_record_score','_nav_score_table','_nav_achievements_record','_nav_achievements_table','_nav_daily_seed','_nav_keys_json','_nav_postmortem_json','_nav_free_cstr','_nav_version','_nav_rt_start','_nav_rt_step','_nav_rt_map_json','_nav_rt_frame_json']"
+    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_nav_new_game','_nav_perform','_nav_set_language','_nav_set_palette','_nav_state_json','_nav_static_json','_nav_save','_nav_load','_nav_record_score','_nav_score_table','_nav_achievements_record','_nav_achievements_table','_nav_daily_seed','_nav_keys_json','_nav_postmortem_json','_nav_free_cstr','_nav_version','_nav_rt_start','_nav_rt_step','_nav_rt_map_json','_nav_rt_frame_json','_nav_rt_floor','_nav_rt_catalog_json']"
     "-sENVIRONMENT=web,worker,node"
     "-O3"
   )

@@ -172,6 +172,32 @@ void fight_to_the_death(int depth) {
         EXPECT_NE(e.role, Role::Hut) << "a hut outlived its mistress";
 }
 
+TEST(RealtimeBosses, TouchingAGuardianThrowsTheHeroClear) {
+    // Кощей walks straight at the hero, which makes him the one to test a
+    // bump on: without the throw he stands in contact and grinds.
+    World w = with_boss(species_key::kKoschei, {10.5f, 6.5f}, {11.3f, 6.5f});
+    rt::Enemy* k = find(w, Role::Boss);
+    k->timer = 10.0f;   // no charge during the test
+    const int full = w.hero().hp + w.hero().shield;
+    w.step(Input{});
+    const int lost = full - (w.hero().hp + w.hero().shield);
+    EXPECT_GT(lost, 0);
+    EXPECT_LE(lost, std::max(2, k->damage / 2));
+    EXPECT_GT(rt::length(w.hero().pos - k->pos), 1.2f) << "the hero was left touching the guardian";
+}
+
+TEST(RealtimeBosses, NoGuardianKillsTheFrailestHeroInThreeBlows) {
+    int frailest = 1 << 30;
+    for (const auto& h : rt::heroes()) frailest = std::min(frailest, h.hp + h.shield);
+    for (int depth : guardian_floors()) {
+        World w;
+        w.start(4);
+        w.enter_floor(depth);
+        ASSERT_NE(w.boss(), nullptr);
+        EXPECT_GT(frailest, 3 * w.boss()->damage) << "floor " << depth;
+    }
+}
+
 TEST(RealtimeBosses, EveryGuardianCanBeKilled) {
     for (int depth : guardian_floors()) {
         SCOPED_TRACE(testing::Message() << "floor " << depth);

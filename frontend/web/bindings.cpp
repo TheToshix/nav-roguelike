@@ -11,6 +11,7 @@
 // into roughly 300 KB of JSON — enough to be felt on a phone. Three strings
 // plus a small colour palette bring the same information down to a few
 // kilobytes.
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -18,6 +19,7 @@
 #include <vector>
 
 #include "nav/achievements.hpp"
+#include "nav/fov.hpp"
 #include "nav/game.hpp"
 #include "nav/keys.hpp"
 #include "nav/rt.hpp"
@@ -838,14 +840,39 @@ std::string build_rt_frame_json() {
     out += std::string(",\"inv\":") + (h.invulnerable > 0 ? "1" : "0");
     out += std::string(",\"mv\":") + (h.moving ? "1" : "0");
     out += std::string(",\"fire\":") + (h.firing ? "1" : "0");
+    out += ",\"en\":" + std::to_string(h.energy) + ",\"maxEn\":" + std::to_string(h.max_energy);
+    out += ",\"w\":[" + std::to_string(h.weapons[0]) + "," + std::to_string(h.weapons[1]) + "]";
+    out += ",\"hand\":" + std::to_string(h.hand);
+    out += ",\"frozen\":" + fnum(h.frozen) + ",\"burning\":" + fnum(h.burning) +
+           ",\"blind\":" + fnum(h.blind);
+    // The weapon lying underfoot, if any: what "take" would pick up.
+    int under = -1;
+    for (const Pickup& p : g_rt.pickups())
+        if (p.kind == PickupKind::Weapon && length(p.pos - h.pos) < kPickupReach) under = p.amount;
+    out += ",\"under\":" + std::to_string(under);
     out += ",\"key\":";
     append_json_string(out, nav::hero_sprite_key(h.cls));
     out += "}";
+
+    // The guardian's bar: shown from the moment it wakes, wherever it is.
+    if (const Enemy* b = g_rt.boss(); b && b->awake) {
+        const nav::Species& sp = nav::bestiary()[static_cast<std::size_t>(b->species)];
+        out += ",\"boss\":{\"id\":" + std::to_string(b->id) + ",\"key\":";
+        append_json_string(out, sp.key);
+        out += ",\"name\":";
+        append_json_string(out, sp.name.get(g_lang));
+        out += ",\"hp\":" + std::to_string(b->hp) + ",\"max\":" + std::to_string(b->max_hp);
+        out += ",\"phase\":" + std::to_string(b->phase) + ",\"phases\":" + std::to_string(b->phases);
+        out += std::string(",\"guarded\":") + (b->armour < 1.0f ? "1" : "0") + "}";
+    }
 
     out += ",\"enemies\":[";
     bool first = true;
     for (const Enemy& e : g_rt.enemies()) {
         if (!seen(e.pos)) continue;
+        // A needle not yet found stays unseen; a guardian under the ground
+        // is sent, flagged, so the page can draw the earth moving over it.
+        if (e.hidden && e.role != Role::Boss) continue;
         const nav::Species& sp = nav::bestiary()[static_cast<std::size_t>(e.species)];
         if (!first) out += ',';
         first = false;
@@ -856,6 +883,10 @@ std::string build_rt_frame_json() {
         out += std::string(",\"hurt\":") + (e.hurt > 0 ? "1" : "0");
         out += std::string(",\"awake\":") + (e.awake ? "1" : "0");
         out += ",\"fx\":" + fnum(e.facing.x);
+        out += ",\"role\":" + std::to_string(static_cast<int>(e.role));
+        out += ",\"r\":" + fnum(e.radius);
+        if (e.hidden) out += ",\"hid\":1";
+        if (e.armour < 1.0f) out += ",\"guarded\":1";
         out += ",\"color\":";
         append_json_string(out, sp.color);
         out += ",\"glyph\":";
@@ -870,7 +901,28 @@ std::string build_rt_frame_json() {
         if (!seen(b.pos)) continue;
         if (!first) out += ',';
         first = false;
-        out += "[" + fnum(b.pos.x) + "," + fnum(b.pos.y) + "," + (b.hero ? "1" : "0") + "]";
+        out += "[" + fnum(b.pos.x) + "," + fnum(b.pos.y) + "," + (b.hero ? "1" : "0") + "," +
+               fnum(b.radius) + "," + (b.ember ? "1" : "0") + "]";
+    }
+    out += "]";
+
+    out += ",\"telegraphs\":[";
+    first = true;
+    for (const Telegraph& t : g_rt.telegraphs()) {
+        if (!first) out += ',';
+        first = false;
+        out += "[" + std::to_string(static_cast<int>(t.kind)) + "," + fnum(t.x) + "," + fnum(t.y) + "," +
+               fnum(t.a) + "," + fnum(t.b) + "," + fnum(t.progress) + "]";
+    }
+    out += "]";
+
+    out += ",\"hazards\":[";
+    first = true;
+    for (const Hazard& z : g_rt.hazards()) {
+        if (!seen(z.pos)) continue;
+        if (!first) out += ',';
+        first = false;
+        out += "[" + fnum(z.pos.x) + "," + fnum(z.pos.y) + "," + fnum(z.radius) + "," + fnum(z.life) + "]";
     }
     out += "]";
 
@@ -881,7 +933,7 @@ std::string build_rt_frame_json() {
         if (!first) out += ',';
         first = false;
         out += "[" + std::to_string(p.id) + "," + std::to_string(static_cast<int>(p.kind)) + "," +
-               fnum(p.pos.x) + "," + fnum(p.pos.y) + "]";
+               fnum(p.pos.x) + "," + fnum(p.pos.y) + "," + std::to_string(p.amount) + "]";
     }
     out += "]";
 
@@ -891,9 +943,49 @@ std::string build_rt_frame_json() {
         if (!first) out += ',';
         first = false;
         out += "[" + std::to_string(static_cast<int>(e.kind)) + "," + fnum(e.x) + "," + fnum(e.y) +
-               "," + std::to_string(e.amount) + "," + std::to_string(e.ref) + "]";
+               "," + std::to_string(e.amount) + "," + std::to_string(e.ref) + "," + fnum(e.a) + "," +
+               fnum(e.b) + "]";
     }
     out += "]}";
+    return out;
+}
+
+/// What does not change during a run: the weapons, the heroes to choose
+/// from, and the guardians' names for their banners.
+std::string build_rt_catalog_json() {
+    using namespace nav::rt;
+    std::string out = "{\"weapons\":[";
+    bool first = true;
+    for (const WeaponSpec& w : weapons()) {
+        if (!first) out += ',';
+        first = false;
+        out += "{\"key\":";
+        append_json_string(out, w.key);
+        out += ",\"name\":";
+        append_json_string(out, w.name.get(g_lang));
+        out += std::string(",\"melee\":") + (w.melee ? "true" : "false");
+        out += ",\"damage\":" + std::to_string(w.damage) + ",\"energy\":" + std::to_string(w.energy);
+        out += ",\"pellets\":" + std::to_string(w.pellets);
+        out += std::string(",\"pierce\":") + (w.pierce ? "true" : "false");
+        out += ",\"interval\":" + fnum(w.interval) + ",\"reach\":" + fnum(w.reach) + "}";
+    }
+    out += "],\"heroes\":[";
+    first = true;
+    for (const HeroSpec& h : heroes()) {
+        if (!first) out += ',';
+        first = false;
+        out += "{\"cls\":" + std::to_string(static_cast<int>(h.cls)) + ",\"key\":";
+        append_json_string(out, nav::hero_sprite_key(h.cls));
+        out += ",\"name\":";
+        append_json_string(out, nav::class_info(h.cls).name.get(g_lang));
+        out += ",\"hp\":" + std::to_string(h.hp) + ",\"shield\":" + std::to_string(h.shield) +
+               ",\"energy\":" + std::to_string(h.energy) + ",\"speed\":" + fnum(h.speed);
+        out += ",\"weapon\":" + std::to_string(weapon_index(h.weapon));
+        out += ",\"perk\":";
+        append_json_string(out, h.perk.get(g_lang));
+        out += "}";
+    }
+    out += "],\"lastDepth\":" + std::to_string(kLastDepth) + "}";
     return out;
 }
 
@@ -909,11 +1001,46 @@ EMSCRIPTEN_KEEPALIVE void nav_rt_start(double seed, int hero_class) {
 /// Runs `steps` fixed ticks with the same input. The page decides how many
 /// have come due; capped here too, so a tab woken after a minute in the
 /// background does not try to simulate the whole minute in one frame.
-EMSCRIPTEN_KEEPALIVE void nav_rt_step(float move_x, float move_y, int fire, int steps) {
-    const nav::rt::Input in{move_x, move_y, fire != 0};
+/// `interact` is a press, not a hold: it goes to the first of the steps only.
+EMSCRIPTEN_KEEPALIVE void nav_rt_step(float move_x, float move_y, int fire, int interact, int steps) {
+    nav::rt::Input in{move_x, move_y, fire != 0, interact != 0};
     if (steps > 8) steps = 8;
-    for (int i = 0; i < steps; ++i) g_rt.step(in);
+    for (int i = 0; i < steps; ++i) {
+        g_rt.step(in);
+        in.interact = false;
+    }
 }
+
+/// Straight to a floor, keeping the hero as they are: the page's ?floor=
+/// jump, for playtesting deep floors without playing down to them. With
+/// `at_guardian`, the hero is set down a few steps from the floor's guardian.
+EMSCRIPTEN_KEEPALIVE void nav_rt_floor(int depth, int at_guardian) {
+    if (depth < 1) depth = 1;
+    if (depth > nav::rt::kLastDepth) depth = nav::rt::kLastDepth;
+    g_rt.enter_floor(depth);
+    const nav::rt::Enemy* boss = g_rt.boss();
+    if (!at_guardian || boss == nullptr) return;
+    const nav::Map& m = g_rt.map();
+    nav::rt::V best = g_rt.hero().pos;
+    float best_miss = 1e9f;
+    for (int y = 0; y < m.height(); ++y) {
+        for (int x = 0; x < m.width(); ++x) {
+            const nav::Tile t = m.at({x, y});
+            if (t != nav::Tile::Floor || nav::Vec2{x, y} == g_rt.exit()) continue;
+            const nav::rt::V c{static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f};
+            const float miss = std::fabs(nav::rt::length(c - boss->pos) - 3.5f);
+            // In sight of it: three steps away through a wall is another room.
+            const nav::Vec2 at{static_cast<int>(boss->pos.x), static_cast<int>(boss->pos.y)};
+            if (miss < best_miss && nav::has_line_of_sight(m, {x, y}, at, 8)) {
+                best_miss = miss;
+                best = c;
+            }
+        }
+    }
+    g_rt.mutable_hero().pos = best;
+}
+
+EMSCRIPTEN_KEEPALIVE char* nav_rt_catalog_json() { return to_c_string(build_rt_catalog_json()); }
 
 EMSCRIPTEN_KEEPALIVE char* nav_rt_map_json() { return to_c_string(build_rt_map_json()); }
 

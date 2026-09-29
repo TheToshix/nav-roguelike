@@ -40,7 +40,8 @@ const std::vector<WeaponSpec>& weapons() {
     // twenty-five to forty — so that the choice between them is about how
     // they fight, not which number is biggest. The free ones sit at the low
     // end; the ones that cost energy buy something for it: reach, a pierce,
-    // a spread that clears a crowd.
+    // a spread that clears a crowd. Blades sit at the top of the band for
+    // free, and pay in the other currency: standing within a guardian's reach.
     static const std::vector<WeaponSpec> table = {
         //        key          name                                          dmg  every  energy knock  speed  n  spread life  radius pierce
         ranged("crossbow",   Text{"Самострел", "Crossbow"},                   5, 0.19f,  0,  3.5f, 13.0f, 1, 0.04f, 0.85f, 0.12f, false),
@@ -50,9 +51,9 @@ const std::vector<WeaponSpec>& weapons() {
         ranged("ember",      Text{"Жар-посох", "Ember staff"},                4, 0.13f,  1,  1.5f, 10.0f, 2, 0.22f, 0.90f, 0.14f, false),
         ranged("thunder",    Text{"Громовой самострел", "Thunder crossbow"}, 14, 0.55f,  4,  6.0f, 20.0f, 1, 0.00f, 0.90f, 0.14f, true),
         //        key          name                                          dmg  every  energy knock  reach  arc
-        melee("sword",       Text{"Меч", "Sword"},                            7, 0.30f,  0,  6.0f,  1.40f, 1.90f),
-        melee("axe",         Text{"Секира", "Axe"},                          14, 0.60f,  0,  9.0f,  1.55f, 2.40f),
-        melee("flail",       Text{"Кистень", "Flail"},                       10, 0.45f,  1,  7.0f,  1.35f, 6.2832f),
+        melee("sword",       Text{"Меч", "Sword"},                           11, 0.30f,  0,  6.0f,  1.40f, 1.90f),
+        melee("axe",         Text{"Секира", "Axe"},                          22, 0.60f,  0,  9.0f,  1.55f, 2.40f),
+        melee("flail",       Text{"Кистень", "Flail"},                       14, 0.45f,  1,  7.0f,  1.35f, 6.2832f),
     };
     return table;
 }

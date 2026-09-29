@@ -16,7 +16,9 @@
     <div class="bars">
       <div class="bar hp" title="Здоровье"><i></i><b></b><span></span></div>
       <div class="bar sh" title="Щит — возвращается сам, если не получать урон"><i></i><b></b><span></span></div>
+      <div class="bar en" title="Сила — на неё стреляет оружие получше"><i></i><b></b><span></span></div>
     </div>
+    <div id="arms"><span class="slot" id="slot0"></span><span class="slot" id="slot1"></span></div>
     <div class="meta">
       <span id="floor"></span>
       <span id="coins"></span>
@@ -25,12 +27,21 @@
 
   <button id="pauseBtn" type="button" aria-label="Пауза" hidden>❚❚</button>
 
+  <div id="bossBar" hidden>
+    <div class="name"><span id="bossName"></span><span id="bossPhases"></span></div>
+    <div class="bar boss"><i></i><b></b></div>
+    <div class="note" id="bossNote"></div>
+  </div>
+
+  <div id="prompt" hidden></div>
+
   <div id="banner" aria-live="assertive"></div>
 
   <div id="stick" hidden>
     <div class="base"></div>
     <div class="knob"></div>
   </div>
+  <button id="actBtn" type="button" hidden aria-label="Сменить оружие"></button>
   <button id="fireBtn" type="button" hidden aria-label="Стрелять">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21 14 10M14 10l-3-1 5-6 1 3 3 1-6 5zM6 18l-2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
@@ -38,12 +49,14 @@
   <div id="overlay">
     <div class="sheet">
       <h1>Навь</h1>
-      <p class="sub">Шестнадцать этажей вниз. Войдёшь в комнату — двери захлопнутся, пока не перебьёшь всех.</p>
+      <p class="sub intro">Шестнадцать этажей вниз и восемь стражей: по двое в конце каждого пояса. Войдёшь в комнату — двери захлопнутся, пока не перебьёшь всех.</p>
+      <div id="heroes" role="radiogroup" aria-label="Герой"></div>
       <div class="how">
         <div><kbd>WASD</kbd> или стрелки — идти</div>
-        <div><kbd>Пробел</kbd>, <kbd>J</kbd> или мышь — стрелять, прицел сам</div>
+        <div><kbd>Пробел</kbd>, <kbd>J</kbd> или мышь — бить, прицел сам</div>
+        <div><kbd>E</kbd> или <kbd>Q</kbd> — взять оружие с пола или сменить руку</div>
         <div><kbd>Esc</kbd> — пауза</div>
-        <div class="touch">На телефоне: левый палец ведёт, правый стреляет</div>
+        <div class="touch">На телефоне: левый палец ведёт, правый бьёт, малая кнопка меняет оружие</div>
       </div>
       <button id="goBtn" type="button" class="go">Спуститься</button>
       <p class="hint"><a href="index.html">Пошаговая версия</a></p>
