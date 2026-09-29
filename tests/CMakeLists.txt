@@ -48,6 +48,8 @@ add_executable(nav_tests
   test_arena.cpp
   test_portability.cpp
   test_realtime.cpp
+  test_realtime_heroes.cpp
+  test_realtime_bosses.cpp
   test_integration.cpp
 )
 

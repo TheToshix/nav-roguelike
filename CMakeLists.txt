@@ -31,6 +31,8 @@ add_library(nav_engine
   engine/src/keys.cpp
   engine/src/travel.cpp
   engine/src/rt.cpp
+  engine/src/rt_data.cpp
+  engine/src/rt_bosses.cpp
 )
 target_include_directories(nav_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/engine/include)
 
